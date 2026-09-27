@@ -29,7 +29,7 @@ before(async()=>{
  else {status=404;data={};}res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(data));});
  mock.listen(8799,'127.0.0.1');await once(mock,'listening');
  stateDir=await mkdtemp(join(tmpdir(),'trakt-mcp-test-'));
- worker=spawn('node',['node_modules/wrangler/bin/wrangler.js','dev','--config','tests/wrangler.toml','--port','8787','--inspector-port','9231','--persist-to',stateDir],{stdio:['ignore','pipe','pipe'],env:{...process.env,WRANGLER_SEND_METRICS:'false'}});worker.stdout.on('data',d=>{logs+=d});worker.stderr.on('data',d=>{logs+=d});
+ worker=spawn('node',['node_modules/wrangler/bin/wrangler.js','dev','--config','tests/wrangler.test.toml','--port','8787','--inspector-port','9231','--persist-to',stateDir],{stdio:['ignore','pipe','pipe'],env:{...process.env,WRANGLER_SEND_METRICS:'false'}});worker.stdout.on('data',d=>{logs+=d});worker.stderr.on('data',d=>{logs+=d});
  for(let i=0;i<100;i++){try{const r=await api('/health');if(r.status===200)return;}catch{}await pause(200);}throw Error('Worker failed to start: '+logs);
 });
 after(async()=>{

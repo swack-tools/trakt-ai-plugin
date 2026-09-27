@@ -31,6 +31,13 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-worker-build-0.1.14-${{ hashFiles('Cargo.toml') }}
       - run: npm ci
+      - name: Generate ignored validation configuration
+        env:
+          CLOUDFLARE_ACCOUNT_ID: '00000000000000000000000000000000'
+          CLOUDFLARE_KV_NAMESPACE: '00000000000000000000000000000000'
+          CLOUDFLARE_PLUGIN_DNS: trakt.swacktech.com
+          CLOUDFLARE_KV_NAMESPACE_NAME: TRAKT_SESSIONS
+        run: python3 scripts/manage.py configure
       - name: Install matching worker-build
         run: command -v worker-build || cargo install worker-build --version 0.1.14 --locked
       - name: Check and test Rust
@@ -47,9 +54,13 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_KV_NAMESPACE: ${{ secrets.CLOUDFLARE_KV_NAMESPACE }}
+          CLOUDFLARE_PLUGIN_DNS: trakt.swacktech.com
+          CLOUDFLARE_KV_NAMESPACE_NAME: TRAKT_SESSIONS
           TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
           TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
         run: |
+          python3 scripts/manage.py configure
           python3 - <<'PY'
           import json, os, subprocess, tempfile
           with tempfile.NamedTemporaryFile(mode='w', suffix='.json') as f:

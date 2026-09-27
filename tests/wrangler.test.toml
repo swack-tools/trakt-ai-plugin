@@ -1,0 +1,18 @@
+name = "trakt-mcp-test"
+main = "../build/worker/shim.mjs"
+compatibility_date = "2026-09-22"
+[vars]
+TRAKT_API_URL = "http://127.0.0.1:8799"
+TRAKT_AUTH_URL = "http://127.0.0.1:8799"
+TRAKT_CLIENT_ID = "test-client-id"
+TRAKT_CLIENT_SECRET = "test-client-secret"
+TRAKT_REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"
+[[kv_namespaces]]
+binding = "TRAKT_SESSIONS"
+id = "test-sessions"
+[[durable_objects.bindings]]
+name = "TRAKT_COORDINATOR"
+class_name = "TraktCoordinator"
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TraktCoordinator"]

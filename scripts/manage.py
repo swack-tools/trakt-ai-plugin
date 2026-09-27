@@ -5,8 +5,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 def environment():
-    values = {}
-    for line in (ROOT / '.env').read_text().splitlines():
+    values = dict(os.environ)
+    env_file = ROOT / '.env'
+    for line in env_file.read_text().splitlines() if env_file.exists() else []:
         if line.strip() and not line.lstrip().startswith('#') and '=' in line:
             k, v = line.split('=', 1)
             values[k.strip()] = v.strip().strip('"').strip("'")
@@ -17,14 +18,16 @@ def main():
     if sys.argv[1] == 'configure':
         assert v['CLOUDFLARE_PLUGIN_DNS'] == 'trakt.swacktech.com', 'Unexpected target domain'
         assert v['CLOUDFLARE_KV_NAMESPACE_NAME'] == 'TRAKT_SESSIONS', 'Unexpected KV binding'
-        os.chmod(ROOT / '.env', 0o600)
+        if (ROOT / '.env').exists():
+            os.chmod(ROOT / '.env', 0o600)
         template = (ROOT / 'wrangler.toml.example').read_text()
         for k in ('CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_KV_NAMESPACE'):
             template = template.replace('${' + k + '}', v[k])
         (ROOT / 'wrangler.toml').write_text(template)
+        os.chmod(ROOT / 'wrangler.toml', 0o600)
         print('Configured Worker.')
     elif sys.argv[1] == 'sync-secrets':
-        mapping = {'CLOUDFLARE_ACCOUNT_ID': 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN': 'CLOUDFLARE_WORKER_API_TOKEN', 'TRAKT_CLIENT_ID': 'TRAKT_CLIENT_ID', 'TRAKT_CLIENT_SECRET': 'TRAKT_CLIENT_SECRET'}
+        mapping = {'CLOUDFLARE_ACCOUNT_ID': 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN': 'CLOUDFLARE_WORKER_API_TOKEN', 'CLOUDFLARE_KV_NAMESPACE': 'CLOUDFLARE_KV_NAMESPACE', 'TRAKT_CLIENT_ID': 'TRAKT_CLIENT_ID', 'TRAKT_CLIENT_SECRET': 'TRAKT_CLIENT_SECRET'}
         for name, source in mapping.items():
             subprocess.run(['gh', 'secret', 'set', name, '--repo', 'swack-tools/trakt-mcp'], input=v[source], text=True, check=True)
             print('Synced ' + name)

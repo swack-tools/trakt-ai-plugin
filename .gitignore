@@ -11,3 +11,4 @@ build/
 worker/
 .firecrawl/
 __pycache__/
+**wrangler.toml
