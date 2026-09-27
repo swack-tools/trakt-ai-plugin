@@ -2,6 +2,7 @@
 """Validate generated local links, page landmarks, and the immutable README."""
 import argparse
 import hashlib
+from build import PAGES, BASE_URL
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -40,18 +41,20 @@ class Page(HTMLParser):
 def check(root):
     root = root.resolve()
     pages = {p: Page(p.read_text()) for p in root.rglob("*.html")}
-    assert len(pages) == 3, "Expected overview, connect, and reference pages"
+    assert {x.stem for x in pages} == set(PAGES), "Generated page set does not match source registry"
     checked = 0
     for path, page in pages.items():
         assert not page.errors, f"{path}: {page.errors}"
         canonical_path = "" if path.name == "index.html" else path.name
-        assert page.canonical == [f"https://trakt.swacktech.com/{canonical_path}"], f"{path}: incorrect canonical URL"
+        assert page.canonical == [f"{BASE_URL}/{canonical_path}"], f"{path}: incorrect canonical URL"
         assert page.h1_count == 1, f"{path}: expected one h1"
         assert page.landmarks == {"main", "header", "footer", "nav", "title"}, f"{path}: missing landmarks"
         for link in page.links:
             parts = urlsplit(link)
             if parts.scheme or parts.netloc:
-                assert parts.scheme == "https", f"Unexpected external link: {link}"
+                assert parts.scheme in {"https", "mailto"}, f"Unexpected external link: {link}"
+                if parts.scheme == "mailto":
+                    assert parts.path == "security@swacktech.com" and not parts.query, f"Unexpected contact: {link}"
                 continue
             assert not parts.path.startswith("/"), f"Use project-relative paths: {link}"
             target = (path.parent / unquote(parts.path)).resolve() if parts.path else path

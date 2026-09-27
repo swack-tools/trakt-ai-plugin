@@ -1,1 +1,1 @@
-{"mcpServers":{"trakt":{"type":"sse","url":"https://trakt.swacktech.com/sse"}}}
+{"mcpServers":{"trakt":{"type":"http","url":"https://trakt.swacktech.com/mcp"}}}

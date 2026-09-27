@@ -1,6 +1,6 @@
 # Trakt MCP
 
-Connect your own [Trakt](https://trakt.tv/) account to Claude or Codex for movie and TV recommendations, watched history, and search. Read-only: it does not change your Trakt history or ratings.
+Connect your own [Trakt](https://trakt.tv/) account to Claude or Codex for movie and TV recommendations, watched summaries, and title search. Four bundled skills guide useful workflows. Media tools do not change your Trakt history or ratings; login tools change authentication state.
 
 ## Desktop setup
 
@@ -50,6 +50,15 @@ Each person signs in with their own Trakt account:
 2. Open [trakt.tv/activate](https://trakt.tv/activate), sign in, enter the code, and approve access.
 3. Return to the authorization page; it finishes connecting automatically. Then return to your chat.
 
+## Four bundled workflows
+
+- **what-to-watch** — a concise shortlist grounded in Trakt recommendations.
+- **watching-profile** — summarize returned watched titles and play counts, without inventing a dated timeline.
+- **find-title** — disambiguate titles, years, and remakes with bounded search.
+- **connection-help** — diagnose installation, OAuth, device codes, and rate limits.
+
+Use natural language or your client’s skill picker. See the [plugin README](plugins/trakt-mcp/README.md) for setup, workflow details, and platform limits.
+
 ## Try asking
 
 - “Recommend five movies for me using Trakt.”
@@ -59,6 +68,10 @@ Each person signs in with their own Trakt account:
 - “Search Trakt for Arrival.”
 
 Recommendations come from Trakt’s personalized results. History shows watched titles and play counts.
+
+For standalone MCP or skills-only setup, see the [installation guide](https://trakt.swacktech.com/connect.html). Skills alone still require the authenticated MCP connection.
+
+This is a community plugin, not an approved directory listing or an official Trakt integration. Directory eligibility, publisher verification, and reviewer access remain owner responsibilities.
 
 See the [full documentation](https://trakt.swacktech.com/) for other clients, troubleshooting, API details, and self-hosting.
 

@@ -131,7 +131,10 @@ impl<'a> Client<'a> {
             .extend_pairs(query.iter().map(|(k, v)| (*k, v.as_str())));
         let mut headers = Headers::new();
         headers.set("Content-Type", "application/json")?;
-        headers.set("User-Agent", "trakt-mcp/1.0 (+https://trakt.swacktech.com)")?;
+        headers.set(
+            "User-Agent",
+            &format!("trakt-mcp/1.0 (+{})", crate::config::base(self.env)?),
+        )?;
         headers.set("trakt-api-version", "2")?;
         headers.set(
             "trakt-api-key",

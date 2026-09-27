@@ -9,6 +9,7 @@ preview_urls = false
 command = "worker-build --release"
 
 [vars]
+PUBLIC_BASE_URL = "${PUBLIC_BASE_URL}"
 TRAKT_API_URL = "https://api.trakt.tv"
 TRAKT_AUTH_URL = "https://api.trakt.tv"
 TRAKT_REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"
@@ -16,72 +17,76 @@ TRAKT_REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"
 # GitHub Pages is the DNS origin. Only API/auth paths invoke this Worker.
 # Trailing wildcards include query strings in Cloudflare route matching.
 [[routes]]
-pattern = "trakt.swacktech.com/mcp*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/mcp*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/sse*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/sse*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/messages*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/messages*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/health*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/health*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/privacy*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/privacy*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/openapi.json*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/openapi.json*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/.well-known/oauth-authorization-server*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/.well-known/oauth-authorization-server*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/.well-known/oauth-protected-resource*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/.well-known/oauth-protected-resource*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/.well-known/ai-plugin.json*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/.well-known/openai-apps-challenge*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/logo.svg*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/.well-known/ai-plugin.json*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/login.js*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/logo.svg*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/login.css*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/login.js*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/oauth/*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/login.css*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/auth/*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/oauth/*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/sync/*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/auth/*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/search*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/sync/*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "trakt.swacktech.com/recommendations*"
-zone_name = "swacktech.com"
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/search*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
+
+[[routes]]
+pattern = "${CLOUDFLARE_PLUGIN_DNS}/recommendations*"
+zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[kv_namespaces]]
 binding = "TRAKT_SESSIONS"

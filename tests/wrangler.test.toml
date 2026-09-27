@@ -2,6 +2,8 @@ name = "trakt-mcp-test"
 main = "../build/worker/shim.mjs"
 compatibility_date = "2026-09-22"
 [vars]
+PUBLIC_BASE_URL = "https://plugin.example.test"
+OPENAI_APPS_CHALLENGE = "fixture-domain-challenge"
 TRAKT_API_URL = "http://127.0.0.1:8799"
 TRAKT_AUTH_URL = "http://127.0.0.1:8799"
 TRAKT_CLIENT_ID = "test-client-id"

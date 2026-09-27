@@ -1,3 +1,4 @@
+mod config;
 mod coordinator;
 pub mod error;
 mod http;
@@ -9,15 +10,17 @@ pub use coordinator::TraktCoordinator;
 use worker::*;
 #[event(fetch)]
 pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
+    let base = match config::base(&env) {
+        Ok(base) => base,
+        Err(e) => return e.response(),
+    };
     let origin = req.headers().get("Origin")?;
     if origin.as_deref().is_some_and(|o| {
-        !matches!(
-            o,
-            "https://trakt.swacktech.com"
-                | "https://chatgpt.com"
-                | "https://chat.openai.com"
-                | "https://claude.ai"
-        )
+        o != base
+            && !matches!(
+                o,
+                "https://chatgpt.com" | "https://chat.openai.com" | "https://claude.ai"
+            )
     }) {
         return crate::error::ApiError::new(403, "origin_not_allowed").response();
     }
@@ -38,7 +41,14 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     };
     let headers = res.headers().clone();
     res = res.with_headers(headers);
+    let unauthorized = res.status_code() == 401;
     let h = res.headers_mut();
+    if unauthorized {
+        h.set(
+            "WWW-Authenticate",
+            &format!("Bearer resource_metadata=\"{base}/.well-known/oauth-protected-resource\""),
+        )?;
+    }
     h.set("Cache-Control", "no-store")?;
     h.set("X-Content-Type-Options", "nosniff")?;
     h.set("Referrer-Policy", "no-referrer")?;

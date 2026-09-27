@@ -347,3 +347,7 @@ section {
   margin-top:30px}
 }
 
+
+.workflows { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.workflows h2 { font-size:28px; }
+@media(max-width:760px) { .workflows { grid-template-columns:1fr; } }
