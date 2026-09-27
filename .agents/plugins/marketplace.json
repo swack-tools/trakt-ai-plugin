@@ -1,0 +1,20 @@
+{
+  "name": "trakt-mcp",
+  "interface": {
+    "displayName": "Trakt MCP"
+  },
+  "plugins": [
+    {
+      "name": "trakt-mcp",
+      "source": {
+        "source": "local",
+        "path": "./plugins/trakt-mcp"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

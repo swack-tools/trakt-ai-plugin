@@ -1,0 +1,27 @@
+{
+  "name": "trakt-mcp",
+  "version": "1.0.0",
+  "description": "Connect your own Trakt account for watched history, personalized recommendations, and movie/TV search.",
+  "author": {
+    "name": "swackhamer"
+  },
+  "homepage": "https://trakt.swacktech.com",
+  "repository": "https://github.com/swack-tools/trakt-mcp",
+  "license": "GPL-3.0-only",
+  "keywords": ["trakt", "movies", "tv", "watch-history", "recommendations"],
+  "interface": {
+    "displayName": "Trakt MCP",
+    "shortDescription": "Your Trakt history, recommendations, and movie/TV search.",
+    "longDescription": "Connect your own Trakt account through the hosted service. Approve the device code at Trakt to browse your watched history, get personalized recommendations, and search movies and TV. Each user authorizes their own connection.",
+    "developerName": "swackhamer",
+    "category": "Productivity",
+    "capabilities": ["Read"],
+    "websiteURL": "https://trakt.swacktech.com",
+    "defaultPrompt": [
+      "Show my recently watched movies and episodes.",
+      "Recommend a movie based on my Trakt history.",
+      "Search Trakt for a TV show."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}
