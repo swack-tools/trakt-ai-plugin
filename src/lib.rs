@@ -28,12 +28,8 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         match http::bounded(req).await {
             Ok(req) => {
                 Router::new()
-                    .or_else_any_method_async("/*path", |req, ctx: RouteContext<()>| async move {
-                        match http::route(req, ctx.env).await {
-                            Ok(r) => Ok(r),
-                            Err(e) => e.response(),
-                        }
-                    })
+                    .get_async("/", route_request)
+                    .or_else_any_method_async("/*path", route_request)
                     .run(req, env)
                     .await?
             }
@@ -61,4 +57,11 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         "WWW-Authenticate, Retry-After",
     )?;
     Ok(res)
+}
+
+async fn route_request(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    match http::route(req, ctx.env).await {
+        Ok(r) => Ok(r),
+        Err(e) => e.response(),
+    }
 }

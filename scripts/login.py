@@ -5,7 +5,7 @@ from pathlib import Path
 BASE='https://trakt.swacktech.com'
 
 def request(path,body,token=None):
-    headers={'Content-Type':'application/json'}
+    headers={'Content-Type':'application/json','User-Agent':'trakt-mcp-cli/1.0'}
     if token: headers['Authorization']='Bearer '+token
     r=urllib.request.Request(BASE+path,data=json.dumps(body).encode(),headers=headers)
     try:

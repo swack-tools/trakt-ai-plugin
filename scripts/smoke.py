@@ -4,7 +4,7 @@ import json,time,urllib.request,urllib.error
 BASE='https://trakt.swacktech.com'
 def get(path):
  try:
-  with urllib.request.urlopen(BASE+path,timeout=20) as r:return r.status,json.load(r)
+  with urllib.request.urlopen(urllib.request.Request(BASE+path,headers={'User-Agent':'trakt-mcp-smoke/1.0'}),timeout=20) as r:return r.status,json.load(r)
  except urllib.error.HTTPError as e:return e.code,json.load(e)
 for attempt in range(12):
  try:

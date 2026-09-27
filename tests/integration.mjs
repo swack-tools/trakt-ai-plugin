@@ -18,7 +18,7 @@ async function device(){const r=await api('/auth/device/code',{method:'POST',bod
 async function connect(){const d=await device();users.get(d.device_code).authorized=true;await pause(1100);const r=await api('/auth/device/token',{token:d.session_token,method:'POST',body:{device_code:d.device_code}});assert.equal(r.status,200,JSON.stringify(r.data));assert.ok(r.data.access_token);return {...r.data,device:d};}
 before(async()=>{
  mock=http.createServer(async(req,res)=>{let raw='';for await(const chunk of req)raw+=chunk;const body=raw?JSON.parse(raw):{};const u=new URL(req.url,'http://mock');requests.push({path:u.pathname,query:u.searchParams,headers:req.headers,body});
- assert.equal(req.headers['trakt-api-key'],'test-client-id');assert.equal(req.headers['trakt-api-version'],'2');
+ assert.equal(req.headers['user-agent'],'trakt-mcp/1.0 (+https://trakt.swacktech.com)');assert.equal(req.headers['trakt-api-key'],'test-client-id');assert.equal(req.headers['trakt-api-version'],'2');
  let status=200,data;
  if(u.pathname==='/oauth/device/code'){const code=`device-${++next}`;users.set(code,{id:next,authorized:false});data={device_code:code,user_code:`USER${next}`,verification_url:'https://trakt.tv/activate',expires_in:600,interval:1};}
  else if(u.pathname==='/oauth/device/token'){const user=users.get(body.code);assert.equal(body.client_secret,'test-client-secret');if(!user){status=404;data={};}else if(user.status){status=user.status;data={};}else if(!user.authorized){status=400;data={};}else{data={access_token:`trakt-${user.id}`,refresh_token:`refresh-${user.id}`,created_at:Math.floor(Date.now()/1000),expires_in:user.expired?1:3600};}}
@@ -47,7 +47,7 @@ after(async()=>{
  }
 });
 test('discovery, origin, auth, and bounded input',async()=>{
- assert.equal((await api('/health')).status,200);assert.equal((await api('/sync/watched')).status,401);
+ assert.equal((await api('/')).status,200);assert.equal((await api('/health')).status,200);assert.equal((await api('/sync/watched')).status,401);
  assert.match((await api('/sync/watched')).headers.get('www-authenticate'),/resource_metadata/);
  assert.equal((await api('/mcp',{method:'POST',headers:{Origin:'https://evil.test'},body:{}})).status,403);
  assert.equal((await api('/mcp',{method:'POST',body:{x:'x'.repeat(70000)}})).status,413);
