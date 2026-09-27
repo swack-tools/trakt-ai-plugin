@@ -11,16 +11,16 @@ import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 const base='http://127.0.0.1:8787';
-const users=new Map();let next=0,refreshes=0,worker,mock;let logs='',stateDir; const requests=[];
+const users=new Map();let next=0,refreshes=0,worker,mock;let logs='',stateDir; const requests=[];let deviceInterval=1;
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 async function api(path,{token,method='GET',body,headers={}}={}){const r=await fetch(base+path,{signal:AbortSignal.timeout(15000),method,headers:{...(token?{Authorization:`Bearer ${token}`} : {}),...(body?{'Content-Type':'application/json'}:{}),...headers},body:body?JSON.stringify(body):undefined});const text=await r.text();let data;try{data=JSON.parse(text);}catch{data=text;}return {status:r.status,data,headers:r.headers};}
-async function device(){const r=await api('/auth/device/code',{method:'POST',body:{}});assert.equal(r.status,200,JSON.stringify(r.data));return r.data;}
+async function device(interval=1){deviceInterval=interval;try{const r=await api('/auth/device/code',{method:'POST',body:{}});assert.equal(r.status,200,JSON.stringify(r.data));return r.data;}finally{deviceInterval=1;}}
 async function connect(){const d=await device();users.get(d.device_code).authorized=true;await pause(1100);const r=await api('/auth/device/token',{token:d.session_token,method:'POST',body:{device_code:d.device_code}});assert.equal(r.status,200,JSON.stringify(r.data));assert.ok(r.data.access_token);return {...r.data,device:d};}
 before(async()=>{
  mock=http.createServer(async(req,res)=>{let raw='';for await(const chunk of req)raw+=chunk;const body=raw?JSON.parse(raw):{};const u=new URL(req.url,'http://mock');requests.push({path:u.pathname,query:u.searchParams,headers:req.headers,body});
  assert.equal(req.headers['user-agent'],'trakt-mcp/1.0 (+https://trakt.swacktech.com)');assert.equal(req.headers['trakt-api-key'],'test-client-id');assert.equal(req.headers['trakt-api-version'],'2');
  let status=200,data;
- if(u.pathname==='/oauth/device/code'){const code=`device-${++next}`;users.set(code,{id:next,authorized:false});data={device_code:code,user_code:`USER${next}`,verification_url:'https://trakt.tv/activate',expires_in:600,interval:1};}
+ if(u.pathname==='/oauth/device/code'){const code=`device-${++next}`;users.set(code,{id:next,authorized:false});data={device_code:code,user_code:`USER${next}`,verification_url:'https://trakt.tv/activate',expires_in:600,interval:deviceInterval};}
  else if(u.pathname==='/oauth/device/token'){const user=users.get(body.code);assert.equal(body.client_secret,'test-client-secret');if(!user){status=404;data={};}else if(user.status){status=user.status;data={};}else if(!user.authorized){status=400;data={};}else{data={access_token:`trakt-${user.id}`,refresh_token:`refresh-${user.id}`,created_at:Math.floor(Date.now()/1000),expires_in:user.expired?1:3600};}}
  else if(u.pathname==='/oauth/token'){refreshes++;await pause(150);data={access_token:body.refresh_token.replace('refresh-','trakt-'),refresh_token:`rotated-${refreshes}`,created_at:Math.floor(Date.now()/1000),expires_in:3600};}
  else if(u.pathname.startsWith('/sync/watched/')){data=[{plays:1,movie:{title:'Private movie',ids:{trakt:Number(req.headers.authorization?.split('-').at(-1))},genres:['drama'],released:'2020-01-01'}}];}
@@ -55,10 +55,15 @@ test('discovery, origin, auth, and bounded input',async()=>{
  assert.equal((await api('/mcp')).status,405);
 });
 test('device pending, interval and cross-user isolation',async()=>{
- const a=await device(),b=await device();
+ // The server uses whole seconds; leave room for requests crossing a second boundary.
+ const a=await device(3),b=await device();
+ const tokenRequests=()=>requests.filter(r=>r.path==='/oauth/device/token'&&r.body.code===a.device_code).length;
+ const before=tokenRequests();
  assert.equal((await api('/auth/device/token',{method:'POST',token:a.session_token,body:{device_code:a.device_code}})).data.error,'slow_down');
+ assert.equal(tokenRequests(),before,'early polls must not reach Trakt');
  assert.equal((await api('/auth/device/token',{method:'POST',token:a.session_token,body:{device_code:b.device_code}})).data.error,'invalid_device_code');
- await pause(1100);const pending=await api('/auth/device/token',{method:'POST',token:a.session_token,body:{device_code:a.device_code}});assert.equal(pending.data.error,'authorization_pending');
+ await pause(a.interval*1000+100);const pending=await api('/auth/device/token',{method:'POST',token:a.session_token,body:{device_code:a.device_code}});assert.equal(pending.data.error,'authorization_pending');
+ assert.equal(tokenRequests(),before+1,'a pending poll must reach Trakt after the interval');
  const forged=a.session_token.split('.')[0]+'.'+b.session_token.split('.')[1];assert.equal((await api('/search?query=test',{token:forged})).status,401);
  const user=await connect();const history=await api('/sync/watched?media_type=movies',{token:user.access_token});assert.equal(history.data.data[0].movie.ids.trakt,users.get(user.device.device_code).id);assert.ok(!JSON.stringify(history.data).includes('refresh_token'));
  assert.equal((await api('/sync/watched',{token:b.session_token})).data.error,'trakt_login_required');
