@@ -1,0 +1,15 @@
+{
+  "name": "trakt-mcp",
+  "owner": {"name": "swackhamer"},
+  "metadata": {
+    "description": "Connect your own Trakt account to Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "trakt-mcp",
+      "source": "./plugins/trakt-mcp",
+      "description": "Watched history, personalized recommendations, and movie/TV search through your own Trakt account.",
+      "category": "productivity"
+    }
+  ]
+}

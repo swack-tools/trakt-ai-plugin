@@ -1,0 +1,19 @@
+{
+  "name": "trakt-mcp",
+  "version": "1.0.0",
+  "description": "Connect your own Trakt account for watched history, personalized recommendations, and movie/TV search.",
+  "author": {
+    "name": "swackhamer"
+  },
+  "homepage": "https://swack-tools.github.io/trakt-mcp/",
+  "repository": "https://github.com/swack-tools/trakt-mcp",
+  "license": "GPL-3.0-only",
+  "keywords": [
+    "trakt",
+    "movies",
+    "tv",
+    "watch-history",
+    "recommendations"
+  ],
+  "mcpServers": "./.mcp.json"
+}
