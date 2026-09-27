@@ -1,0 +1,13 @@
+/target
+**/*.rs.bk
+Cargo.lock
+.env
+.env.*
+!.env.example
+.dev.vars*
+.wrangler/
+node_modules/
+build/
+worker/
+.firecrawl/
+__pycache__/

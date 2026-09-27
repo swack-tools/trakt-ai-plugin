@@ -1,0 +1,8 @@
+{
+  "name": "trakt-mcp",
+  "version": "1.0.0",
+  "description": "Connect your own Trakt account for watched history, personalized recommendations, and movie/TV search.",
+  "author": {"name": "swackhamer"},
+  "license": "GPL-3.0-only",
+  "mcpServers": "./.claude-plugin/mcp.json"
+}

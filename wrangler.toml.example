@@ -1,0 +1,40 @@
+name = "trakt-mcp"
+main = "build/worker/shim.mjs"
+compatibility_date = "2026-09-22"
+account_id = "${CLOUDFLARE_ACCOUNT_ID}"
+workers_dev = false
+preview_urls = false
+
+[build]
+command = "worker-build --release"
+
+[vars]
+TRAKT_API_URL = "https://api.trakt.tv"
+TRAKT_AUTH_URL = "https://api.trakt.tv"
+TRAKT_REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"
+
+[[routes]]
+pattern = "trakt.swacktech.com"
+custom_domain = true
+
+[[kv_namespaces]]
+binding = "TRAKT_SESSIONS"
+id = "${CLOUDFLARE_KV_NAMESPACE}"
+
+[[durable_objects.bindings]]
+name = "TRAKT_COORDINATOR"
+class_name = "TraktCoordinator"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TraktCoordinator"]
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+[observability.logs]
+enabled = true
+invocation_logs = false
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.1
