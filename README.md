@@ -60,6 +60,6 @@ Each person signs in with their own Trakt account:
 
 Recommendations come from Trakt’s personalized results. History shows watched titles and play counts.
 
-See the [full documentation](https://swack-tools.github.io/trakt-mcp/) for other clients, troubleshooting, API details, and self-hosting.
+See the [full documentation](https://trakt.swacktech.com/) for other clients, troubleshooting, API details, and self-hosting.
 
 Licensed under [GPL-3.0-only](LICENSE).

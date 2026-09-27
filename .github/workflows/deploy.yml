@@ -40,6 +40,8 @@ jobs:
         run: python3 scripts/manage.py configure
       - name: Install matching worker-build
         run: command -v worker-build || cargo install worker-build --version 0.1.14 --locked
+      - name: Validate API and documentation routing
+        run: python3 scripts/check_routes.py
       - name: Check and test Rust
         run: |
           cargo fmt --check

@@ -5,7 +5,7 @@
   "author": {
     "name": "swackhamer"
   },
-  "homepage": "https://swack-tools.github.io/trakt-mcp/",
+  "homepage": "https://trakt.swacktech.com/",
   "repository": "https://github.com/swack-tools/trakt-mcp",
   "license": "GPL-3.0-only",
   "keywords": [
@@ -24,7 +24,7 @@
     "capabilities": [
       "Read"
     ],
-    "websiteURL": "https://swack-tools.github.io/trakt-mcp/",
+    "websiteURL": "https://trakt.swacktech.com/",
     "defaultPrompt": [
       "Show my watched movies and TV shows.",
       "Recommend a movie based on my Trakt history.",
