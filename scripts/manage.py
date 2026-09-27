@@ -29,7 +29,7 @@ def main():
     elif sys.argv[1] == 'sync-secrets':
         mapping = {'CLOUDFLARE_ACCOUNT_ID': 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN': 'CLOUDFLARE_WORKER_API_TOKEN', 'CLOUDFLARE_KV_NAMESPACE': 'CLOUDFLARE_KV_NAMESPACE', 'TRAKT_CLIENT_ID': 'TRAKT_CLIENT_ID', 'TRAKT_CLIENT_SECRET': 'TRAKT_CLIENT_SECRET'}
         for name, source in mapping.items():
-            subprocess.run(['gh', 'secret', 'set', name, '--repo', 'swack-tools/trakt-mcp'], input=v[source], text=True, check=True)
+            subprocess.run(['gh', 'secret', 'set', name, '--repo', 'swack-tools/trakt-ai-plugin'], input=v[source], text=True, check=True)
             print('Synced ' + name)
     elif sys.argv[1] == 'deploy':
         e = os.environ | {'CLOUDFLARE_API_TOKEN': v['CLOUDFLARE_WORKER_API_TOKEN'], 'CLOUDFLARE_ACCOUNT_ID': v['CLOUDFLARE_ACCOUNT_ID']}
