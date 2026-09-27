@@ -2,7 +2,8 @@
 """Interactive device login. Saves plugin credentials privately; never prints tokens."""
 import json, os, time, urllib.request, urllib.error
 from pathlib import Path
-BASE='https://trakt.swacktech.com'
+from manage import public_base
+BASE=public_base()
 
 def request(path,body,token=None):
     headers={'Content-Type':'application/json','User-Agent':'trakt-mcp-cli/1.0'}

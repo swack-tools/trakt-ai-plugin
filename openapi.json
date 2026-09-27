@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://trakt.swacktech.com"
+      "url": "https://example.invalid"
     }
   ],
   "security": [
@@ -315,8 +315,7 @@
                 "movie",
                 "show",
                 "movies",
-                "shows",
-                "all"
+                "shows"
               ],
               "description": "Movie or show; all is supported by search/history only."
             }
@@ -603,7 +602,7 @@
     "/oauth/token": {
       "post": {
         "operationId": "exchangePluginToken",
-        "description": "Exchange a single-use authorization code plus verifier, or rotate a plugin refresh token. The optional resource must equal https://trakt.swacktech.com/. Client-bound tokens require the original client_id and confidential client secret where applicable.",
+        "description": "Exchange a single-use authorization code plus verifier, or rotate a plugin refresh token. The optional resource must equal the deployment resource URL advertised by OAuth discovery (including its trailing slash). Client-bound tokens require the original client_id and confidential client secret where applicable.",
         "responses": {
           "200": {
             "description": "Success",
@@ -1519,8 +1518,8 @@
         "type": "oauth2",
         "flows": {
           "authorizationCode": {
-            "authorizationUrl": "https://trakt.swacktech.com/oauth/authorize",
-            "tokenUrl": "https://trakt.swacktech.com/oauth/token",
+            "authorizationUrl": "https://example.invalid/oauth/authorize",
+            "tokenUrl": "https://example.invalid/oauth/token",
             "scopes": {
               "trakt:read": "Read personal Trakt data"
             }

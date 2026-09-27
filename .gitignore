@@ -12,3 +12,9 @@ worker/
 .firecrawl/
 __pycache__/
 **wrangler.toml
+
+# Generated submission packages and checksums
+/dist/
+
+# Local submission planning and review materials
+/submission/

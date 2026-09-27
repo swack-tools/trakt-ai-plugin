@@ -22,9 +22,6 @@ impl ApiError {
         if let Some(n) = self.retry_after {
             r.headers_mut().set("Retry-After", &n.to_string())?;
         }
-        if self.status == 401 {
-            r.headers_mut().set("WWW-Authenticate", "Bearer resource_metadata=\"https://trakt.swacktech.com/.well-known/oauth-protected-resource\"")?;
-        }
         Ok(r)
     }
 }

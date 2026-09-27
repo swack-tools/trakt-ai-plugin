@@ -18,13 +18,15 @@ async function device(interval=1){deviceInterval=interval;try{const r=await api(
 async function connect(){const d=await device();users.get(d.device_code).authorized=true;await pause(1100);const r=await api('/auth/device/token',{token:d.session_token,method:'POST',body:{device_code:d.device_code}});assert.equal(r.status,200,JSON.stringify(r.data));assert.ok(r.data.access_token);return {...r.data,device:d};}
 before(async()=>{
  mock=http.createServer(async(req,res)=>{let raw='';for await(const chunk of req)raw+=chunk;const body=raw?JSON.parse(raw):{};const u=new URL(req.url,'http://mock');requests.push({path:u.pathname,query:u.searchParams,headers:req.headers,body});
- assert.equal(req.headers['user-agent'],'trakt-mcp/1.0 (+https://trakt.swacktech.com)');assert.equal(req.headers['trakt-api-key'],'test-client-id');assert.equal(req.headers['trakt-api-version'],'2');
+ assert.equal(req.headers['user-agent'],'trakt-mcp/1.0 (+https://plugin.example.test)');assert.equal(req.headers['trakt-api-key'],'test-client-id');assert.equal(req.headers['trakt-api-version'],'2');
  let status=200,data;
  if(u.pathname==='/oauth/device/code'){const code=`device-${++next}`;users.set(code,{id:next,authorized:false});data={device_code:code,user_code:`USER${next}`,verification_url:'https://trakt.tv/activate',expires_in:600,interval:deviceInterval};}
  else if(u.pathname==='/oauth/device/token'){const user=users.get(body.code);assert.equal(body.client_secret,'test-client-secret');if(!user){status=404;data={};}else if(user.status){status=user.status;data={};}else if(!user.authorized){status=400;data={};}else{data={access_token:`trakt-${user.id}`,refresh_token:`refresh-${user.id}`,created_at:Math.floor(Date.now()/1000),expires_in:user.expired?1:3600};}}
  else if(u.pathname==='/oauth/token'){refreshes++;await pause(150);data={access_token:body.refresh_token.replace('refresh-','trakt-'),refresh_token:`rotated-${refreshes}`,created_at:Math.floor(Date.now()/1000),expires_in:3600};}
  else if(u.pathname.startsWith('/sync/watched/')){data=[{plays:1,movie:{title:'Private movie',ids:{trakt:Number(req.headers.authorization?.split('-').at(-1))},genres:['drama'],released:'2020-01-01'}}];}
  else if(u.pathname.startsWith('/recommendations/')){data=[{title:'Recommendation',genres:['drama'],year:2020}];}
+ else if(u.pathname.startsWith('/search/') && u.searchParams.get('query')==='rate-limit'){status=429;res.setHeader('Retry-After','7');data={private_upstream_detail:'must not be returned'};}
+ else if(u.pathname.startsWith('/search/') && u.searchParams.get('query')==='upstream-error'){status=503;data={private_upstream_detail:'must not be returned'};}
  else if(u.pathname.startsWith('/search/')){res.setHeader('X-Pagination-Page','1');res.setHeader('X-Pagination-Page-Count','3');data=[{type:'movie',movie:{title:'A & B',year:2020,genres:['drama']}},{type:'show',show:{title:'Wrong year',year:1999,genres:['comedy']}}];}
  else {status=404;data={};}res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(data));});
  mock.listen(8799,'127.0.0.1');await once(mock,'listening');
@@ -48,7 +50,11 @@ after(async()=>{
 });
 test('discovery, origin, auth, and bounded input',async()=>{
  assert.equal((await api('/')).status,200);assert.equal((await api('/health')).status,200);assert.equal((await api('/sync/watched')).status,401);
- assert.match((await api('/sync/watched')).headers.get('www-authenticate'),/resource_metadata/);
+ assert.equal((await api('/sync/watched')).headers.get('www-authenticate'),'Bearer resource_metadata="https://plugin.example.test/.well-known/oauth-protected-resource"');
+ assert.equal((await api('/health',{headers:{Origin:'https://plugin.example.test'}})).headers.get('access-control-allow-origin'),'https://plugin.example.test');
+ const schema=(await api('/openapi.json')).data;assert.equal(schema.servers[0].url,'https://plugin.example.test');assert.equal(schema.components.securitySchemes.oauth.flows.authorizationCode.authorizationUrl,'https://plugin.example.test/oauth/authorize');
+ assert.equal((await api('/.well-known/ai-plugin.json')).status,404,'legacy metadata must not invent a support address');
+ const challenge=await api('/.well-known/openai-apps-challenge');assert.equal(challenge.data,'fixture-domain-challenge');assert.match(challenge.headers.get('content-type'),/^text\/plain/);
  assert.equal((await api('/mcp',{method:'POST',headers:{Origin:'https://evil.test'},body:{}})).status,403);
  assert.equal((await api('/mcp',{method:'POST',body:{x:'x'.repeat(70000)}})).status,413);
  assert.equal((await api('/.well-known/oauth-authorization-server')).data.code_challenge_methods_supported[0],'S256');
@@ -88,14 +94,15 @@ test('single-use Trakt refresh is serialized and plugin refresh rotates',async()
  assert.equal((await api('/oauth/token',{method:'POST',body:{grant_type:'refresh_token',refresh_token:u.refresh_token}})).status,400);
  assert.equal((await api('/search?query=x',{token:u.access_token})).status,401);
  assert.equal((await api('/search?query=x',{token:next.data.access_token})).status,401);
- const fresh=await connect();assert.equal((await api('/auth/session',{method:'DELETE',token:fresh.access_token})).status,204);
+ const fresh=await connect();assert.equal((await api('/auth/session',{method:'DELETE',token:fresh.access_token})).status,204);assert.equal((await api('/search?query=x',{token:fresh.access_token})).status,401);assert.equal((await api('/oauth/token',{method:'POST',body:{grant_type:'refresh_token',refresh_token:fresh.refresh_token}})).status,400);
  assert.equal((await api('/search?query=x',{token:next.data.access_token})).status,401);
 });
 test('OAuth registration, browser consent, PKCE, redirect binding and code replay',async()=>{
  const registration=await api('/oauth/register',{method:'POST',body:{client_name:'SDK test',redirect_uris:['http://127.0.0.1:9999/callback'],token_endpoint_auth_method:'none'}});assert.equal(registration.status,201,JSON.stringify(registration.data));const client_id=registration.data.client_id;
- const {selectResourceURL}=await import('@modelcontextprotocol/sdk/client/auth.js');const resource=(await selectResourceURL(new URL('https://trakt.swacktech.com/sse'),{},(await api('/.well-known/oauth-protected-resource')).data)).href;
+ const {selectResourceURL}=await import('@modelcontextprotocol/sdk/client/auth.js');const resource=(await selectResourceURL(new URL('https://plugin.example.test/sse'),{},(await api('/.well-known/oauth-protected-resource')).data)).href;
  const verifier='v'.repeat(64),challenge=createHash('sha256').update(verifier).digest('base64url');const params=new URLSearchParams({client_id,redirect_uri:'http://127.0.0.1:9999/callback',response_type:'code',state:'state-123',code_challenge:challenge,code_challenge_method:'S256',resource});
  const page=await api('/oauth/authorize?'+params);assert.equal(page.status,200,JSON.stringify(page.data));const session_id=page.data.match(/data-session="([^"]+)"/)[1],ticket=page.data.match(/data-ticket="([^"]+)"/)[1];
+ assert.equal((await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'unknown'}})).status,400);
  const d=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'start'}});assert.equal(d.status,200);users.get(d.data.device_code).authorized=true;await pause(1100);
  const complete=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'poll'}});assert.equal(complete.status,200);const redirect=new URL(complete.data.redirect);assert.equal(redirect.searchParams.get('state'),'state-123');
  const body={grant_type:'authorization_code',client_id,code:redirect.searchParams.get('code'),redirect_uri:'http://127.0.0.1:9999/callback',code_verifier:verifier,resource};
@@ -107,11 +114,20 @@ test('OAuth registration, browser consent, PKCE, redirect binding and code repla
 test('both transports negotiate the advertised OAuth resource using the SDK',async()=>{
  const {selectResourceURL}=await import('@modelcontextprotocol/sdk/client/auth.js');
  const metadata=(await api('/.well-known/oauth-protected-resource')).data;
- for(const path of ['/mcp','/sse'])assert.equal(String(await selectResourceURL(new URL('https://trakt.swacktech.com'+path),{},metadata)),'https://trakt.swacktech.com/');
+ for(const path of ['/mcp','/sse'])assert.equal(String(await selectResourceURL(new URL('https://plugin.example.test'+path),{},metadata)),'https://plugin.example.test/');
 });
 
 test('temporary tokens cannot search and stale SSE channels cause no side effects',async()=>{
  const d=await device();assert.equal((await api('/search?query=x',{token:d.session_token})).status,401);
  const u=await connect();const before=next;const body={jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'trakt_request_login',arguments:{}}};
  assert.equal((await api('/messages?session_id=missing',{method:'POST',token:u.access_token,body})).status,404);assert.equal(next,before);
+});
+
+test('tool failures preserve bounded retry guidance without upstream error bodies',async()=>{
+ const u=await connect();
+ const call=query=>api('/mcp',{method:'POST',token:u.access_token,body:{jsonrpc:'2.0',id:7,method:'tools/call',params:{name:'trakt_search',arguments:{query}}}});
+ for(const [query,error,retry] of [['rate-limit','trakt_rate_limited',7],['upstream-error','trakt_upstream_error',null]]){
+  const response=await call(query);assert.equal(response.status,200);assert.equal(response.data.result.isError,true);
+  const data=JSON.parse(response.data.result.content[0].text);assert.equal(data.error,error);assert.equal(data.retry_after,retry);assert.ok(!JSON.stringify(response.data).includes('private_upstream_detail'));
+ }
 });

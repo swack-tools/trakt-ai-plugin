@@ -81,14 +81,16 @@ async fn form(req: &mut Request) -> Result<Value> {
     query(&fake)
 }
 pub async fn route(mut req: Request, env: Env) -> Result<Response> {
+    let base = crate::config::base(&env)?;
     let path = req.path();
     let method = req.method();
     if method == Method::Get {
         match path.as_str() {
             "/" => {
-                return Ok(Response::from_html(
-                    "<!doctype html><title>Trakt MCP</title><h1>Trakt MCP</h1><p>Connect your own Trakt account through your MCP client at <code>https://trakt.swacktech.com/mcp</code>.</p><p><a href='/openapi.json'>HTTP API schema</a> · <a href='/privacy'>Privacy</a></p>",
-                )?);
+                return Ok(Response::from_html(format!(
+                    "<!doctype html><title>Trakt MCP</title><h1>Trakt MCP</h1><p>Connect your own Trakt account through your MCP client at <code>{}/mcp</code>.</p><p><a href='/openapi.json'>HTTP API schema</a> · <a href='/privacy'>Privacy</a></p>",
+                    security::escape(&base)
+                ))?);
             }
             "/health" => {
                 return Ok(Response::from_json(
@@ -97,17 +99,39 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
             }
             "/privacy" => {
                 return Ok(Response::ok(
-                    "Trakt MCP stores your Trakt access and refresh tokens in Cloudflare Durable Objects and a Workers KV cache to provide the requested read-only API tools. Each connection has isolated credentials. Data tools forward your requests to Trakt. Tokens are never returned to other users. Disconnect by revoking the application in Trakt settings; local data deletion is available via DELETE /auth/session with your plugin bearer token. Contact swackhamer via the repository owner. Request/response bodies and authorization credentials are not logged by application code.",
+                    "Trakt MCP stores your Trakt access and refresh tokens in Cloudflare Durable Objects and a Workers KV cache to provide the requested read-only API tools. Each connection has isolated credentials. Data tools forward your requests to Trakt. Tokens are never returned to other users. Disconnect by revoking the application in Trakt settings; local data deletion is available via DELETE /auth/session with your plugin bearer token. See the deployment documentation for support. Durable Object records are not automatically deleted when credentials expire. The KV token copy has a 30-day expiry from its last write. Local deletion does not revoke the upstream Trakt grant; revoke it separately in Trakt settings. Application code does not store viewing history, but requested results pass through this service and the connected AI client. Cloudflare handles infrastructure telemetry under its own policies. Request/response bodies and authorization credentials are not logged by application code.",
                 )?);
             }
             "/openapi.json" => {
-                return Ok(Response::from_json(&serde_json::from_str::<Value>(
-                    include_str!("../openapi.json"),
-                )?)?);
+                let mut spec: Value = serde_json::from_str(include_str!("../openapi.json"))?;
+                spec["servers"] = json!([{ "url": base }]);
+                let flow = &mut spec["components"]["securitySchemes"]["oauth"]["flows"]["authorizationCode"];
+                flow["authorizationUrl"] = json!(format!("{base}/oauth/authorize"));
+                flow["tokenUrl"] = json!(format!("{base}/oauth/token"));
+                return Ok(Response::from_json(&spec)?);
+            }
+            "/.well-known/openai-apps-challenge" => {
+                let challenge = env
+                    .var("OPENAI_APPS_CHALLENGE")
+                    .ok()
+                    .map(|v| v.to_string())
+                    .filter(|v| !v.is_empty() && v.len() <= 4096 && !v.contains(['\r', '\n']))
+                    .ok_or(ApiError::new(404, "not_found"))?;
+                let mut response = Response::ok(challenge)?;
+                response
+                    .headers_mut()
+                    .set("Content-Type", "text/plain; charset=utf-8")?;
+                return Ok(response);
             }
             "/.well-known/ai-plugin.json" => {
+                let contact = env
+                    .var("SUPPORT_EMAIL")
+                    .ok()
+                    .map(|v| v.to_string())
+                    .filter(|v| !v.is_empty())
+                    .ok_or(ApiError::new(404, "legacy_manifest_not_configured"))?;
                 return Ok(Response::from_json(
-                    &json!({"schema_version":"v1","name_for_human":"Trakt","name_for_model":"trakt","description_for_human":"Your Trakt history, recommendations and search.","description_for_model":"Read your own Trakt watched history, personalized recommendations, and movie/show search.","auth":{"type":"oauth","client_url":format!("{}/oauth/authorize",oauth::BASE),"scope":"trakt:read","authorization_url":format!("{}/oauth/token",oauth::BASE),"authorization_content_type":"application/x-www-form-urlencoded","verification_tokens":{}},"api":{"type":"openapi","url":format!("{}/openapi.json",oauth::BASE)},"logo_url":format!("{}/logo.svg",oauth::BASE),"contact_email":"swackhamer@users.noreply.github.com","legal_info_url":format!("{}/privacy",oauth::BASE)}),
+                    &json!({"schema_version":"v1","name_for_human":"Trakt","name_for_model":"trakt","description_for_human":"Your Trakt history, recommendations and search.","description_for_model":"Read your own Trakt watched history, personalized recommendations, and movie/show search.","auth":{"type":"oauth","client_url":format!("{}/oauth/authorize",base),"scope":"trakt:read","authorization_url":format!("{}/oauth/token",base),"authorization_content_type":"application/x-www-form-urlencoded","verification_tokens":{}},"api":{"type":"openapi","url":format!("{}/openapi.json",base)},"logo_url":format!("{}/logo.svg",base),"contact_email":contact,"legal_info_url":format!("{}/privacy",base)}),
                 )?);
             }
             "/logo.svg" => {
@@ -120,12 +144,12 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
             "/.well-known/oauth-authorization-server"
             | "/.well-known/oauth-authorization-server/mcp"
             | "/.well-known/oauth-authorization-server/sse" => {
-                return Ok(Response::from_json(&oauth::metadata())?);
+                return Ok(Response::from_json(&oauth::metadata(&base))?);
             }
             "/.well-known/oauth-protected-resource"
             | "/.well-known/oauth-protected-resource/mcp"
             | "/.well-known/oauth-protected-resource/sse" => {
-                return Ok(Response::from_json(&oauth::resource_metadata())?);
+                return Ok(Response::from_json(&oauth::resource_metadata(&base))?);
             }
             "/login.js" => {
                 let mut r = Response::ok(oauth::LOGIN_JS)?;

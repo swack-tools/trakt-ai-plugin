@@ -69,7 +69,9 @@ impl TraktCoordinator {
             }
             "/_begin" => {
                 let v = req.json().await?;
-                return Ok(Response::from_json(&oauth::begin(&mut storage, v).await?)?);
+                return Ok(Response::from_json(
+                    &oauth::begin(&self.env, &mut storage, v).await?,
+                )?);
             }
             "/_browser" => {
                 let v: Value = req.json().await?;
@@ -90,7 +92,9 @@ impl TraktCoordinator {
             "/_device" => {
                 let v: Value = req.json().await?;
                 let id = v["_id"].as_str().ok_or(ApiError::new(500, "missing_id"))?;
-                let token = oauth::create(&mut storage, id, None, oauth::RESOURCE.into()).await?;
+                let token =
+                    oauth::create(&mut storage, id, None, crate::config::resource(&self.env)?)
+                        .await?;
                 let mut d =
                     auth::request_device_code(&Client { env: &self.env }, &mut storage).await?;
                 d["session_token"] = json!(token);

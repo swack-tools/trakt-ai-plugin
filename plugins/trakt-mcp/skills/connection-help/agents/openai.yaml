@@ -1,0 +1,11 @@
+interface:
+  display_name: "Connection Help"
+  short_description: "Guided Trakt connection help workflow"
+  default_prompt: "Use $connection-help to help with my Trakt account."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "trakt"
+      description: "Independent Trakt MCP service for the hosted deployment"
+      transport: "streamable_http"
+      url: "https://trakt.swacktech.com/mcp"

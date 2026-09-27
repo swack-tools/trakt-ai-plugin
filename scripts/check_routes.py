@@ -5,7 +5,7 @@ import re
 import tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
-HOST = "trakt.swacktech.com"
+HOST = "${CLOUDFLARE_PLUGIN_DNS}"
 
 
 def check():
@@ -14,7 +14,7 @@ def check():
     prefixes = []
     for route in routes:
         assert not route.get("custom_domain"), "A Worker Custom Domain captures the documentation"
-        assert route["zone_name"] == "swacktech.com"
+        assert route["zone_name"] == "${CLOUDFLARE_ZONE_NAME}"
         pattern = route["pattern"]
         assert pattern.startswith(HOST + "/") and pattern.endswith("*")
         assert pattern.count("*") == 1, "Only trailing wildcards are supported"
@@ -33,7 +33,8 @@ def check():
         for suffix in ("", "?query=test&page=2"):
             assert worker_handles(path + suffix), f"Public handler bypasses Worker: {path + suffix}"
 
-    docs = {"/", "/index.html", "/connect.html", "/reference.html", "/.nojekyll", "/.well-known/acme-challenge/example"}
+    docs = {"/", "/.nojekyll", "/.well-known/acme-challenge/example"}
+    docs.update("/" + path.name for path in (ROOT / "docs/pages").glob("*.html"))
     for directory in ("assets", "archive"):
         docs.update("/" + str(path.relative_to(ROOT / "docs"))
                     for path in (ROOT / "docs" / directory).rglob("*") if path.is_file())

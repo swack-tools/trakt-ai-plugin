@@ -1,0 +1,88 @@
+# Trakt MCP — Community
+
+![Community cinema card: a cream play card and gold discovery star on green](assets/mark.svg)
+
+An independent community plugin for choosing films and television with your own Trakt account. Four bundled skills turn the hosted MCP tools into useful conversations: a short list of things to watch, a grounded viewing profile, disambiguated title search, and connection diagnosis. This project is not endorsed by Trakt, Anthropic, or OpenAI. Installing from the repository does not mean any platform has approved a directory listing.
+
+## Install the plugin
+
+The public repository is [swack-tools/trakt-ai-plugin](https://github.com/swack-tools/trakt-ai-plugin). Its marketplace and plugin identifiers remain `trakt-mcp`.
+
+**Claude desktop chat, claude.ai, and Cowork:** open **Customize → Plugins → Add → Add marketplace**, enter the repository URL, and install **Trakt MCP — Community**. Alternatively, use **Add → Upload plugin** with the packaged plugin ZIP. Open the installed plugin's **Connectors** tab and connect the Trakt server. A Team or Enterprise organization may require its Owner to add the connector first. A command-line install is local to that machine and does not automatically add the plugin to your Claude account.
+
+**Claude Code:** run these commands, then open `/mcp` in Claude Code and complete the connection flow when prompted:
+
+```sh
+claude plugin marketplace add swack-tools/trakt-ai-plugin
+claude plugin install trakt-mcp@trakt-mcp
+```
+
+**Codex app and CLI:** add the repository marketplace, then install the plugin:
+
+```sh
+codex plugin marketplace add swack-tools/trakt-ai-plugin
+codex plugin add trakt-mcp@trakt-mcp
+```
+
+In the desktop app, open the Plugins directory, select the repository marketplace, and check the installed plugin's connection. Restart the app or open a new chat after updating installed files. Client commands and UI availability depend on version and workspace policy; use your client's MCP login control if the plugin prompts for authorization. A local marketplace install is separate from a ChatGPT workspace or public directory publication.
+
+During browser authorization, approve the service connection, open the displayed Trakt activation page, enter the device code, and return to finish. Each person authorizes their own Trakt account. You do not need the operator's API key or Cloudflare credentials. Do not paste access tokens, passwords, or the private device code into chat or a support issue.
+
+## Use the four skills
+
+| Skill | Try asking | What it actually does |
+| --- | --- | --- |
+| **What to watch** | “Suggest three science-fiction movies I haven't watched.” | Gets Trakt recommendations, optionally compares watched summaries, and explains a small shortlist. |
+| **Watching profile** | “Which genres appear most in my watched shows?” | Summarizes returned titles and genres, with explicit data coverage and uncertainty. |
+| **Find title** | “Help me distinguish the different versions of The Thing.” | Searches title/year/type, asks about ambiguity, and supplies returned identifiers. |
+| **Connection help** | “My Trakt authorization expired; help me reconnect.” | Separates installation, client OAuth, device login, and upstream failures. |
+
+Claude Code exposes skills under names such as `/trakt-mcp:what-to-watch`; other clients may select them from natural language or use their own skill picker. The instructions resolve the actual installed tool names rather than assuming a client namespace.
+
+The media tools only read: `trakt_search`, `trakt_get_watched_history`, and `trakt_get_recommendations`. The login tools, `trakt_request_login` and `trakt_confirm_login`, change authentication state. No tool writes your watched history, ratings, or watchlist. There is no streaming-availability lookup.
+
+Watched data is a summary of watched movies and shows, not a chronological list of plays. A show entry need not mean you finished the series. Search genre/year filters apply to an upstream results page; pagination counts describe the unfiltered query. Recommendations come from Trakt. The assistant explains their fit but does not know why Trakt ranked each result.
+
+## Plugin, MCP alone, or skills alone
+
+The plugin combines portable instructions with a remote server. It runs no installation scripts, hooks, downloaded programs, or local MCP processes. No separate runtime or API key is required for normal hosted use.
+
+For **MCP only**, add the hosted deployment URL `https://trakt.swacktech.com/mcp` as a remote Streamable HTTP server in your client and complete its OAuth flow. Claude Code supports `claude mcp add --transport http trakt https://trakt.swacktech.com/mcp`; Codex supports `codex mcp add trakt --url https://trakt.swacktech.com/mcp` followed by `codex mcp login trakt`. Do not install a second connection to the same server if the plugin already supplies it. Legacy SSE at `/sse` is available for compatible clients, but Streamable HTTP is preferred. MCP-only setup gives tools without these workflow instructions.
+
+For **skills only**, copy individual folders from this package's `skills` directory to the appropriate client skill location, preserving each folder's contents. Claude Code project skills live in `.claude/skills`; Codex project skills live in `.agents/skills`. For Claude chat/desktop, upload each skill ZIP in **Customize → Skills**, then turn it on. Each skill is self-contained, including its OpenAI dependency metadata. It still requires an authorized Trakt MCP connection; uploading instructions does not register a server in a directory. Do not copy the same skills separately when the plugin already loads them.
+
+The fixed server URLs in this package describe this project's hosted deployment. A self-hosted distributor must replace the URL in both MCP configuration files and in each skill's OpenAI dependency metadata, and supply its own service documentation. Portable `mcp.json` uses `streamable-http`; Claude/legacy `.mcp.json` uses `http`. Their different type spellings are intentional.
+
+## Support by surface
+
+| Surface | Skills and remote MCP | Important limitation |
+| --- | --- | --- |
+| Claude chat on web, desktop, mobile | Supported component types | Connect the remote server from the plugin's Connectors tab; plan/admin rules apply. |
+| Claude Cowork | Supported component types | Connect the bundled server; account installation and policy govern access. |
+| Claude Code | Skills and remote MCP | Local installs are per machine; authenticate through its MCP controls. |
+| Codex app / CLI | Local marketplace package, skills, remote MCP | Version and workspace policy govern availability; test a new session after updates. |
+| OpenAI shared ChatGPT/Codex directory | Proposed “With MCP” server plus skills upload | Owner identity, eligibility, verification, review, and publication are separate; this package is not a directory approval. |
+
+No Claude-only agent is bundled: these workflows are short enough to keep their complete procedure in portable skills. An `agents` directory would not give the same behavior on all clients; Claude chat ignores Claude agent files. Per-skill `agents/openai.yaml` files here are skill metadata and MCP dependencies, not autonomous agents. There is no MCP UI or carousel screenshot requirement represented by the artwork.
+
+## Data and privacy
+
+The client sends tool arguments, such as a title query, filters, or a login confirmation code, to the hosted service on Cloudflare. The service sends corresponding requests to Trakt and returns movie/show metadata, watched summaries, recommendations, or connection status. Returned data becomes available to the assistant in your chosen client and is subject to that provider's policies. Skills do not send the entire conversation or inspect private local files.
+
+The service stores authorization and connection state in Cloudflare Durable Objects, with a KV token mirror. Trakt access and refresh tokens stay on the server rather than being returned by media tools. A login tool returns activation details and a private device code needed to complete that connection. Token expiration is not a promise of deletion. Removing the plugin from a client does not prove that server state was deleted or that Trakt access was revoked. Consult the service's [privacy information](https://trakt.swacktech.com/privacy) and [deployment documentation](https://trakt.swacktech.com/reference.html) for session deletion and revoke the integration through Trakt's account controls when appropriate. Cloudflare and the client provider may process request metadata independently of the application.
+
+## Troubleshooting and support
+
+If skills appear but tools do not, enable or connect the bundled connector and start a fresh conversation. If an MCP request is unauthorized before a tool runs, use the client's OAuth connection flow. If a callable tool reports `trakt_login_required`, ask to reconnect your Trakt account. Wait for the stated polling interval; an expired device code must be replaced, not retried indefinitely. Rate limits and service outages are not fixed by repeated login attempts.
+
+An empty recommendation list can reflect your Trakt account or filters. An empty filtered search page does not establish that no matching title exists. Large watched datasets can exceed response limits; request one medium and avoid claiming complete chronological statistics.
+
+For reproducible bugs, use [GitHub issues](https://github.com/swack-tools/trakt-ai-plugin/issues) and include the client/version, workflow, and redacted error code. Never post credentials, device codes, or personal watched history. The [documentation site](https://trakt.swacktech.com/) contains the operator and installation guides. Publisher identity, legal terms, private reviewer access, and directory permissions remain owner responsibilities.
+
+## License and assets
+
+This package is licensed under [GPL-3.0-only](LICENSE). Its original geometric artwork is also covered by that license; [asset provenance](assets/README.md) records the source and limitations. Trakt and platform names identify interoperable services, not project ownership of their marks. Version 1.1.0 adds the four portable skills, this self-contained guide, original listing assets, and current portable manifest support while retaining the existing `trakt-mcp` identity.
+
+## Publisher and private reports
+
+Publisher: SwackTech LLC (owner-supplied identity; platform verification is a separate submission step). Ordinary support: [repository issues](https://github.com/swack-tools/trakt-ai-plugin/issues). Security reports: [security@swacktech.com](mailto:security@swacktech.com). Do not post credentials, device codes, private viewing data, or vulnerability details in public issues. The contact was supplied by the owner; inbox delivery and response times were not tested.

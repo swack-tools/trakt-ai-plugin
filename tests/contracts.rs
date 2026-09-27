@@ -40,3 +40,37 @@ fn bearer_tokens_require_both_routing_id_and_secret() {
         trakt_mcp::security::token_id(&format!("{}.{}", "a".repeat(32), "b".repeat(64))).is_ok()
     );
 }
+
+#[test]
+fn tool_metadata_distinguishes_account_reads_catalog_and_auth_changes() {
+    let definitions = protocol::tools();
+    let tools = definitions["tools"].as_array().unwrap();
+    assert_eq!(tools.len(), 5);
+    for tool in tools {
+        assert!(tool["title"].as_str().unwrap().len() > 5);
+    }
+    let find = |name| tools.iter().find(|tool| tool["name"] == name).unwrap();
+    assert_eq!(
+        find("trakt_get_watched_history")["annotations"]["openWorldHint"],
+        false
+    );
+    assert_eq!(find("trakt_search")["annotations"]["openWorldHint"], true);
+    assert_eq!(
+        find("trakt_confirm_login")["annotations"]["readOnlyHint"],
+        false
+    );
+    assert_eq!(
+        find("trakt_confirm_login")["annotations"]["destructiveHint"],
+        true
+    );
+    assert_eq!(
+        find("trakt_request_login")["annotations"]["readOnlyHint"],
+        false
+    );
+    assert!(
+        !find("trakt_get_recommendations")["inputSchema"]["properties"]["media_type"]["enum"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("all"))
+    );
+}

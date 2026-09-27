@@ -4,11 +4,24 @@ import argparse
 from html import escape
 from pathlib import Path
 import shutil
+import os
+from urllib.parse import urlsplit
+
+# Public documentation deployment, independent of Worker configuration.
+BASE_URL = os.environ.get("DOCS_BASE_URL", "https://trakt.swacktech.com").rstrip("/")
+if (urlsplit(BASE_URL).scheme != "https" or not urlsplit(BASE_URL).hostname
+        or urlsplit(BASE_URL).path or urlsplit(BASE_URL).query or urlsplit(BASE_URL).fragment
+        or urlsplit(BASE_URL).username or urlsplit(BASE_URL).password):
+    raise SystemExit("DOCS_BASE_URL must be an HTTPS origin")
 
 ROOT = Path(__file__).resolve().parent
 PAGES = {
     "index": ("Trakt MCP — Your next great watch", "Connect your Trakt account to Claude, Codex, and ChatGPT for viewing history, recommendations, and search."),
     "connect": ("Connect your client — Trakt MCP", "Install Trakt MCP in Claude and Codex, connect ChatGPT web, and approve your own Trakt account with a device code."),
+    "skills": ("Four useful workflows — Trakt MCP", "Choose a movie, understand watched summaries, find a title, or diagnose your connection."),
+    "data-privacy": ("Privacy and data handling — Trakt MCP", "What the hosted Trakt MCP service stores, sends, and deletes."),
+    "terms": ("Software and service terms — Trakt MCP", "Community software licensing, service limitations, and operator responsibilities."),
+    "support": ("Support and security — Trakt MCP", "Get help safely and report problems with the community Trakt plugin."),
     "reference": ("Technical reference — Trakt MCP", "Trakt MCP tools, HTTP API, OAuth, deployment, isolation, and operational limits."),
 }
 
@@ -21,18 +34,18 @@ def build(destination):
     for name, (title, description) in PAGES.items():
         nav = "".join(
             f'<a href="{page}.html"' + (' aria-current="page"' if page == name else '') + f'>{label}</a>'
-            for page, label in [("index", "Overview"), ("connect", "Connect"), ("reference", "Reference")]
+            for page, label in [("index", "Overview"), ("connect", "Install"), ("skills", "Workflows"), ("reference", "Developers")]
         )
         body = (ROOT / "pages" / f"{name}.html").read_text()
         (destination / f"{name}.html").write_text(f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{escape(title)}</title><meta name="description" content="{escape(description, quote=True)}">
-<link rel="canonical" href="https://trakt.swacktech.com/{'' if name == 'index' else name + '.html'}">
+<link rel="canonical" href="{escape(BASE_URL, quote=True)}/{'' if name == 'index' else name + '.html'}">
 <meta name="theme-color" content="#12231e"><link rel="stylesheet" href="assets/style.css">
 </head><body><a class="skip" href="#main">Skip to content</a>
 <header><div class="header-inner"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">t.</span>Trakt MCP</a><nav aria-label="Main navigation">{nav}<a href="https://github.com/swack-tools/trakt-ai-plugin">GitHub ↗</a></nav></div></header>
 <main id="main">{body}</main>
-<footer><div><a class="brand" href="index.html">Trakt MCP</a><p>Your viewing. Your account. Your conversation.</p></div><p><a href="https://github.com/swack-tools/trakt-ai-plugin">Source on GitHub</a> · <a href="reference.html#original-guide">Original guide</a><br>Community project. Not affiliated with Trakt, Anthropic, or OpenAI.<br>Client guidance checked September 27, 2026.</p></footer>
+<footer><div><a class="brand" href="index.html">Trakt MCP</a><p>Your viewing. Your account. Your conversation.</p></div><p><a href="https://github.com/swack-tools/trakt-ai-plugin">Source on GitHub</a> · <a href="data-privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · <a href="support.html">Support &amp; security</a> · <a href="reference.html#original-guide">Archive</a><br>Community project. Not affiliated with Trakt, Anthropic, or OpenAI.<br>Client guidance checked September 27, 2026.</p></footer>
 </body></html>''')
     shutil.copytree(ROOT / "assets", destination / "assets")
     shutil.copytree(ROOT / "archive", destination / "archive")

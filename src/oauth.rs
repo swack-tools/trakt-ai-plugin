@@ -1,3 +1,4 @@
+use crate::config;
 use crate::{
     error::{ApiError, Result},
     security,
@@ -9,8 +10,6 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use worker::{Env, Storage};
-pub const BASE: &str = "https://trakt.swacktech.com";
-pub const RESOURCE: &str = "https://trakt.swacktech.com/";
 #[derive(Serialize, Deserialize)]
 pub struct Registration {
     pub client_id: String,
@@ -41,11 +40,12 @@ pub struct Flow {
     pub code_hash: Option<String>,
     pub resource: String,
 }
-pub fn metadata() -> Value {
-    json!({"issuer":BASE,"authorization_endpoint":format!("{BASE}/oauth/authorize"),"token_endpoint":format!("{BASE}/oauth/token"),"registration_endpoint":format!("{BASE}/oauth/register"),"response_types_supported":["code"],"grant_types_supported":["authorization_code","refresh_token"],"token_endpoint_auth_methods_supported":["none","client_secret_post"],"code_challenge_methods_supported":["S256"],"scopes_supported":["trakt:read"]})
+pub fn metadata(base: &str) -> Value {
+    json!({"issuer":base,"authorization_endpoint":format!("{base}/oauth/authorize"),"token_endpoint":format!("{base}/oauth/token"),"registration_endpoint":format!("{base}/oauth/register"),"response_types_supported":["code"],"grant_types_supported":["authorization_code","refresh_token"],"token_endpoint_auth_methods_supported":["none","client_secret_post"],"code_challenge_methods_supported":["S256"],"scopes_supported":["trakt:read"]})
 }
-pub fn resource_metadata() -> Value {
-    json!({"resource":RESOURCE,"authorization_servers":[BASE],"scopes_supported":["trakt:read"],"bearer_methods_supported":["header"]})
+pub fn resource_metadata(base: &str) -> Value {
+    let resource = format!("{base}/");
+    json!({"resource":resource,"authorization_servers":[base],"scopes_supported":["trakt:read"],"bearer_methods_supported":["header"]})
 }
 pub async fn register(storage: &mut Storage, v: Value) -> Result<Value> {
     let redirects = v["redirect_uris"]
@@ -142,7 +142,8 @@ pub async fn issue(storage: &mut Storage) -> Result<Value> {
         json!({"access_token":access,"token_type":"Bearer","expires_in":3600,"refresh_token":refresh,"scope":"trakt:read"}),
     )
 }
-pub async fn begin(storage: &mut Storage, v: Value) -> Result<Value> {
+pub async fn begin(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> {
+    let resource = config::resource(env)?;
     let r: Registration = serde_json::from_value(v["registration"].clone())?;
     let q = &v["params"];
     let get = |key: &str| q[key].as_str().unwrap_or("");
@@ -165,7 +166,7 @@ pub async fn begin(storage: &mut Storage, v: Value) -> Result<Value> {
         }
         Some(get("code_challenge").into())
     };
-    if !get("resource").is_empty() && get("resource") != RESOURCE {
+    if !get("resource").is_empty() && get("resource") != resource {
         return Err(ApiError::new(400, "invalid_target"));
     }
     if !get("scope").is_empty() && get("scope") != "trakt:read" {
@@ -173,7 +174,7 @@ pub async fn begin(storage: &mut Storage, v: Value) -> Result<Value> {
     }
     let id = v["_id"].as_str().ok_or(ApiError::new(500, "missing_id"))?;
     let ticket = security::random();
-    create(storage, id, Some(r.client_id.clone()), RESOURCE.into()).await?;
+    create(storage, id, Some(r.client_id.clone()), resource.clone()).await?;
     let f = Flow {
         client_id: r.client_id,
         redirect_uri: get("redirect_uri").into(),
@@ -183,7 +184,7 @@ pub async fn begin(storage: &mut Storage, v: Value) -> Result<Value> {
         expires: now() + 900,
         device_code: None,
         code_hash: None,
-        resource: RESOURCE.into(),
+        resource: resource.clone(),
     };
     storage.put("flow", &f).await?;
     Ok(
@@ -201,6 +202,9 @@ pub async fn browser_step(env: &Env, storage: &mut Storage, id: &str, v: Value) 
         )
     {
         return Err(ApiError::new(400, "invalid_flow"));
+    }
+    if !matches!(v["action"].as_str(), Some("start" | "poll")) {
+        return Err(ApiError::new(400, "invalid_action"));
     }
     let c = Client { env };
     if v["action"] == "start" {
@@ -290,7 +294,7 @@ pub async fn exchange(env: &Env, storage: &mut Storage, v: Value) -> Result<Valu
                 env.kv("TRAKT_SESSIONS")?
                     .delete(&format!("user:{}:tokens", s.id))
                     .await?;
-                return Err(ApiError::new(400, "refresh_token_reused"));
+                return Err(ApiError::new(400, "invalid_grant"));
             }
             if s.refresh_expires <= now()
                 || s.refresh_hash.as_ref().is_none_or(|h| {
