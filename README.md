@@ -7,7 +7,7 @@ Connect your own [Trakt](https://trakt.tv/) account to Claude or Codex for movie
 ### Claude
 
 1. Open **Customize → Plugins → Add → Add marketplace → Add from a repository**.
-2. Enter `swack-tools/trakt-mcp` and add the marketplace.
+2. Enter `swack-tools/trakt-ai-plugin` and add the marketplace.
 3. Install **Trakt MCP**, then start a new chat and follow the connection prompt.
 
 ### Codex
@@ -15,7 +15,7 @@ Connect your own [Trakt](https://trakt.tv/) account to Claude or Codex for movie
 Add the marketplace once from a terminal:
 
 ```sh
-codex plugin marketplace add swack-tools/trakt-mcp
+codex plugin marketplace add swack-tools/trakt-ai-plugin
 ```
 
 Restart the Codex app, open **Plugins**, choose the **Trakt MCP** marketplace, and install **Trakt MCP**. Start a new chat and follow the connection prompt.
@@ -25,7 +25,7 @@ Restart the Codex app, open **Plugins**, choose the **Trakt MCP** marketplace, a
 ### Claude Code
 
 ```sh
-claude plugin marketplace add swack-tools/trakt-mcp
+claude plugin marketplace add swack-tools/trakt-ai-plugin
 claude plugin install trakt-mcp@trakt-mcp
 claude
 ```
@@ -35,7 +35,7 @@ In the new session, open `/mcp`, select the Trakt server, and authenticate.
 ### Codex CLI
 
 ```sh
-codex plugin marketplace add swack-tools/trakt-mcp
+codex plugin marketplace add swack-tools/trakt-ai-plugin
 codex plugin add trakt-mcp@trakt-mcp
 codex
 ```
@@ -60,6 +60,6 @@ Each person signs in with their own Trakt account:
 
 Recommendations come from Trakt’s personalized results. History shows watched titles and play counts.
 
-See the [full documentation](https://swack-tools.github.io/trakt-mcp/) for other clients, troubleshooting, API details, and self-hosting.
+See the [full documentation](https://trakt.swacktech.com/) for other clients, troubleshooting, API details, and self-hosting.
 
 Licensed under [GPL-3.0-only](LICENSE).
