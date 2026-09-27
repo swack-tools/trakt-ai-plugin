@@ -16,11 +16,14 @@ class Page(HTMLParser):
         self.links = []
         self.h1_count = 0
         self.landmarks = set()
+        self.canonical = []
         self.errors = []
         self.feed(source)
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
+        if tag == "link" and attrs.get("rel") == "canonical":
+            self.canonical.append(attrs.get("href"))
         if "id" in attrs:
             if attrs["id"] in self.ids:
                 self.errors.append(f"Duplicate ID: {attrs['id']}")
@@ -41,6 +44,8 @@ def check(root):
     checked = 0
     for path, page in pages.items():
         assert not page.errors, f"{path}: {page.errors}"
+        canonical_path = "" if path.name == "index.html" else path.name
+        assert page.canonical == [f"https://trakt.swacktech.com/{canonical_path}"], f"{path}: incorrect canonical URL"
         assert page.h1_count == 1, f"{path}: expected one h1"
         assert page.landmarks == {"main", "header", "footer", "nav", "title"}, f"{path}: missing landmarks"
         for link in page.links:

@@ -27,12 +27,12 @@ def build(destination):
         (destination / f"{name}.html").write_text(f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{escape(title)}</title><meta name="description" content="{escape(description, quote=True)}">
-<link rel="canonical" href="https://swack-tools.github.io/trakt-mcp/{'' if name == 'index' else name + '.html'}">
+<link rel="canonical" href="https://trakt.swacktech.com/{'' if name == 'index' else name + '.html'}">
 <meta name="theme-color" content="#12231e"><link rel="stylesheet" href="assets/style.css">
 </head><body><a class="skip" href="#main">Skip to content</a>
-<header><div class="header-inner"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">t.</span>Trakt MCP</a><nav aria-label="Main navigation">{nav}<a href="https://github.com/swack-tools/trakt-mcp">GitHub ↗</a></nav></div></header>
+<header><div class="header-inner"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">t.</span>Trakt MCP</a><nav aria-label="Main navigation">{nav}<a href="https://github.com/swack-tools/trakt-ai-plugin">GitHub ↗</a></nav></div></header>
 <main id="main">{body}</main>
-<footer><div><a class="brand" href="index.html">Trakt MCP</a><p>Your viewing. Your account. Your conversation.</p></div><p><a href="https://github.com/swack-tools/trakt-mcp">Source on GitHub</a> · <a href="reference.html#original-guide">Original guide</a><br>Community project. Not affiliated with Trakt, Anthropic, or OpenAI.<br>Client guidance checked September 27, 2026.</p></footer>
+<footer><div><a class="brand" href="index.html">Trakt MCP</a><p>Your viewing. Your account. Your conversation.</p></div><p><a href="https://github.com/swack-tools/trakt-ai-plugin">Source on GitHub</a> · <a href="reference.html#original-guide">Original guide</a><br>Community project. Not affiliated with Trakt, Anthropic, or OpenAI.<br>Client guidance checked September 27, 2026.</p></footer>
 </body></html>''')
     shutil.copytree(ROOT / "assets", destination / "assets")
     shutil.copytree(ROOT / "archive", destination / "archive")
