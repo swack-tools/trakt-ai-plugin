@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
-"""Validate generated local links, page landmarks, and the immutable README."""
+"""Validate generated local links and page landmarks."""
 import argparse
-import hashlib
 from build import PAGES, BASE_URL
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
-
-SNAPSHOT_SHA256 = "26e0af0f31c19d1cca042be070799dbb412fcd4a84b745d31034e826f292faa2"
-
 
 class Page(HTMLParser):
     def __init__(self, source):
@@ -63,11 +59,10 @@ def check(root):
             if parts.fragment:
                 assert target in pages and unquote(parts.fragment) in pages[target].ids, f"{path.name}: missing anchor {link}"
             checked += 1
-    snapshot = root / "archive/README-37ac12d.md"
-    assert hashlib.sha256(snapshot.read_bytes()).hexdigest() == SNAPSHOT_SHA256, "Historical README changed"
+    assert not (root / "archive").exists(), "Removed archive must not be published"
     for path in root.rglob("*"):
         assert not path.is_symlink(), f"Pages artifact must not contain symlinks: {path}"
-    print(f"Validated {len(pages)} pages, {checked} local links, landmarks, and exact README snapshot")
+    print(f"Validated {len(pages)} pages, {checked} local links and landmarks")
 
 
 if __name__ == "__main__":

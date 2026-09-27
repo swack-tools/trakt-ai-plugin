@@ -35,7 +35,7 @@ def check():
 
     docs = {"/", "/.nojekyll", "/.well-known/acme-challenge/example"}
     docs.update("/" + path.name for path in (ROOT / "docs/pages").glob("*.html"))
-    for directory in ("assets", "archive"):
+    for directory in ("assets",):
         docs.update("/" + str(path.relative_to(ROOT / "docs"))
                     for path in (ROOT / "docs" / directory).rglob("*") if path.is_file())
     for path in sorted(docs):

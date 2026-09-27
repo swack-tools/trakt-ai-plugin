@@ -45,10 +45,9 @@ def build(destination):
 </head><body><a class="skip" href="#main">Skip to content</a>
 <header><div class="header-inner"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">t.</span>Trakt MCP</a><nav aria-label="Main navigation">{nav}<a href="https://github.com/swack-tools/trakt-ai-plugin">GitHub ↗</a></nav></div></header>
 <main id="main">{body}</main>
-<footer><div><a class="brand" href="index.html">Trakt MCP</a><p>Your viewing. Your account. Your conversation.</p></div><p><a href="https://github.com/swack-tools/trakt-ai-plugin">Source on GitHub</a> · <a href="data-privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · <a href="support.html">Support &amp; security</a> · <a href="reference.html#original-guide">Archive</a><br>Community project. Not affiliated with Trakt, Anthropic, or OpenAI.<br>Client guidance checked September 27, 2026.</p></footer>
+<footer><div><a class="brand" href="index.html">Trakt MCP</a><p>Your viewing. Your account. Your conversation.</p></div><p><a href="https://github.com/swack-tools/trakt-ai-plugin">Source on GitHub</a> · <a href="data-privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · <a href="support.html">Support &amp; security</a><br>Community project. Not affiliated with Trakt, Anthropic, or OpenAI.<br>Client guidance checked September 27, 2026.</p></footer>
 </body></html>''')
     shutil.copytree(ROOT / "assets", destination / "assets")
-    shutil.copytree(ROOT / "archive", destination / "archive")
     (destination / ".nojekyll").touch()
     print(f"Built {len(PAGES)} pages in {destination}")
 

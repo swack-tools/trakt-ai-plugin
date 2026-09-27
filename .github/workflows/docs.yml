@@ -32,7 +32,7 @@ jobs:
           python-version: '3.12'
       - name: Build static documentation
         run: python3 docs/build.py "$RUNNER_TEMP/trakt-mcp-site"
-      - name: Validate links and preserved README
+      - name: Validate documentation links
         run: python3 docs/check.py "$RUNNER_TEMP/trakt-mcp-site"
       - name: Configure Pages
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
