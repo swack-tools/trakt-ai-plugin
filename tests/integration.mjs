@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
-import {mkdtemp,rm,writeFile} from 'node:fs/promises';
+import {mkdtemp,rm,writeFile,mkdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
@@ -13,7 +13,7 @@ import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 const base='http://127.0.0.1:8787';
 const users=new Map();let next=0,refreshes=0,worker,mock;let logs='',stateDir; const requests=[];
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
-async function api(path,{token,method='GET',body,headers={}}={}){const r=await fetch(base+path,{method,headers:{...(token?{Authorization:`Bearer ${token}`} : {}),...(body?{'Content-Type':'application/json'}:{}),...headers},body:body?JSON.stringify(body):undefined});const text=await r.text();let data;try{data=JSON.parse(text);}catch{data=text;}return {status:r.status,data,headers:r.headers};}
+async function api(path,{token,method='GET',body,headers={}}={}){const r=await fetch(base+path,{signal:AbortSignal.timeout(15000),method,headers:{...(token?{Authorization:`Bearer ${token}`} : {}),...(body?{'Content-Type':'application/json'}:{}),...headers},body:body?JSON.stringify(body):undefined});const text=await r.text();let data;try{data=JSON.parse(text);}catch{data=text;}return {status:r.status,data,headers:r.headers};}
 async function device(){const r=await api('/auth/device/code',{method:'POST',body:{}});assert.equal(r.status,200,JSON.stringify(r.data));return r.data;}
 async function connect(){const d=await device();users.get(d.device_code).authorized=true;await pause(1100);const r=await api('/auth/device/token',{token:d.session_token,method:'POST',body:{device_code:d.device_code}});assert.equal(r.status,200,JSON.stringify(r.data));assert.ok(r.data.access_token);return {...r.data,device:d};}
 before(async()=>{
@@ -32,7 +32,20 @@ before(async()=>{
  worker=spawn('node',['node_modules/wrangler/bin/wrangler.js','dev','--config','tests/wrangler.toml','--port','8787','--inspector-port','9231','--persist-to',stateDir],{stdio:['ignore','pipe','pipe'],env:{...process.env,WRANGLER_SEND_METRICS:'false'}});worker.stdout.on('data',d=>{logs+=d});worker.stderr.on('data',d=>{logs+=d});
  for(let i=0;i<100;i++){try{const r=await api('/health');if(r.status===200)return;}catch{}await pause(200);}throw Error('Worker failed to start: '+logs);
 });
-after(async()=>{await writeFile('.firecrawl/runtime.log',logs);worker?.kill('SIGTERM');if(worker&&worker.exitCode===null)await once(worker,'exit');if(stateDir)await rm(stateDir,{recursive:true,force:true});mock?.closeAllConnections();await new Promise(r=>mock?mock.close(r):r());});
+after(async()=>{
+ try {
+  const directory=process.env.TRAKT_TEST_LOG_DIR||'.firecrawl';
+  await mkdir(directory,{recursive:true});await writeFile(join(directory,'runtime.log'),logs);
+ } finally {
+  if(worker&&worker.exitCode===null&&worker.signalCode===null){
+   const exited=once(worker,'exit');worker.kill('SIGTERM');
+   const timer=setTimeout(()=>worker.kill('SIGKILL'),5000);timer.unref();
+   try{await exited;}finally{clearTimeout(timer);}
+  }
+  mock?.closeAllConnections();await new Promise(r=>mock?mock.close(r):r());
+  if(stateDir)await rm(stateDir,{recursive:true,force:true});
+ }
+});
 test('discovery, origin, auth, and bounded input',async()=>{
  assert.equal((await api('/health')).status,200);assert.equal((await api('/sync/watched')).status,401);
  assert.match((await api('/sync/watched')).headers.get('www-authenticate'),/resource_metadata/);
