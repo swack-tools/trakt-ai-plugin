@@ -17,6 +17,10 @@ const pause=ms=>new Promise(r=>setTimeout(r,ms));
 async function api(path,{token,method='GET',body,headers={}}={}){const r=await fetch(base+path,{signal:AbortSignal.timeout(15000),method,headers:{...(token?{Authorization:`Bearer ${token}`} : {}),...(body?{'Content-Type':'application/json'}:{}),...headers},body:body?JSON.stringify(body):undefined});const text=await r.text();let data;try{data=JSON.parse(text);}catch{data=text;}return {status:r.status,data,headers:r.headers};}
 async function device(interval=1){deviceInterval=interval;try{const r=await api('/auth/device/code',{method:'POST',body:{}});assert.equal(r.status,200,JSON.stringify(r.data));return r.data;}finally{deviceInterval=1;}}
 async function connect(){const d=await device();users.get(d.device_code).authorized=true;await pause(1100);const r=await api('/auth/device/token',{token:d.session_token,method:'POST',body:{device_code:d.device_code}});assert.equal(r.status,200,JSON.stringify(r.data));assert.ok(r.data.access_token);return {...r.data,device:d};}
+// Pagination cases share a fixture account so this suite does not exhaust the
+// production IP-based device-registration limit. Authentication tests keep separate users.
+let paginationAccount;
+async function paginationUser(){return paginationAccount??=await connect();}
 function paginationHeaders(res,{page,limit,item_count,page_count=Math.ceil(item_count/limit)},override={}){
  const headers={'X-Pagination-Page':page,'X-Pagination-Page-Count':page_count,'X-Pagination-Limit':limit,'X-Pagination-Item-Count':item_count,...override};
  for(const [name,value] of Object.entries(headers))if(value!==null)res.setHeader(name,String(value));
@@ -99,7 +103,7 @@ test('search encoding, filters, pagination, recommendations',async()=>{
  assert.equal((await api('/search?query=test&limit=101',{token:u.access_token})).status,400);
 });
 test('watched summaries traverse 251 movies in exactly three caller-requested pages',async()=>{
- const u=await connect(),rows=summaries('movies',251);fixtureFor(u,{movies:rows});const start=requests.length,seen=[];
+ const u=await paginationUser(),rows=summaries('movies',251);fixtureFor(u,{movies:rows});const start=requests.length,seen=[];
  for(const page of [1,2,3]){
   const r=await api(`/sync/watched?media_type=movies&page=${page}`,{token:u.access_token});assert.equal(r.status,200,JSON.stringify(r.data));
   assert.deepEqual(r.data.pagination,{page,page_count:3,limit:100,item_count:251,has_more:page<3,next_page:page<3?page+1:null});
@@ -112,8 +116,14 @@ test('watched summaries traverse 251 movies in exactly three caller-requested pa
   assert.equal(request.headers.authorization,`Bearer trakt-${users.get(u.device.device_code).id}`);
  }
 });
+test('compact traversal preserves viewing evidence while full metadata stays opt-in',async()=>{
+ const u=await paginationUser(),rows=summaries('movies',2);rows[0].movie.overview='Long plot';rows[0].movie.images={poster:'https://example.test/poster'};fixtureFor(u,{movies:rows});
+ const compact=await api('/sync/watched?media_type=movie',{token:u.access_token});assert.equal(compact.status,200);assert.equal(compact.data.data[0].movie.overview,undefined);assert.equal(compact.data.data[0].movie.images,undefined);assert.equal(compact.data.data[0].plays,1);assert.deepEqual(compact.data.data[0].movie.ids,rows[0].movie.ids);assert.deepEqual(compact.data.data[0].movie.genres,['drama']);
+ const full=await api('/sync/watched?media_type=movie&detail=full',{token:u.access_token});assert.equal(full.status,200);assert.deepEqual(full.data.data,rows);assert.equal(requests.at(-1).query.has('detail'),false);
+ for(const path of ['/sync/watched?detail=unknown','/recommendations?detail=compact','/search?query=x&detail=compact'])assert.equal((await api(path,{token:u.access_token})).status,400);
+});
 test('recent returns exactly the first 100 ordered play events and retains rewatches',async()=>{
- const u=await connect(),rows=events(130);fixtureFor(u,{recent:{movies:rows}});const start=requests.length;
+ const u=await paginationUser(),rows=events(130);fixtureFor(u,{recent:{movies:rows}});const start=requests.length;
  const r=await api('/sync/watched?media_type=movie&mode=recent&limit=100',{token:u.access_token});assert.equal(r.status,200,JSON.stringify(r.data));
  assert.deepEqual(r.data.data,rows.slice(0,100));assert.equal(r.data.data.length,100);assert.equal(new Set(r.data.data.map(r=>r.movie.ids.trakt)).size,7);
  assert.ok(r.data.data.every((r,i,a)=>i===0||r.watched_at<a[i-1].watched_at));
@@ -121,7 +131,7 @@ test('recent returns exactly the first 100 ordered play events and retains rewat
  const calls=watchedRequests(start);assert.equal(calls.length,1);assert.equal(calls[0].path,'/sync/history/movies');assert.equal(calls[0].query.get('extended'),'full');assert.equal(calls[0].query.get('page'),'1');assert.equal(calls[0].query.get('limit'),'100');
 });
 test('upstream effective limits determine traversal without skipped rows',async()=>{
- const u=await connect(),rows=summaries('movies',251);fixtureFor(u,{movies:rows,limit:40});const start=requests.length,seen=[];
+ const u=await paginationUser(),rows=summaries('movies',251);fixtureFor(u,{movies:rows,limit:40});const start=requests.length,seen=[];
  for(let page=1;page<=7;page++){
   const r=await api(`/sync/watched?media_type=movies&limit=100&page=${page}`,{token:u.access_token});assert.equal(r.status,200,JSON.stringify(r.data));
   assert.deepEqual(r.data.pagination,{page,page_count:7,limit:40,item_count:251,has_more:page<7,next_page:page<7?page+1:null});seen.push(...r.data.data);
@@ -129,7 +139,7 @@ test('upstream effective limits determine traversal without skipped rows',async(
  assert.deepEqual(seen,rows);assert.equal(watchedRequests(start).length,7);
 });
 test('movie and show pagination remain independent for both watched modes',async()=>{
- const u=await connect(),movies=summaries('movies',251),shows=summaries('shows',105);
+ const u=await paginationUser(),movies=summaries('movies',251),shows=summaries('shows',105);
  const recentMovies=events(251),recentShows=events(105).map(({movie,...row})=>({...row,type:'episode',show:{...movie,title:'Fixture show'},episode:{season:1,number:1,ids:{trakt:42}}}));
  fixtureFor(u,{movies,shows,recent:{movies:recentMovies,shows:recentShows}});
  for(const [mode,movieRows,showRows] of [['all',movies,shows],['recent',recentMovies,recentShows]]){
@@ -141,7 +151,7 @@ test('movie and show pagination remain independent for both watched modes',async
  }
 });
 test('late pagination failures leave prior pages usable and preserve retry guidance',async()=>{
- const u=await connect(),rows=summaries('movies',251);
+ const u=await paginationUser(),rows=summaries('movies',251);
  for(const status of [429,503]){
   fixtureFor(u,{movies:rows,failPage:3,failStatus:status});const start=requests.length,partial=[];
   for(const page of [1,2]){const r=await api(`/sync/watched?media_type=movies&page=${page}`,{token:u.access_token});assert.equal(r.status,200);partial.push(...r.data.data);}
@@ -151,17 +161,17 @@ test('late pagination failures leave prior pages usable and preserve retry guida
  }
 });
 test('watched whole-list fallback, empty accounts, and missing recent pagination are explicit',async()=>{
- const u=await connect(),rows=summaries('movies',251);fixtureFor(u,{movies:rows,noHeaders:true});const start=requests.length;
+ const u=await paginationUser(),rows=summaries('movies',251);fixtureFor(u,{movies:rows,noHeaders:true});const start=requests.length;
  const whole=await api('/sync/watched?media_type=movies&limit=100',{token:u.access_token});assert.equal(whole.status,200);assert.deepEqual(whole.data.data,rows);
  assert.equal(whole.data.pagination.page,1);assert.equal(whole.data.pagination.page_count,1);assert.equal(whole.data.pagination.item_count,251);assert.equal(whole.data.pagination.has_more,false);assert.equal(whole.data.pagination.next_page,null);
  const repeated=await api('/sync/watched?media_type=movies&page=2',{token:u.access_token});assert.equal(repeated.status,502);assert.equal(repeated.data.error,'invalid_trakt_pagination');assert.equal(watchedRequests(start).length,2);
  for(const noHeaders of [false,true]){
   fixtureFor(u,{movies:[],noHeaders});const empty=await api('/sync/watched?media_type=movies',{token:u.access_token});assert.equal(empty.status,200,JSON.stringify(empty.data));assert.deepEqual(empty.data.data,[]);assert.equal(empty.data.pagination.item_count,0);assert.equal(empty.data.pagination.has_more,false);assert.equal(empty.data.pagination.next_page,null);
  }
- fixtureFor(u,{recent:{movies:events(3)},noHeaders:true});const recent=await api('/sync/watched?media_type=movies&mode=recent',{token:u.access_token});assert.equal(recent.status,200);assert.equal(recent.data.pagination.has_more,null);assert.equal(recent.data.pagination.next_page,null);
+ fixtureFor(u,{recent:{movies:events(3)},noHeaders:true});const recent=await api('/sync/watched?media_type=movies&mode=recent',{token:u.access_token});assert.equal(recent.status,502);assert.equal(recent.data.error,'invalid_trakt_pagination');
 });
 test('malformed, incomplete, and ignored-page metadata fail closed',async()=>{
- const u=await connect(),rows=summaries('movies',251);
+ const u=await paginationUser(),rows=summaries('movies',251);
  for(const headers of [
   {'X-Pagination-Limit':null},{'X-Pagination-Page':'oops'},{'X-Pagination-Page':'0'},
   {'X-Pagination-Page':'1'},{'X-Pagination-Limit':'0'},{'X-Pagination-Item-Count':'-1'},
@@ -172,7 +182,7 @@ test('malformed, incomplete, and ignored-page metadata fail closed',async()=>{
  }
 });
 test('pagination inputs stay endpoint-specific and filtered empty search pages can continue',async()=>{
- const u=await connect();
+ const u=await paginationUser();
  for(const path of ['/sync/watched?page=0','/sync/watched?limit=0','/sync/watched?limit=101','/sync/watched?mode=unknown','/recommendations?page=2','/recommendations?mode=recent','/search?query=x&mode=all']){
   const start=requests.length;assert.equal((await api(path,{token:u.access_token})).status,400,path);assert.equal(requests.length,start,'invalid inputs must not call Trakt');
  }

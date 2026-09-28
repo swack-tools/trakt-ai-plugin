@@ -155,7 +155,7 @@
     "/sync/watched": {
       "get": {
         "operationId": "getWatchedHistory",
-        "description": "Read watched summaries with full movie/show metadata, genres, release dates and play counts. This is not a play-event feed. The all option returns movies and shows separately. Upstream pagination metadata is preserved when present.",
+        "description": "Read one page, default 100 items. detail=compact keeps IDs, titles, genres, dates and viewing evidence for bounded client payloads; detail=full preserves all upstream metadata. mode=all returns watched summaries; traverse next_page until has_more=false for ALL watched titles before recommending. mode=recent returns watch events newest first, preserving repeat watches; collect the first 100 for recently watched. Traverse movies and shows separately for independent page counts. Missing or failed pages mean incomplete coverage.",
         "responses": {
           "200": {
             "description": "Success",
@@ -243,6 +243,54 @@
                 "all"
               ],
               "description": "Movie or show; all is supported by search/history only."
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "recent"
+              ],
+              "default": "all"
+            }
+          },
+          {
+            "name": "detail",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "compact",
+                "full"
+              ],
+              "default": "compact"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 100
             }
           }
         ]
@@ -476,7 +524,7 @@
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 10000,
+              "maximum": 4294967295,
               "default": 1
             }
           }
@@ -1621,6 +1669,18 @@
               "item_count": {
                 "type": [
                   "integer",
+                  "null"
+                ]
+              },
+              "next_page": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "has_more": {
+                "type": [
+                  "boolean",
                   "null"
                 ]
               }

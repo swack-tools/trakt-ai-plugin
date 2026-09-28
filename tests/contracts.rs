@@ -74,3 +74,54 @@ fn tool_metadata_distinguishes_account_reads_catalog_and_auth_changes() {
             .contains(&json!("all"))
     );
 }
+
+#[test]
+fn pagination_follows_actual_limits_and_rejects_unreliable_metadata() {
+    use trakt_mcp::trakt::client::pagination;
+    let first = pagination([Some(1), Some(7), Some(40), Some(251)], 1, 40).unwrap();
+    assert_eq!(first["next_page"], 2);
+    assert_eq!(first["has_more"], true);
+    let last = pagination([Some(7), Some(7), Some(40), Some(251)], 7, 11).unwrap();
+    assert_eq!(last["has_more"], false);
+    assert!(last["next_page"].is_null());
+    assert_eq!(
+        pagination([Some(1), Some(0), Some(100), Some(0)], 1, 0).unwrap()["has_more"],
+        false
+    );
+    assert!(pagination([None; 4], 1, 1).unwrap()["has_more"].is_null());
+    for (headers, requested, length) in [
+        ([Some(1), Some(3), None, Some(251)], 1, 100),
+        ([Some(1), Some(3), Some(100), Some(251)], 2, 100),
+        ([Some(1), Some(3), Some(100), Some(251)], 1, 0),
+        ([Some(1), Some(3), Some(0), Some(251)], 1, 1),
+        ([Some(1), Some(3), Some(40), Some(251)], 1, 100),
+    ] {
+        assert!(pagination(headers, requested, length).is_err());
+    }
+}
+
+#[test]
+fn watched_modes_and_large_page_numbers_are_validated() {
+    assert!(Query::parse(json!({"mode":"recent","page":1,"limit":100})).is_ok());
+    assert!(Query::parse(json!({"mode":"all","page":10001})).is_ok());
+    assert!(Query::parse(json!({"mode":"everything"})).is_err());
+    assert!(Query::parse(json!({"page":4294967296u64})).is_err());
+}
+
+#[test]
+fn compact_watched_rows_preserve_identity_genres_and_watch_events() {
+    let mut row = json!({"id":12,"watched_at":"2026-01-01T00:00:00Z","action":"watch",
+        "plays":2,"movie":{"title":"Fixture","year":2020,"ids":{"trakt":123},
+        "genres":["drama"],"runtime":100,"overview":"large plot","images":{"poster":"image"}},
+        "seasons":[{"number":1}],"private_unneeded_field":"discard"});
+    trakt_mcp::trakt::sync::compact(&mut row);
+    assert_eq!(row["id"], 12);
+    assert_eq!(row["plays"], 2);
+    assert_eq!(row["movie"]["ids"]["trakt"], 123);
+    assert_eq!(row["movie"]["genres"], json!(["drama"]));
+    assert!(row["movie"].get("overview").is_none());
+    assert!(row["movie"].get("images").is_none());
+    assert!(row.get("private_unneeded_field").is_none());
+    assert!(Query::parse(json!({"detail":"compact"})).is_ok());
+    assert!(Query::parse(json!({"detail":"anything"})).is_err());
+}

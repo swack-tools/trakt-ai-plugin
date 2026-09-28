@@ -44,15 +44,13 @@ pub async fn operation(
         "trakt_get_watched_history" | "trakt_get_recommendations" => {
             let q = Query::parse(args)?;
             if name == "trakt_get_watched_history"
-                && (q.query.is_some()
-                    || q.genres.is_some()
-                    || q.years.is_some()
-                    || q.page.is_some()
-                    || q.limit.is_some())
+                && (q.query.is_some() || q.genres.is_some() || q.years.is_some())
             {
                 return Err(ApiError::new(400, "invalid_parameters"));
             }
-            if name == "trakt_get_recommendations" && (q.query.is_some() || q.page.is_some()) {
+            if name == "trakt_get_recommendations"
+                && (q.query.is_some() || q.page.is_some() || q.mode.is_some() || q.detail.is_some())
+            {
                 return Err(ApiError::new(400, "invalid_parameters"));
             }
             let token = auth::access_token(&c, storage, id).await?;
