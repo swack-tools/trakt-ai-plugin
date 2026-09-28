@@ -129,7 +129,7 @@ pub fn input_schema(op: &Value) -> Value {
         groups.insert("body".into(), body["schema"].clone());
     }
     let mut required = vec!["path_params", "query_params"];
-    if !body.is_null() {
+    if body["required"] == true {
         required.push("body");
     }
     json!({"type":"object","properties":groups,"required":required,"additionalProperties":false})
@@ -142,8 +142,14 @@ pub struct Call {
     pub path_params: Map<String, Value>,
     #[serde(default)]
     pub query_params: Map<String, Value>,
+    #[serde(default, deserialize_with = "present_body")]
     pub body: Option<Value>,
     pub confirmed: Option<bool>,
+}
+fn present_body<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<Value>, D::Error> {
+    Value::deserialize(deserializer).map(Some)
 }
 pub struct Prepared {
     pub path: String,
@@ -205,11 +211,7 @@ pub fn prepare(op: &Value, call: &Call, write: bool) -> Result<Prepared> {
         }
     }
     let mut input = json!({"path_params":call.path_params,"query_params":query});
-    let body = if !op["request_body"].is_null() {
-        Some(call.body.clone().unwrap_or(json!({})))
-    } else {
-        call.body.clone()
-    };
+    let body = call.body.clone();
     if let Some(body) = &body {
         input["body"] = body.clone();
     }
