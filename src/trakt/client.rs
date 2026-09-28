@@ -279,6 +279,15 @@ pub fn pagination(numbers: [Option<u64>; 4], requested: u64, length: usize) -> R
     {
         return Err(invalid());
     }
+    // A last-page flag is not proof of completeness when total/count headers
+    // contradict it. Wide arithmetic also handles malicious u64 header values.
+    if total > 0 && pages != total.div_ceil(limit)
+        || pages > 0
+            && page == pages
+            && (page as u128 - 1) * (limit as u128) + (length as u128) < total as u128
+    {
+        return Err(invalid());
+    }
     let more = page < pages;
     Ok(
         serde_json::json!({"page":page,"page_count":pages,"limit":limit,
