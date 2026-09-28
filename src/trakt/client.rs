@@ -274,7 +274,7 @@ pub fn pagination(numbers: [Option<u64>; 4], requested: u64, length: usize) -> R
         || length as u64 > limit
         || (pages == 0 && (total != 0 || length != 0 || page != 1))
         || (pages > 0 && page > pages)
-        || (page < pages && length == 0)
+        || (page < pages && length as u64 != limit)
         || (total == 0 && length != 0)
     {
         return Err(invalid());
@@ -284,7 +284,7 @@ pub fn pagination(numbers: [Option<u64>; 4], requested: u64, length: usize) -> R
     if total > 0 && pages != total.div_ceil(limit)
         || pages > 0
             && page == pages
-            && (page as u128 - 1) * (limit as u128) + (length as u128) < total as u128
+            && (page as u128 - 1) * (limit as u128) + (length as u128) != total as u128
     {
         return Err(invalid());
     }
