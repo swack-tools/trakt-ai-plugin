@@ -1,21 +1,20 @@
 ---
 name: find-title
-description: Disambiguate movie and TV titles, remakes, and release years using Trakt catalog search; use for finding a particular title or a small filtered title search.
+description: Use when the user wants to identify a movie or show, distinguish remakes and release years, or list Trakt catalog search results.
 ---
 
 # Find a movie or show
 
-1. Extract the title words and any medium/year clues from the request. Require a nonempty query of at most 500 characters; ask for a title if absent. Prefer `media_type: "all"` when the medium is ambiguous; otherwise use `movie` or `show`.
-2. Call `trakt_search` with `query`, `media_type`, `limit: 10`, and `page: 1`. Optional `genres` contains comma-separated lowercase slugs, and `years` is a four-digit year or inclusive range between 1800 and 2200. Never use unsupported director, cast, availability, or duration filters. You may compare returned metadata locally, marking missing fields unknown.
-3. Read entries from `data`, their `type`, and matching `movie` or `show` object. Show two or three plausible title/year/type matches when ambiguous; ask which one the user intended before claiming an exact match. Do not choose solely by the highest search score when remake or medium ambiguity remains.
-4. Genre/year filters apply to the returned upstream page. `pagination.item_count` and `page_count` describe the unfiltered search. An empty filtered page does not establish that no matching title exists. If another page is reported and could resolve the request, inspect at most two additional consecutive pages, keeping all original filters and a 10-item limit. Never exceed three pages or page 10000. Stop early when a clear match is found; do not browse every result to manufacture completeness.
-5. Return title, year, type, and supplied `ids.trakt` plus IMDb/TMDb IDs if useful. A Trakt link may use a returned slug containing only letters, digits, and hyphens under `https://trakt.tv/movies/` or `/shows/`. Otherwise show the ID. Do not invent a URL or claim a separate link verification happened. For a filtered listing, state how many pages were inspected and that filtering was page-local.
-
-Stop on unresolved ambiguity with a short choice, on three inspected pages, or on connection/error failure. Do not change or remove filters without the user's direction. If nothing remains, report “no matching results on the pages checked,” not “this title does not exist.”
+1. Extract title words and medium/year clues. Require a nonempty query of at most 500 characters; ask for a title if absent. Use `media_type: "all"` when ambiguous, otherwise `movie` or `show`.
+2. Call `trakt_search` with `query`, `media_type`, `limit: 10`, and `page: 1`. Optional `genres` contains comma-separated lowercase slugs; `years` is a four-digit year or inclusive range between 1800 and 2200. Do not invent director, cast, availability, or duration filters. Compare supplied metadata locally, marking missing fields unknown.
+3. Read `data`, each entry's `type`, and its `movie` or `show` object. Present two or three plausible title/year/type matches if ambiguous; ask which one the user intended before claiming an exact match. Search score alone does not resolve remake ambiguity.
+4. Pagination includes `page`, effective `limit`, `page_count`, `item_count`, `has_more`, and `next_page`. Genre/year filters apply only to the returned upstream page; counts describe the unfiltered query. An empty filtered page can still have a next page. For ordinary title lookup, follow `next_page` for at most two additional pages when useful, preserving query, filters, and limit; stop earlier on a clear match or a confirmed end (`has_more: false` and `next_page: null`). Only when the user explicitly requests ALL matching results, continue sequentially without the ordinary three-page cap. Claim a complete listing only when `has_more` is explicitly `false` and `next_page` is null. If `has_more` is null or continuation metadata is unknown, stop and report partial coverage; a null next page alone does not establish completeness. Never invent a next page or exceed the exposed schema's page bounds.
+5. During an all-results traversal, track inspected pages and unique `(type, ids.trakt)` matches and give progress updates. Stop with partial coverage and a resume page on errors, truncated data, or inconsistent/non-advancing pagination. Respect `retry_after` and report when to resume if waiting is impractical. Do not declare completeness after an interrupted traversal.
+6. Return title, year, type, and supplied Trakt/IMDb/TMDb IDs as useful. A Trakt link may use a returned slug containing letters, digits, or hyphens under `https://trakt.tv/movies/` or `/shows/`; otherwise show the ID. For a filtered listing, state pages inspected and page-local filtering. Do not remove filters without direction. If nothing remains, say “no matching results on the pages checked.”
 
 ## Example
 
-“Find The Thing.” Search `{"query":"The Thing","media_type":"movie","limit":10,"page":1}`. If the returned data contains different years, present those actual matches and ask which release the user means. “Mark it watched” must receive the unsupported-write limitation, not a fabricated success.
+“Find The Thing.” Search `{"query":"The Thing","media_type":"movie","limit":10,"page":1}` and present the actual release matches. “List ALL results for The Thing” follows every `next_page`, even through an empty filtered page. “Mark it watched” receives the unsupported-write limitation.
 
 ## Connection and data boundaries
 

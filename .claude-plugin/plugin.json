@@ -1,6 +1,6 @@
 {
   "name": "trakt-mcp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Trakt recommendations, title search, watched summaries, and guided connection troubleshooting.",
   "author": {
     "name": "SwackTech LLC",

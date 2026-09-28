@@ -8,6 +8,8 @@ use worker::{Env, Fetch, Headers, Method, Request, RequestInit, Url};
 #[serde(deny_unknown_fields)]
 pub struct Query {
     pub media_type: Option<String>,
+    pub mode: Option<String>,
+    pub detail: Option<String>,
     pub query: Option<String>,
     pub genres: Option<String>,
     pub years: Option<String>,
@@ -18,9 +20,20 @@ impl Query {
     pub fn parse(v: Value) -> Result<Self> {
         let q: Self =
             serde_json::from_value(v).map_err(|_| ApiError::new(400, "invalid_parameters"))?;
-        if q.limit.is_some_and(|n| n == 0 || n > 100) || q.page.is_some_and(|n| n == 0 || n > 10000)
-        {
+        if q.limit.is_some_and(|n| n == 0 || n > 100) || q.page == Some(0) {
             return Err(ApiError::new(400, "invalid_pagination"));
+        }
+        if q.mode
+            .as_deref()
+            .is_some_and(|m| !matches!(m, "all" | "recent"))
+        {
+            return Err(ApiError::new(400, "invalid_mode"));
+        }
+        if q.detail
+            .as_deref()
+            .is_some_and(|d| !matches!(d, "compact" | "full"))
+        {
+            return Err(ApiError::new(400, "invalid_detail"));
         }
         if q.media_type
             .as_deref()
@@ -192,16 +205,28 @@ impl<'a> Client<'a> {
         if !r.data.is_array() {
             return Err(ApiError::new(502, "invalid_trakt_response"));
         }
-        let number = |name: &str| {
-            r.headers
-                .get(name)
-                .ok()
-                .flatten()
-                .and_then(|n| n.parse::<u64>().ok())
-        };
-        Ok(
-            serde_json::json!({"data":r.data,"pagination":{"page":number("X-Pagination-Page"),"page_count":number("X-Pagination-Page-Count"),"limit":number("X-Pagination-Limit"),"item_count":number("X-Pagination-Item-Count")}}),
-        )
+        let mut numbers = [None; 4];
+        for (slot, name) in numbers.iter_mut().zip([
+            "X-Pagination-Page",
+            "X-Pagination-Page-Count",
+            "X-Pagination-Limit",
+            "X-Pagination-Item-Count",
+        ]) {
+            if let Some(value) = r.headers.get(name)? {
+                *slot = Some(
+                    value
+                        .parse::<u64>()
+                        .map_err(|_| ApiError::new(502, "invalid_trakt_pagination"))?,
+                );
+            }
+        }
+        let requested_page = query
+            .iter()
+            .find(|(k, _)| *k == "page")
+            .and_then(|(_, v)| v.parse::<u64>().ok())
+            .unwrap_or(1);
+        let pagination = pagination(numbers, requested_page, r.data.as_array().unwrap().len())?;
+        Ok(serde_json::json!({"data":r.data,"pagination":pagination}))
     }
 }
 pub fn upstream_error(r: &Upstream) -> ApiError {
@@ -218,4 +243,40 @@ pub fn upstream_error(r: &Upstream) -> ApiError {
         .flatten()
         .and_then(|s| s.parse().ok());
     e
+}
+
+/// Never infer completion from a short/filtered page. Trakt may clamp the limit.
+/// Missing headers are unknown here; only an endpoint with a documented complete
+/// unpaginated response can explicitly normalize that case.
+pub fn pagination(numbers: [Option<u64>; 4], requested: u64, length: usize) -> Result<Value> {
+    let [page, pages, limit, total] = numbers;
+    if numbers.iter().all(Option::is_none) {
+        return Ok(
+            serde_json::json!({"page":null,"page_count":null,"limit":null,
+            "item_count":null,"has_more":null,"next_page":null}),
+        );
+    }
+    let invalid = || ApiError::new(502, "invalid_trakt_pagination");
+    let (page, pages, limit, total) = (
+        page.ok_or_else(invalid)?,
+        pages.ok_or_else(invalid)?,
+        limit.ok_or_else(invalid)?,
+        total.ok_or_else(invalid)?,
+    );
+    if page == 0
+        || page != requested
+        || limit == 0
+        || length as u64 > limit
+        || (pages == 0 && (total != 0 || length != 0 || page != 1))
+        || (pages > 0 && page > pages)
+        || (page < pages && length == 0)
+        || (total == 0 && length != 0)
+    {
+        return Err(invalid());
+    }
+    let more = page < pages;
+    Ok(
+        serde_json::json!({"page":page,"page_count":pages,"limit":limit,
+        "item_count":total,"has_more":more,"next_page":if more {page.checked_add(1)} else {None}}),
+    )
 }

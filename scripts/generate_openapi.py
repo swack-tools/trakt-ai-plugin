@@ -8,7 +8,7 @@ def ref(name):return {'$ref':'#/components/schemas/'+name}
 def response(schema,description='Success'):return {'description':description,'content':{'application/json':{'schema':schema}}}
 error=obj({'error':S,'retry_after':{'type':['integer','null']}},['error'])
 media={'type':'object','properties':{'title':S,'year':{'type':['integer','null']},'released':{'type':['string','null']},'first_aired':{'type':['string','null']},'genres':{'type':'array','items':S},'ids':{'type':'object','additionalProperties':True}},'additionalProperties':True}
-page=obj({'data':{'type':'array','items':{'type':'object','additionalProperties':True}},'pagination':obj({k:{'type':['integer','null']} for k in ['page','page_count','limit','item_count']}),'filters_applied_to_page':{'type':'boolean'}},['data','pagination'])
+page=obj({'data':{'type':'array','items':{'type':'object','additionalProperties':True}},'pagination':obj({k:{'type':['integer','null']} for k in ['page','page_count','limit','item_count','next_page']} | {'has_more':{'type':['boolean','null']}}),'filters_applied_to_page':{'type':'boolean'}},['data','pagination'])
 device=obj({'device_code':S,'user_code':S,'verification_url':{'type':'string','format':'uri'},'expires_in':{'type':'integer'},'interval':{'type':'integer'},'instructions':S,'session_token':{'type':'string','description':'Temporary plugin bearer credential. This is not a Trakt token. Use only to confirm this login.'}},['device_code','user_code','verification_url','expires_in','interval','instructions'])
 token=obj({'access_token':S,'token_type':{'type':'string','const':'Bearer'},'expires_in':{'type':'integer'},'refresh_token':S,'scope':S},['access_token','token_type','expires_in','refresh_token'])
 query={
@@ -17,7 +17,9 @@ query={
 'genres':{'type':'string','maxLength':200,'description':'Comma separated lowercase Trakt genre slugs.'},
 'years':{'type':'string','pattern':'^[0-9]{4}(-[0-9]{4})?$','description':'Year or inclusive ascending year range.'},
 'limit':{'type':'integer','minimum':1,'maximum':100,'default':20},
-'page':{'type':'integer','minimum':1,'maximum':10000,'default':1}}
+'page':{'type':'integer','minimum':1,'maximum':4294967295,'default':1}}
+query['mode']={'type':'string','enum':['all','recent'],'default':'all'}
+query['detail']={'type':'string','enum':['compact','full'],'default':'compact'}
 paths={}
 def add(path,method,operation,description,schema,params=(),body=None,public=False,status='200'):
  r={status:response(schema),'400':response(ref('Error'),'Invalid request'),'401':response(ref('Error'),'Authorization required'),'429':response(ref('Error'),'Rate limited; observe Retry-After'),'502':response(ref('Error'),'Trakt upstream unavailable or invalid')}
@@ -28,9 +30,11 @@ def add(path,method,operation,description,schema,params=(),body=None,public=Fals
  paths.setdefault(path,{})[method]=o
 add('/auth/device/code','post','requestDeviceLogin','Start a separate user connection with Trakt device flow. Display user_code and verification_url explicitly. Public calls return a temporary session_token; authenticated calls reconnect the current user. Wait interval seconds before polling.',ref('DeviceLogin'),public=True)
 add('/auth/device/token','post','confirmDeviceLogin','Poll once using the temporary session_token as Bearer and the matching device_code. Pending=400, invalid=404, used=409, expired=410, denied=418, slow_down=429. Successful tokens are plugin credentials; Trakt tokens remain private.',ref('PluginTokens'),body=obj({'device_code':S},['device_code']))
-add('/sync/watched','get','getWatchedHistory','Read watched summaries with full movie/show metadata, genres, release dates and play counts. This is not a play-event feed. The all option returns movies and shows separately. Upstream pagination metadata is preserved when present.',{'oneOf':[ref('Page'),obj({'movies':ref('Page'),'shows':ref('Page')},['movies','shows'])]},['media_type'])
+add('/sync/watched','get','getWatchedHistory','Read one page, default 100 items. detail=compact keeps IDs, titles, genres, dates and viewing evidence for bounded client payloads; detail=full preserves all upstream metadata. mode=all returns watched summaries; traverse next_page until has_more=false for ALL watched titles before recommending. mode=recent returns watch events newest first, preserving repeat watches; collect the first 100 for recently watched. Traverse movies and shows separately for independent page counts. Missing or failed pages mean incomplete coverage.',{'oneOf':[ref('Page'),obj({'movies':ref('Page'),'shows':ref('Page')},['movies','shows'])]},['media_type','mode','detail','page','limit'])
+for parameter in paths['/sync/watched']['get']['parameters']:
+ if parameter['name']=='limit': parameter['schema']={**parameter['schema'],'default':100}
 add('/recommendations','get','getRecommendations',"Get Trakt's personalized ranking using its viewing/preferences signals. Select movie or show, optionally filter genres and years; 1-100 results. No separate model is trained by this service.",ref('Page'),['media_type','genres','years','limit'])
-add('/search','get','searchMedia','Search movies/shows. Genre and year filters apply locally to one returned upstream page. Pagination counts describe the upstream unfiltered result; filters_applied_to_page makes this explicit.',ref('Page'),list(query))
+add('/search','get','searchMedia','Search movies/shows. Genre and year filters apply locally to one returned upstream page. Pagination counts describe the upstream unfiltered result; filters_applied_to_page makes this explicit.',ref('Page'),[k for k in query if k not in ('mode','detail')])
 add('/auth/session','delete','deleteConnection','Delete this connection, its stored Trakt tokens, KV cache and open SSE streams. Does not change watch history. Revoke the Trakt app separately in Trakt account settings.',obj({}))
 for parameter in paths['/recommendations']['get']['parameters']:
  if parameter['name']=='media_type': parameter['schema']={**parameter['schema'],'enum':['movie','show','movies','shows']}
