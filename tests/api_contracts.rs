@@ -152,6 +152,23 @@ fn focused_list_text_limits_count_unicode_characters() {
     );
 }
 
+#[test]
+fn generic_list_write_rejects_ambiguous_show_identity() {
+    for operation_id in ["postUsersListsListAdd", "postUsersListsListRemove"] {
+        let call: Call = serde_json::from_value(json!({
+            "operation_id":operation_id,
+            "path_params":{"id":"me","list_id":"77"},
+            "body":{"shows":[{"ids":{"trakt":456},"title":"Fixture show","year":2026}]},
+            "confirmed":true
+        }))
+        .unwrap();
+        assert!(
+            catalog::prepare(catalog::find(operation_id).unwrap(), &call, true).is_err(),
+            "{operation_id} accepted both identity forms"
+        );
+    }
+}
+
 fn call(value: Value) -> Call {
     serde_json::from_value(value).unwrap()
 }

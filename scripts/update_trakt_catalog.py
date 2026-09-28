@@ -124,8 +124,10 @@ def normalize_overlapping_choices(schema):
         for branch in branches if isinstance(branch, dict) and branch.get('type') == 'object'
     }
     if len(branches) == len(expected) and signatures == expected:
+        identifier_branches = [branch for branch in branches if branch['required'] == ['ids']]
+        title_branches = [branch for branch in branches if set(branch['required']) == {'title', 'year'}]
         return {**{key:value for key,value in schema.items() if key != 'oneOf'},
-                'anyOf':branches}
+                'oneOf':[{'anyOf':identifier_branches}, {'anyOf':title_branches}]}
     return schema
 
 
@@ -241,7 +243,7 @@ def extract(url: str, refresh: bool = False) -> list[dict]:
             if request_body is not None:
                 record['schema_normalization_note'] = 'Objects with documented properties reject unknown fields unless the source explicitly allows additional properties; composed objects close after evaluating all branches. Identifier alternatives allow one or more supported IDs; ambiguous source oneOf ID alternatives are normalized to anyOf. Exclusive media-target alternatives require their named non-null target.'
                 if operation_id in {'postUsersListsListAdd', 'postUsersListsListRemove'}:
-                    record['schema_normalization_note'] += ' Overlapping show item variants are inclusive because seasons is optional in the source.'
+                    record['schema_normalization_note'] += ' Overlapping show item variants are inclusive within each identifier form, while ID and title/year forms remain exclusive.'
             if paginated:
                 record['normalization_note'] = 'Pagination page and limit use positive integer inputs; MCP locally caps limit at 100 and page at 4294967295. Pagination parameters are included for documented paginated operations.'
             if reason:

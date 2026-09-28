@@ -209,6 +209,64 @@ fn focused_read_actions_are_registered_with_read_only_contracts() {
 }
 
 #[test]
+fn list_discovery_genre_schema_matches_runtime_validation() {
+    let definitions = protocol::tools();
+    let tools = definitions["tools"].as_array().unwrap();
+    let tool = tools
+        .iter()
+        .find(|tool| tool["name"] == "trakt_discover_lists")
+        .unwrap();
+    let validator = jsonschema::validator_for(&tool["inputSchema"]).unwrap();
+    for genres in ["science-fiction", "drama,comedy"] {
+        assert!(validator.is_valid(&json!({"genres":genres})), "{genres}");
+    }
+    for genres in ["", "Science-Fiction", "drama comedy", "drama\n"] {
+        assert!(!validator.is_valid(&json!({"genres":genres})), "{genres}");
+    }
+}
+
+#[test]
+fn focused_list_path_schemas_reject_unsafe_segments() {
+    let definitions = protocol::tools();
+    let tools = definitions["tools"].as_array().unwrap();
+    for (name, key, base) in [
+        (
+            "trakt_get_list_items",
+            "owner",
+            json!({"list_id":"77","media_type":"movie"}),
+        ),
+        (
+            "trakt_get_list_items",
+            "list_id",
+            json!({"owner":"me","media_type":"movie"}),
+        ),
+        (
+            "trakt_add_list_items",
+            "list_id",
+            json!({"items":[{"media_type":"movie","trakt_id":1}],"confirmed":true}),
+        ),
+        (
+            "trakt_remove_list_items",
+            "list_id",
+            json!({"items":[{"media_type":"movie","trakt_id":1}],"confirmed":true}),
+        ),
+    ] {
+        let tool = tools.iter().find(|tool| tool["name"] == name).unwrap();
+        let validator = jsonschema::validator_for(&tool["inputSchema"]).unwrap();
+        for value in ["me", "fixture-77", "List.Name_1"] {
+            let mut args = base.clone();
+            args[key] = json!(value);
+            assert!(validator.is_valid(&args), "{name} {key} {value}");
+        }
+        for value in [".", "..", "../other", "two words", "é"] {
+            let mut args = base.clone();
+            args[key] = json!(value);
+            assert!(!validator.is_valid(&args), "{name} {key} {value}");
+        }
+    }
+}
+
+#[test]
 fn pagination_follows_actual_limits_and_rejects_unreliable_metadata() {
     use trakt_mcp::trakt::client::pagination;
     let first = pagination([Some(1), Some(7), Some(40), Some(251)], 1, 40).unwrap();

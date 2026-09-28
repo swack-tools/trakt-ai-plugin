@@ -59,8 +59,10 @@ class CatalogTests(unittest.TestCase):
         for operation in ('postUsersListsListAdd', 'postUsersListsListRemove'):
             schema = self.body(operation)
             self.assert_valid(schema, {'shows':[{'ids':{'trakt':456}}]})
+            self.assert_valid(schema, {'shows':[{'title':'Fixture show','year':2026}]})
             self.assert_invalid(schema, {'shows':[{'ids':{}}]})
             self.assert_invalid(schema, {'shows':[{'ids':{'trakt':456}, 'unexpected':True}]})
+            self.assert_invalid(schema, {'shows':[{'ids':{'trakt':456},'title':'Fixture show','year':2026}]})
         ids = {'type':'object','properties':{'trakt':{'type':'integer'}},'required':['trakt']}
         title = {'type':'string'}
         year = {'type':'integer'}
@@ -73,10 +75,11 @@ class CatalogTests(unittest.TestCase):
             {'type':'object','required':['title','year'],'properties':{'title':title,'year':year,'watched_at':watched_at,'seasons':seasons}},
         ]}
         normalized = GENERATOR.json_schema(source)
-        self.assertIn('anyOf', normalized)
+        self.assertIn('oneOf', normalized)
         self.assert_valid(normalized, {'ids':{'trakt':456}})
         self.assert_valid(normalized, {'title':'Fixture show','year':2026})
         self.assert_invalid(normalized, {'ids':{'trakt':456},'unexpected':True})
+        self.assert_invalid(normalized, {'ids':{'trakt':456},'title':'Fixture show','year':2026})
 
     def test_calendar_range_and_date(self):
         parameters = {p['name']:p['schema'] for p in CATALOG['getCalendarsShows']['parameters'] if p['in']=='path'}
