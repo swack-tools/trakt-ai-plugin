@@ -48,12 +48,12 @@ before(async()=>{
   if(upstreamFailures.get(`${req.method} ${u.pathname}`)?.commit){status=503;data={private_upstream_detail:'committed, then response failed'};}
  }
  else if(u.pathname==='/users/settings'&&req.method==='GET'){
-  const id=req.headers.authorization?.replace('Bearer trakt-','');data={user:{ids:{slug:`fixture-user-${id}`}}};
+  const id=req.headers.authorization?.replace('Bearer trakt-','');data={user:{ids:{slug:`fixture-user-${id}`,trakt:Number(id)}}};
  }
  else if(/^\/users\/me\/lists\/\d+\/$/.test(u.pathname)&&req.method==='GET'){
   const list=mockLists.get(u.pathname.split('/')[4]);
   if(!list){status=404;data={};}
-  else data={...list,user:{ids:{slug:`fixture-user-${list.owner.replace('Bearer trakt-','')}`}}};
+  else {const ownerId=Number(list.owner.replace('Bearer trakt-',''));data={...list,user:{ids:{slug:list.ownerSlugNull?null:`fixture-user-${ownerId}`,trakt:ownerId}}};}
  }
  else if(/^\/users\/me\/lists\/\d+\/items$/.test(u.pathname)&&req.method==='POST'){
   const list=mockLists.get(u.pathname.split('/')[4]);
@@ -426,6 +426,30 @@ test('focused actions browse lists and releases and edit only an owned list',asy
   const beforeUnverified=requests.length;
   await callFailure(user.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:456}],confirmed:true},'list_ownership_unverified');
   assert.equal(requests.slice(beforeUnverified).filter(r=>r.method==='POST').length,0);
+ }finally{upstreamFailures.delete('GET /users/settings');}
+ await callSuccess(user.access_token,'trakt_api_write',{operation_id:'deleteUsersListsListDelete',path_params:{id:'me',list_id:id},confirmed:true});
+});
+
+test('focused item writes verify numeric owner IDs when the list slug is null',async()=>{
+ const user=await writer();
+ const created=await callSuccess(user.access_token,'trakt_create_list',{name:'Null slug fixture',confirmed:true});
+ const id=String(created.data.ids.trakt);
+ mockLists.get(id).ownerSlugNull=true;
+ const added=await callSuccess(user.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:123}],confirmed:true});
+ assert.equal(added.data.added.movies,1);
+ const removed=await callSuccess(user.access_token,'trakt_remove_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:123}],confirmed:true});
+ assert.equal(removed.data.deleted.movies,1);
+ mockLists.get(id).ownerSlugNull=false;
+ upstreamFailures.set('GET /users/settings',{status:200,raw:JSON.stringify({user:{ids:{slug:`fixture-user-${user.upstream_user_id}`,trakt:null}}})});
+ try{
+  const fallback=await callSuccess(user.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:456}],confirmed:true});
+  assert.equal(fallback.data.added.movies,1,'matching slugs remain a fallback when settings lack a numeric ID');
+ }finally{upstreamFailures.delete('GET /users/settings');}
+ upstreamFailures.set('GET /users/settings',{status:200,raw:JSON.stringify({user:{ids:{slug:`fixture-user-${user.upstream_user_id}`,trakt:user.upstream_user_id+1000}}})});
+ try{
+  const before=requests.length;
+  await callFailure(user.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:789}],confirmed:true},'list_not_owned');
+  assert.equal(requests.slice(before).filter(r=>r.method==='POST').length,0,'mismatched numeric IDs override matching slugs');
  }finally{upstreamFailures.delete('GET /users/settings');}
  await callSuccess(user.access_token,'trakt_api_write',{operation_id:'deleteUsersListsListDelete',path_params:{id:'me',list_id:id},confirmed:true});
 });

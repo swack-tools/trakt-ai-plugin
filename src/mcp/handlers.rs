@@ -101,15 +101,28 @@ async fn verify_list_ownership(
         .map_err(|_| ApiError::new(500, "list_ownership_unverified"))?;
     let list = trakt::api::execute_call(client, storage, session_id, &summary, false).await?;
     let account = trakt::api::execute_call(client, storage, session_id, &settings, false).await?;
-    let owner = list["data"]["user"]["ids"]["slug"].as_str();
-    let connected = account["data"]["user"]["ids"]["slug"].as_str();
-    if owner.is_none() || connected.is_none() {
-        return Err(ApiError::new(403, "list_ownership_unverified"));
+    let owner_ids = &list["data"]["user"]["ids"];
+    let account_ids = &account["data"]["user"]["ids"];
+    // List-owner slugs may be null. Prefer numeric Trakt IDs when both
+    // responses supply them, and retain the slug check for older accounts
+    // whose settings omit a numeric ID.
+    if let (Some(owner), Some(connected)) = (
+        owner_ids["trakt"].as_u64().filter(|id| *id > 0),
+        account_ids["trakt"].as_u64().filter(|id| *id > 0),
+    ) {
+        return if owner == connected {
+            Ok(())
+        } else {
+            Err(ApiError::new(403, "list_not_owned"))
+        };
     }
-    if owner != connected {
-        return Err(ApiError::new(403, "list_not_owned"));
+    let owner = owner_ids["slug"].as_str().filter(|slug| !slug.is_empty());
+    let connected = account_ids["slug"].as_str().filter(|slug| !slug.is_empty());
+    match (owner, connected) {
+        (Some(owner), Some(connected)) if owner == connected => Ok(()),
+        (Some(_), Some(_)) => Err(ApiError::new(403, "list_not_owned")),
+        _ => Err(ApiError::new(403, "list_ownership_unverified")),
     }
-    Ok(())
 }
 pub async fn handle(env: &Env, storage: &mut Storage, session_id: &str, v: Value) -> Option<Value> {
     if protocol::validate(&v).is_err() {
