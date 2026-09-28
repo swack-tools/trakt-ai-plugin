@@ -1,7 +1,7 @@
 {
   "name": "trakt-mcp",
-  "version": "1.2.0",
-  "description": "Independent Trakt integration: find films and shows, explore watched summaries, and explain personalized recommendations.",
+  "version": "2.0.0",
+  "description": "Explore Trakt movies, shows, calendars, and lists; manage your watchlist, history, ratings, and collection with explicit write permission.",
   "author": {
     "name": "SwackTech LLC",
     "url": "https://github.com/swack-tools"
@@ -14,24 +14,29 @@
     "movies",
     "tv",
     "watch-history",
-    "recommendations"
+    "recommendations",
+    "watchlist",
+    "calendars",
+    "ratings",
+    "collection"
   ],
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Trakt MCP \u2014 Community",
-    "shortDescription": "Find films and shows with your Trakt account.",
-    "longDescription": "An independent community integration with four guided workflows: what to watch, watching profile, title search, and connection help. Browse watched summaries and Trakt recommendations. Media tools only read data; login tools change connection state. Not endorsed by Trakt, Anthropic, or OpenAI.",
+    "shortDescription": "Discover and manage your Trakt viewing.",
+    "longDescription": "An independent community integration with seven guided workflows and nine MCP tools. Discover recommendations, viewing history, titles, lists, and release calendars. Inspect the documented API catalog and make requested list, history, rating, and collection changes with write permission. Restricted operations remain unavailable. Not endorsed by Trakt, Anthropic, or OpenAI.",
     "developerName": "SwackTech LLC",
     "category": "Productivity",
     "capabilities": [
-      "Read"
+      "Read",
+      "Write"
     ],
     "websiteURL": "https://trakt.swacktech.com/",
     "privacyPolicyURL": "https://trakt.swacktech.com/privacy",
     "defaultPrompt": [
-      "Find three movies I might enjoy from my Trakt recommendations.",
-      "Summarize patterns in my watched movies and shows.",
-      "Help me distinguish the different versions of The Thing."
+      "Find three movies from my Trakt recommendations.",
+      "Show my upcoming episodes for the next seven days.",
+      "Create a private list called Rainy Sunday and add Arrival (2016)."
     ],
     "brandColor": "#155E4B",
     "composerIcon": "./assets/icon.png",

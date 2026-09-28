@@ -6,8 +6,10 @@ import json
 import sys
 import tempfile
 import unittest
+import zipfile
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from check_plugin import validate, ROOT
+from check_plugin import validate, ROOT, SKILLS
+from package_plugin import package
 
 class PackageBoundaryTests(unittest.TestCase):
     def setUp(self):
@@ -32,8 +34,44 @@ class PackageBoundaryTests(unittest.TestCase):
         self.rejected()
 
     def test_escape_from_individual_skill(self):
-        p=self.root/'skills/find-title/SKILL.md'
-        p.write_text(p.read_text()+'\nSee [outside](../../README.md).\n')
+        for name in SKILLS:
+            with self.subTest(skill=name):
+                p=self.root/'skills'/name/'SKILL.md'
+                original=p.read_text()
+                try:
+                    p.write_text(original+'\nSee [outside](../../README.md).\n')
+                    self.rejected()
+                finally:
+                    p.write_text(original)
+
+    def test_missing_workflow(self):
+        shutil.rmtree(self.root/'skills/manage-library')
+        self.rejected()
+
+    def test_missing_standalone_dependency_metadata(self):
+        (self.root/'skills/lists-and-watchlist/agents/openai.yaml').unlink()
+        self.rejected()
+
+    def test_mismatched_standalone_dependency(self):
+        p=self.root/'skills/upcoming-releases/agents/openai.yaml'
+        p.write_text(p.read_text().replace('https://trakt.swacktech.com/mcp',
+                                        'https://unrelated.example/mcp'))
+        self.rejected()
+
+    def test_stale_platform_interface(self):
+        p=self.root/'.codex-plugin/plugin.json'
+        data=json.loads(p.read_text())
+        data['interface']['capabilities']=['Read']
+        p.write_text(json.dumps(data))
+        self.rejected()
+
+    def test_undeclared_write_capability(self):
+        for filename in ['plugin.json','.codex-plugin/plugin.json']:
+            p=self.root/filename
+            data=json.loads(p.read_text())
+            interface=data['interface'] if 'interface' in data else data['extensions']['com.openai']['interface']
+            interface['capabilities']=['Read']
+            p.write_text(json.dumps(data))
         self.rejected()
 
     def test_accidental_environment_file(self):
@@ -54,5 +92,24 @@ class PackageBoundaryTests(unittest.TestCase):
         data['mcpServers']['trakt']['url']='https://wrong.example/mcp'
         p.write_text(json.dumps(data))
         self.rejected()
+
+class ArchiveContractTests(unittest.TestCase):
+    def test_all_standalone_skills_and_deterministic_archives(self):
+        with tempfile.TemporaryDirectory(prefix='trakt-archive-test-') as tmp:
+            first,second=Path(tmp)/'first',Path(tmp)/'second'
+            package(first)
+            package(second)
+            self.assertEqual((first/'SHA256SUMS').read_bytes(),(second/'SHA256SUMS').read_bytes())
+            version=json.loads((ROOT/'plugins/trakt-mcp/plugin.json').read_text())['version']
+            expected={f'{name}-{version}.zip' for name in SKILLS}
+            expected|={f'trakt-mcp-{version}.zip',f'trakt-mcp-skills-{version}.zip'}
+            self.assertEqual({p.name for p in first.glob('*.zip')},expected)
+            for name in SKILLS:
+                with self.subTest(skill=name),zipfile.ZipFile(first/f'{name}-{version}.zip') as artifact:
+                    self.assertTrue(all(p.startswith(name+'/') for p in artifact.namelist()))
+                    for member in ['SKILL.md','agents/openai.yaml','LICENSE']:
+                        self.assertIn(name+'/'+member,artifact.namelist())
+                    self.assertEqual(artifact.read(name+'/LICENSE'),(ROOT/'plugins/trakt-mcp/LICENSE').read_bytes())
+
 
 if __name__=='__main__':unittest.main()

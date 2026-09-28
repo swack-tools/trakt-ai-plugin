@@ -7,8 +7,11 @@ import re
 import struct
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILLS = {'what-to-watch','watching-profile','find-title','connection-help'}
-TOOLS = {'trakt_search','trakt_get_watched_history','trakt_get_recommendations','trakt_request_login','trakt_confirm_login'}
+SKILLS = {'what-to-watch','watching-profile','find-title','connection-help',
+          'lists-and-watchlist','upcoming-releases','manage-library'}
+TOOLS = {'trakt_search','trakt_get_watched_history','trakt_get_recommendations',
+         'trakt_request_login','trakt_confirm_login','trakt_list_operations',
+         'trakt_get_operation','trakt_api_read','trakt_api_write'}
 FORBIDDEN_NAMES = {'.DS_Store','Thumbs.db','node_modules','.git','.env','wrangler.toml','__pycache__'}
 
 
@@ -77,6 +80,9 @@ def validate(plugin, repository_checks=True):
     require({x['name'] for x in manifests}=={'trakt-mcp'},'Manifest identity mismatch')
     require(len({x['version'] for x in manifests})==1,'Manifest version mismatch')
     require(re.fullmatch(r'\d+\.\d+\.\d+',manifests[0]['version']), 'Use a release semver')
+    interface=manifests[2]['extensions']['com.openai']['interface']
+    require(manifests[1].get('interface')==interface,'Portable and Codex interfaces differ')
+    require(set(interface.get('capabilities',[]))=={'Read','Write'},'Declare read and write capabilities')
     for m in manifests:
         require(m.get('license')=='GPL-3.0-only','Preserve license identifier')
         require(bool(m.get('description')),'Missing description')
@@ -102,13 +108,18 @@ def validate(plugin, repository_checks=True):
             endpoints.append(url)
     require(len(set(endpoints))==1,'Platform MCP URLs differ')
     skills=plugin/'skills'
-    require({p.name for p in skills.iterdir() if p.is_dir()}==SKILLS,'Expected four distinct skill workflows')
+    require({p.name for p in skills.iterdir() if p.is_dir()}==SKILLS,
+            f'Expected {len(SKILLS)} distinct skill workflows: {sorted(SKILLS)}')
     mentioned=set()
     for skill in sorted(skills.iterdir()):
         fm,body=frontmatter(skill/'SKILL.md')
         require(fm['name']==skill.name,'Skill folder/name mismatch')
         require(len(fm['name'])<=64 and len(fm['description'])<=1024,'Skill metadata too long')
         require(len(body.split())>=180,'Skill needs substantive workflow instructions')
+        metadata=skill/'agents/openai.yaml'
+        require(metadata.is_file(),f'Missing standalone skill dependency metadata: {skill.name}')
+        dependency_urls=re.findall(r'^\s+url:\s*[\"\']?([^\"\'\s]+)[\"\']?\s*$',metadata.read_text(),re.M)
+        require(dependency_urls==[endpoints[0]],f'Skill MCP dependency differs: {skill.name}')
         actual=set(re.findall(r'\btrakt_[a-z_]+\b',body));mentioned|=actual&TOOLS
         # Error identifiers share the trakt_ prefix and are not necessarily tool names.
         require(not any(x in body for x in ('mcp__trakt__','mcp__plugin_')),'Do not hardcode a client tool namespace')
@@ -126,7 +137,7 @@ def validate(plugin, repository_checks=True):
             require((ROOT/source).resolve()==plugin,'Marketplace must resolve canonical plugin')
         for path in ('.mcp.json','.claude-plugin/mcp.json'):
             legacy=json.loads((ROOT/path).read_text());require(legacy==configs[0],'Root compatibility connection differs')
-    print(f'Validated {len([p for p in files if p.is_file()])} files, four skills, manifests, paths, license, assets, and MCP configuration')
+    print(f'Validated {len([p for p in files if p.is_file()])} files, {len(SKILLS)} skills, {len(TOOLS)} tools, manifests, paths, license, assets, and MCP configuration')
 
 
 if __name__=='__main__':
