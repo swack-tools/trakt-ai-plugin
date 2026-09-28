@@ -63,7 +63,7 @@ before(async()=>{
   if(!list){status=404;data={};}else if(list.owner!==req.headers.authorization){status=403;data={};}else{mockLists.delete(id);status=204;data=null;}
  }
  else if(u.pathname==='/lists/popular'&&req.method==='GET'){
-  const page=Number(u.searchParams.get('page')||1),limit=Number(u.searchParams.get('limit')||100);
+  const page=Number(u.searchParams.get('page')||1),limit=1;
   data=page===1?[{like_count:42,list:{name:'Public discoveries',ids:{trakt:77},privacy:'public'}}]:[{like_count:9,list:{name:'Second page',ids:{trakt:78},privacy:'public'}}];
   paginationHeaders(res,{page,limit,page_count:2,item_count:limit+1});
  }
@@ -83,7 +83,7 @@ before(async()=>{
  else if(u.pathname.startsWith('/recommendations/')){data=[{title:'Recommendation',genres:['drama'],year:2020}];}
  else if(u.pathname.startsWith('/search/') && u.searchParams.get('query')==='rate-limit'){status=429;res.setHeader('Retry-After','7');data={private_upstream_detail:'must not be returned'};}
  else if(u.pathname.startsWith('/search/') && u.searchParams.get('query')==='upstream-error'){status=503;data={private_upstream_detail:'must not be returned'};}
- else if(u.pathname.startsWith('/search/')){if(u.searchParams.get('query')!=='no-headers')paginationHeaders(res,{page:Number(u.searchParams.get('page')||1),limit:Number(u.searchParams.get('limit')||20),page_count:3,item_count:2*Number(u.searchParams.get('limit')||20)+Math.min(2,Number(u.searchParams.get('limit')||20))});data=[{type:'movie',movie:{title:'A & B',year:2020,genres:['drama']}},{type:'show',show:{title:'Wrong year',year:1999,genres:['comedy']}}].slice(0,Number(u.searchParams.get('limit')||20));}
+ else if(u.pathname.startsWith('/search/')){const effectiveLimit=Math.min(2,Number(u.searchParams.get('limit')||20));if(u.searchParams.get('query')!=='no-headers')paginationHeaders(res,{page:Number(u.searchParams.get('page')||1),limit:effectiveLimit,page_count:3,item_count:3*effectiveLimit});data=[{type:'movie',movie:{title:'A & B',year:2020,genres:['drama']}},{type:'show',show:{title:'Wrong year',year:1999,genres:['comedy']}}].slice(0,Number(u.searchParams.get('limit')||20));}
  else {status=404;data={};}res.writeHead(status,{'Content-Type':'application/json'});res.end(upstreamFailures.get(`${req.method} ${u.pathname}`)?.raw??JSON.stringify(data));});
  mock.listen(8799,'127.0.0.1');await once(mock,'listening');
  stateDir=await mkdtemp(join(tmpdir(),'trakt-mcp-test-'));
@@ -220,7 +220,7 @@ test('pagination inputs stay endpoint-specific and filtered empty search pages c
  for(const path of ['/sync/watched?page=0','/sync/watched?limit=0','/sync/watched?limit=101','/sync/watched?mode=unknown','/recommendations?page=2','/recommendations?mode=recent','/search?query=x&mode=all']){
   const start=requests.length;assert.equal((await api(path,{token:u.access_token})).status,400,path);assert.equal(requests.length,start,'invalid inputs must not call Trakt');
  }
- const filtered=await api('/search?query=A&genres=horror&page=2&limit=5',{token:u.access_token});assert.equal(filtered.status,200);assert.deepEqual(filtered.data.data,[]);assert.equal(filtered.data.pagination.page,2);assert.equal(filtered.data.pagination.has_more,true);assert.equal(filtered.data.pagination.next_page,3);assert.equal(filtered.data.filters_applied_to_page,true);
+ const filtered=await api('/search?query=A&genres=horror&page=2&limit=5',{token:u.access_token});assert.equal(filtered.status,200);assert.deepEqual(filtered.data.data,[]);assert.equal(filtered.data.pagination.page,2);assert.equal(filtered.data.pagination.has_more,true);assert.equal(filtered.data.pagination.next_page,3);assert.equal(filtered.data.filters_applied_to_page,true);assert.equal(filtered.data.pagination.limit,2,'validate the effective upstream limit before local filtering');assert.equal(requests.at(-1).query.get('limit'),'5','preserve the caller requested limit');
  const unknown=await api('/search?query=no-headers',{token:u.access_token});assert.equal(unknown.status,200);assert.equal(unknown.data.pagination.has_more,null);assert.equal(unknown.data.pagination.next_page,null);
 });
 test('real MCP SDK initializes and calls both transports',async()=>{
@@ -441,12 +441,34 @@ test('contradictory page counts and truncated final pages cannot claim complete 
 
 test('generic API reads reject contradictory completion metadata too',async()=>{
  const user=await paginationUser(),key='GET /lists/popular';
- for(const [page,page_count,length] of [[1,1,100],[3,3,20]]){
+ for(const [page,page_count,length] of [[1,1,100],[3,3,20],[1,3,20],[2,3,20]]){
   upstreamFailures.set(key,{status:200,data:Array.from({length},(_,id)=>({list:{ids:{trakt:id}}})),pagination:{page,page_count,limit:100,item_count:250}});
   const start=requests.length;
   try{
    const error=await callFailure(user.access_token,'trakt_api_read',{operation_id:'getListsPopular',query_params:{page,limit:100}},'invalid_trakt_pagination');
    assert.equal(error.pagination,undefined);assert.equal(requests.length,start+1);
   }finally{upstreamFailures.delete(key);}
+ }
+});
+
+
+test('short first or intermediate pages stop traversal before any false complete result',async()=>{
+ const user=await paginationUser(),rows=summaries('movies',250);
+ for(const badPage of [1,2]){
+  fixtureFor(user,{movies:rows,truncatePage:badPage,truncatedLength:20});const partial=[],start=requests.length;
+  for(let page=1;page<badPage;page++){
+   const prior=await api(`/sync/watched?media_type=movies&page=${page}&limit=100`,{token:user.access_token});
+   assert.equal(prior.status,200);partial.push(...prior.data.data);
+  }
+  const failed=await api(`/sync/watched?media_type=movies&page=${badPage}&limit=100`,{token:user.access_token});
+  assert.equal(failed.status,502);assert.equal(failed.data.error,'invalid_trakt_pagination');assert.equal(failed.data.data,undefined);
+  assert.equal(watchedRequests(start).length,badPage,'stop at the incomplete page without retrying or fetching later pages');
+  assert.deepEqual(partial,rows.slice(0,(badPage-1)*100));
+  fixtureFor(user,{movies:rows});
+  for(let page=badPage;page<=3;page++){
+   const resumed=await api(`/sync/watched?media_type=movies&page=${page}&limit=100`,{token:user.access_token});
+   assert.equal(resumed.status,200);assert.equal(resumed.data.pagination.has_more,page<3);partial.push(...resumed.data.data);
+  }
+  assert.deepEqual(partial,rows);assert.equal(partial.length,250);
  }
 });

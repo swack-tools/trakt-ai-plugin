@@ -190,3 +190,20 @@ fn pagination_never_reports_completion_for_contradictory_or_truncated_totals() {
         .is_err()
     );
 }
+
+#[test]
+fn pagination_rejects_short_nonfinal_pages_before_completion() {
+    use trakt_mcp::trakt::client::pagination;
+    for page in [1, 2] {
+        assert!(pagination([Some(page), Some(3), Some(100), Some(250)], page, 20).is_err());
+        assert!(pagination([Some(page), Some(3), Some(100), Some(250)], page, 99).is_err());
+        assert_eq!(
+            pagination([Some(page), Some(3), Some(100), Some(250)], page, 100).unwrap()["has_more"],
+            true
+        );
+    }
+    assert_eq!(
+        pagination([Some(3), Some(3), Some(100), Some(250)], 3, 50).unwrap()["has_more"],
+        false
+    );
+}
