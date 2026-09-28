@@ -309,6 +309,23 @@ fn focused_write_schemas_reject_whitespace_names_and_duplicate_items() {
 }
 
 #[test]
+fn focused_list_item_ids_match_u64_runtime_bounds() {
+    let definitions = protocol::tools();
+    let tools = definitions["tools"].as_array().unwrap();
+    for name in ["trakt_add_list_items", "trakt_remove_list_items"] {
+        let tool = tools.iter().find(|tool| tool["name"] == name).unwrap();
+        let validator = jsonschema::validator_for(&tool["inputSchema"]).unwrap();
+        let mut args = json!({"list_id":"77","items":[{"media_type":"movie","trakt_id":u64::MAX}],"confirmed":true});
+        assert!(validator.is_valid(&args), "{name}: u64 maximum rejected");
+        args["items"][0]["trakt_id"] = serde_json::from_str("18446744073709551616").unwrap();
+        assert!(
+            !validator.is_valid(&args),
+            "{name}: value beyond u64 accepted"
+        );
+    }
+}
+
+#[test]
 fn pagination_follows_actual_limits_and_rejects_unreliable_metadata() {
     use trakt_mcp::trakt::client::pagination;
     let first = pagination([Some(1), Some(7), Some(40), Some(251)], 1, 40).unwrap();
