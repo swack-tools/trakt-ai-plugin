@@ -76,23 +76,71 @@ def resolve(value, document, stack=()):
     return {k:resolve(v, document, stack) for k,v in value.items()}
 
 
-def json_schema(schema):
+def normalize_identifiers(schema):
+    """ID alternatives mean at least one supported identifier, not exactly one."""
+    branches = schema.get('oneOf', [])
+    identifiers = {'trakt', 'slug', 'imdb', 'tmdb', 'tvdb', 'tvrage'}
+    if branches and all(
+        branch.get('type') == 'object'
+        and set(branch.get('properties', {})) <= identifiers
+        and len(branch.get('required', [])) == 1
+        and set(branch['required']) <= identifiers
+        for branch in branches
+    ):
+        return {**{key:value for key,value in schema.items() if key != 'oneOf'}, 'anyOf':branches}
+    return schema
+
+
+def normalize_media_choices(schema):
+    """Require the selected media discriminator in exclusive target branches."""
+    branches = schema.get('oneOf', [])
+    media = {'movie', 'show', 'season', 'episode', 'person', 'list'}
+    if branches and all(
+        branch.get('type') == 'object'
+        and len(branch.get('properties', {})) == 1
+        and set(branch['properties']) <= media
+        for branch in branches
+    ):
+        normalized = []
+        for branch in branches:
+            name = next(iter(branch['properties']))
+            target = {key:value for key,value in branch['properties'][name].items() if key != 'nullable'}
+            normalized.append({**branch, 'required':sorted(set(branch.get('required', [])) | {name}), 'properties':{name:target}})
+        return {**schema, 'oneOf':normalized}
+    return schema
+
+
+def has_object_properties(schema):
+    """Identify object properties applying to this instance, not child instances."""
+    return 'properties' in schema or any(
+        has_object_properties(child)
+        for key in ('allOf', 'anyOf', 'oneOf') for child in schema.get(key, [])
+    )
+
+
+def json_schema(schema, close_object=True):
     """Translate OpenAPI 3.0 nullable into JSON Schema, retaining constraints."""
     if isinstance(schema, list):
         return [json_schema(v) for v in schema]
     if not isinstance(schema, dict):
         return schema
+    schema = normalize_media_choices(schema)
     # Never strip a property named description, title, or examples.
     result = {}
     for key, value in schema.items():
         if key in {'nullable', 'description', 'example', 'examples', 'externalDocs', 'xml', 'title'}:
             continue
-        if key in {'properties', 'patternProperties', '$defs', 'definitions'}:
-            result[key] = {name:json_schema(child) for name,child in value.items()}
+        if key in {'allOf', 'anyOf', 'oneOf'}:
+            result[key] = [json_schema(child, close_object=False) for child in value]
+        elif key in {'properties', 'patternProperties', '$defs', 'definitions'}:
+            result[key] = {name:json_schema(normalize_identifiers(child) if key == 'properties' and name == 'ids' else child) for name,child in value.items()}
         else:
             result[key] = json_schema(value)
-    if 'properties' in result and 'additionalProperties' not in result:
-        result['additionalProperties'] = False
+    if close_object and has_object_properties(result):
+        if any(key in result for key in ('allOf', 'anyOf', 'oneOf')):
+            result.setdefault('unevaluatedProperties', False)
+        elif 'additionalProperties' not in result:
+            result['additionalProperties'] = False
     if schema.get('nullable'):
         return {'anyOf': [result, {'type':'null'}]}
     return result
@@ -118,6 +166,12 @@ def extract(url: str, refresh: bool = False) -> list[dict]:
                                'required':p.get('required', False),
                                'schema':json_schema(p.get('schema', {})),
                                **{key:p[key] for key in ('style', 'explode', 'allowReserved') if key in p}})
+            if path.startswith('/calendars/'):
+                for parameter in params:
+                    if parameter['in'] == 'path' and parameter['name'] == 'days':
+                        parameter['schema'] = {'type':'integer', 'minimum':1, 'maximum':33}
+                    if parameter['in'] == 'path' and parameter['name'] == 'start_date':
+                        parameter['schema'] = {'type':'string', 'format':'date', 'pattern':r'^\d{4}-\d{2}-\d{2}$'}
             paginated = 'Pagination' in desc or any(p['name'] == 'page' for p in params)
             if paginated:
                 for name, maximum in [('page', 4294967295), ('limit', 100)]:
@@ -162,8 +216,11 @@ def extract(url: str, refresh: bool = False) -> list[dict]:
                       'request_body':request_body, 'auth':auth,
                       'pagination':{'supported':paginated},
                       'status':status}
+            if path.startswith('/calendars/'):
+                record['calendar_normalization_source'] = 'https://docs.trakt.tv/reference/about-calendars.md'
+                record['calendar_normalization_note'] = 'Calendar windows use UTC dates in YYYY-MM-DD form and 1 to 33 days, per the official calendar guide.'
             if request_body is not None:
-                record['schema_normalization_note'] = 'Objects with documented properties reject unknown fields unless the source explicitly allows additional properties. Use the documented schema and supply a single supported identifier in oneOf identifier objects.'
+                record['schema_normalization_note'] = 'Objects with documented properties reject unknown fields unless the source explicitly allows additional properties; composed objects close after evaluating all branches. Identifier alternatives allow one or more supported IDs; ambiguous source oneOf ID alternatives are normalized to anyOf. Exclusive media-target alternatives require their named non-null target.'
             if paginated:
                 record['normalization_note'] = 'Pagination page and limit use positive integer inputs; MCP locally caps limit at 100 and page at 4294967295. Pagination parameters are included for documented paginated operations.'
             if reason:

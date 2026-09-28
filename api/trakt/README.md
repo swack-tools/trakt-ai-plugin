@@ -24,10 +24,11 @@ The generated output is deterministic for the same source pages. `source_index_s
 
 - Request schemas resolve local OpenAPI references and translate OpenAPI `nullable` into JSON Schema `anyOf`.
 - Descriptions and examples are removed from schemas. Properties whose names are `description`, `title`, or `examples` remain ordinary input properties.
-- Objects with explicitly documented properties reject unknown fields unless upstream explicitly permits additional properties. This local safety restriction is recorded in operation metadata. Some upstream schemas use `oneOf` for identifiers, so supply a single identifier such as `ids.trakt`, not a copied object containing several IDs.
+- Objects with explicitly documented properties reject unknown fields unless upstream explicitly permits additional properties. This local safety restriction is recorded in operation metadata. Composed objects close after their branches are evaluated. Identifier alternatives use `anyOf` so a media object can contain multiple supported IDs. Exclusive media-target alternatives require their named, non-null target.
 - Other missing upstream constraints remain missing; the catalog does not invent limits or imply complete upstream validation.
 - A request body with schema-level required properties is required even when the upstream OpenAPI document omits the request-body required flag.
 - OAuth Required and OAuth Optional markers in the endpoint reference determine authorization metadata. Some upstream security alternatives are broader than the endpoint's documented behavior.
+- Calendar date parameters use `YYYY-MM-DD` and day counts range from 1 to 33, following the [official calendar guide](https://docs.trakt.tv/reference/about-calendars.md).
 - Calendar `my` targets require a connected account; calendar `all` targets use the global calendar. Personal calendars include watched, collected, and watchlisted items, so they are not equivalent to a watched-only filter.
 - Paginated operations normalize `page` and `limit` to positive integer inputs, with local MCP bounds of 4,294,967,295 pages and 100 items per page. Missing pagination parameters are added only when the reference marks the endpoint as paginated. Each affected operation carries a normalization note.
 - Pagination metadata records whether the endpoint documents pagination or declares a page parameter. It does not promise that an upstream array is paginated or complete.
