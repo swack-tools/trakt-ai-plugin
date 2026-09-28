@@ -32,8 +32,8 @@ During browser authorization, approve the service connection, open the displayed
 
 | Skill | Try asking | What it actually does |
 | --- | --- | --- |
-| **What to watch** | “Suggest three science-fiction movies I haven't watched.” | Gets Trakt recommendations, optionally compares watched summaries, and explains a small shortlist. |
-| **Watching profile** | “Which genres appear most in my watched shows?” | Summarizes returned titles and genres, with explicit data coverage and uncertainty. |
+| **What to watch** | “Suggest three science-fiction movies I haven't watched.” | Gets Trakt recommendations; traverses every watched page for all-history grounding or unwatched filtering, or uses the latest 100 events for recent viewing. |
+| **Watching profile** | “Which genres appear most in my watched shows?” | Traverses all watched summaries by default, or summarizes the latest 100 events per medium on a recent-viewing request. |
 | **Find title** | “Help me distinguish the different versions of The Thing.” | Searches title/year/type, asks about ambiguity, and supplies returned identifiers. |
 | **Connection help** | “My Trakt authorization expired; help me reconnect.” | Separates installation, client OAuth, device login, and upstream failures. |
 
@@ -41,7 +41,11 @@ Claude Code exposes skills under names such as `/trakt-mcp:what-to-watch`; other
 
 The media tools only read: `trakt_search`, `trakt_get_watched_history`, and `trakt_get_recommendations`. The login tools, `trakt_request_login` and `trakt_confirm_login`, change authentication state. No tool writes your watched history, ratings, or watchlist. There is no streaming-availability lookup.
 
-Watched data is a summary of watched movies and shows, not a chronological list of plays. A show entry need not mean you finished the series. Search genre/year filters apply to an upstream results page; pagination counts describe the unfiltered query. Recommendations come from Trakt. The assistant explains their fit but does not know why Trakt ranked each result.
+`trakt_get_watched_history` accepts `media_type: movie|show|all`, `mode: all|recent` (default `all`), `page` (default 1), and `limit` (1–100, default 100). Each call returns one upstream page per requested medium with full supplied metadata. `mode: all` returns watched-title summaries and play counts; `mode: recent` returns chronological watch events, newest first, including repeated watches. A show summary need not mean you finished the series; show events can represent episodes.
+
+Responses contain `data` and `pagination` (`page`, effective `limit`, `page_count`, `item_count`, `has_more`, `next_page`). For `media_type: all`, these are separate under `movies` and `shows`. The skills follow each medium’s `next_page` sequentially until null for all-history requests and recommendations grounded in all viewing. They maintain IDs and counts and report progress; no arbitrary page budget truncates an explicit all-history request. Recent-viewing workflows gather only the first 100 events per medium, fetching more pages if Trakt clamps the page size. Each continuation keeps the same requested limit to preserve page offsets.
+
+Search also returns normalized pagination. Ordinary title lookup inspects at most three pages; an explicit request for all search results follows `next_page` to completion. Genre/year filters apply to each upstream page, so pagination counts describe the unfiltered query and an empty filtered page may still have more results. Recommendations accept `limit` up to 100, but no `page` parameter. They come from Trakt; the assistant explains their fit without claiming to know why Trakt ranked each result.
 
 ## Plugin, MCP alone, or skills alone
 
@@ -67,7 +71,7 @@ No Claude-only agent is bundled: these workflows are short enough to keep their 
 
 ## Data and privacy
 
-The client sends tool arguments, such as a title query, filters, or a login confirmation code, to the hosted service on Cloudflare. The service sends corresponding requests to Trakt and returns movie/show metadata, watched summaries, recommendations, or connection status. Returned data becomes available to the assistant in your chosen client and is subject to that provider's policies. Skills do not send the entire conversation or inspect private local files.
+The client sends tool arguments, such as a title query, filters, or a login confirmation code, to the hosted service on Cloudflare. The service sends corresponding requests to Trakt and returns movie/show metadata, watched summaries or events, recommendations, or connection status. Returned data becomes available to the assistant in your chosen client and is subject to that provider's policies. Skills do not send the entire conversation or inspect private local files.
 
 The service stores authorization and connection state in Cloudflare Durable Objects, with a KV token mirror. Trakt access and refresh tokens stay on the server rather than being returned by media tools. A login tool returns activation details and a private device code needed to complete that connection. Token expiration is not a promise of deletion. Removing the plugin from a client does not prove that server state was deleted or that Trakt access was revoked. Consult the service's [privacy information](https://trakt.swacktech.com/privacy) and [deployment documentation](https://trakt.swacktech.com/reference.html) for session deletion and revoke the integration through Trakt's account controls when appropriate. Cloudflare and the client provider may process request metadata independently of the application.
 
@@ -75,13 +79,13 @@ The service stores authorization and connection state in Cloudflare Durable Obje
 
 If skills appear but tools do not, enable or connect the bundled connector and start a fresh conversation. If an MCP request is unauthorized before a tool runs, use the client's OAuth connection flow. If a callable tool reports `trakt_login_required`, ask to reconnect your Trakt account. Wait for the stated polling interval; an expired device code must be replaced, not retried indefinitely. Rate limits and service outages are not fixed by repeated login attempts.
 
-An empty recommendation list can reflect your Trakt account or filters. An empty filtered search page does not establish that no matching title exists. Large watched datasets can exceed response limits; request one medium and avoid claiming complete chronological statistics.
+An empty recommendation list can reflect your Trakt account or filters. An empty filtered search page does not establish that no matching title exists. If a page fails, is truncated, or reports inconsistent pagination, the assistant reports partial coverage and the next page to resume. It respects retry delays and never claims to have used all viewing while pages are missing. Large pages can exceed response limits; retry a smaller page size from page 1 to avoid changing offsets midway, and deduplicate summary IDs. A recent 100-event sample does not establish complete calendar-period statistics.
 
 For reproducible bugs, use [GitHub issues](https://github.com/swack-tools/trakt-ai-plugin/issues) and include the client/version, workflow, and redacted error code. Never post credentials, device codes, or personal watched history. The [documentation site](https://trakt.swacktech.com/) contains the operator and installation guides. Publisher identity, legal terms, private reviewer access, and directory permissions remain owner responsibilities.
 
 ## License and assets
 
-This package is licensed under [GPL-3.0-only](LICENSE). Its original geometric artwork is also covered by that license; [asset provenance](assets/README.md) records the source and limitations. Trakt and platform names identify interoperable services, not project ownership of their marks. Version 1.1.0 adds the four portable skills, this self-contained guide, original listing assets, and current portable manifest support while retaining the existing `trakt-mcp` identity.
+This package is licensed under [GPL-3.0-only](LICENSE). Its original geometric artwork is also covered by that license; [asset provenance](assets/README.md) records the source and limitations. Trakt and platform names identify interoperable services, not project ownership of their marks. Version 1.2.0 adds watched-summary pagination, recent watch events, normalized continuation metadata, and complete-history skill traversal while retaining the same five tools and `trakt-mcp` identity.
 
 ## Publisher and private reports
 

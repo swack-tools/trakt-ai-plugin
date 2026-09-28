@@ -1,6 +1,6 @@
 # Trakt MCP
 
-Connect your own [Trakt](https://trakt.tv/) account to Claude or Codex for movie and TV recommendations, watched summaries, and title search. Four bundled skills guide useful workflows. Media tools do not change your Trakt history or ratings; login tools change authentication state.
+Connect your own [Trakt](https://trakt.tv/) account to Claude or Codex for movie and TV recommendations, complete watched-summary traversal, recent watch events, and title search. Four bundled skills guide useful workflows. Media tools do not change your Trakt history or ratings; login tools change authentication state.
 
 ## Desktop setup
 
@@ -53,8 +53,8 @@ Each person signs in with their own Trakt account:
 ## Four bundled workflows
 
 - **what-to-watch** — a concise shortlist grounded in Trakt recommendations.
-- **watching-profile** — summarize returned watched titles and play counts, without inventing a dated timeline.
-- **find-title** — disambiguate titles, years, and remakes with bounded search.
+- **watching-profile** — retrieve every watched-summary page, or summarize the latest 100 watch events per medium.
+- **find-title** — disambiguate titles with bounded search, or follow every page when you explicitly request all results.
 - **connection-help** — diagnose installation, OAuth, device codes, and rate limits.
 
 Use natural language or your client’s skill picker. See the [plugin README](plugins/trakt-mcp/README.md) for setup, workflow details, and platform limits.
@@ -67,7 +67,7 @@ Use natural language or your client’s skill picker. See the [plugin README](pl
 - “Show me the movies and TV shows I’ve watched.”
 - “Search Trakt for Arrival.”
 
-Recommendations come from Trakt’s personalized results. History shows watched titles and play counts.
+Recommendations come from Trakt’s personalized results. By default, history returns watched-title summaries with play counts, one page per tool call. The skills follow `pagination.next_page` to completion for all-history requests and recommendations based on all viewing. Ask for “recently watched” to use the latest 100 chronological watch events per medium, including repeat watches. Interrupted traversals are reported as partial with a resume page.
 
 For standalone MCP or skills-only setup, see the [installation guide](https://trakt.swacktech.com/connect.html). Skills alone still require the authenticated MCP connection.
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "trakt-mcp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Independent Trakt integration: find films and shows, explore watched summaries, and explain personalized recommendations.",
   "author": {
     "name": "SwackTech LLC",
