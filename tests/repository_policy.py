@@ -64,7 +64,8 @@ class RepositoryPolicyTests(unittest.TestCase):
 
     def test_dependency_alerts_runners_and_token_permissions_cannot_drift(self):
         for key, value in [('vulnerability_alerts', False),
-                           ('automated_security_fixes', {'enabled': False}),
+                           ('automated_security_fixes', {'enabled': False, 'paused': False}),
+                           ('automated_security_fixes', {'enabled': True, 'paused': True}),
                            ('runners', {'total_count': 1}),
                            ('workflow_permissions', {'default_workflow_permissions': 'write',
                                                      'can_approve_pull_request_reviews': True})]:

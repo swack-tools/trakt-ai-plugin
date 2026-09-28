@@ -42,7 +42,7 @@ def check_inventory(policy, inventory):
         raise ValueError('protection: pull request review bypasses must be empty')
     validate(policy['workflow_permissions'], inventory['workflow_permissions'], 'workflow_permissions')
     validate({'total_count': 0}, inventory['runners'], 'runners')
-    validate({'enabled': True}, inventory['automated_security_fixes'], 'automated_security_fixes')
+    validate({'enabled': True, 'paused': False}, inventory['automated_security_fixes'], 'automated_security_fixes')
     if not inventory['vulnerability_alerts']:
         raise ValueError('vulnerability_alerts: disabled')
 
