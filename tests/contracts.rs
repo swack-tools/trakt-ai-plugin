@@ -45,7 +45,7 @@ fn bearer_tokens_require_both_routing_id_and_secret() {
 fn tool_metadata_distinguishes_account_reads_catalog_and_auth_changes() {
     let definitions = protocol::tools();
     let tools = definitions["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 5);
+    assert_eq!(tools.len(), 9);
     for tool in tools {
         assert!(tool["title"].as_str().unwrap().len() > 5);
     }
@@ -67,6 +67,49 @@ fn tool_metadata_distinguishes_account_reads_catalog_and_auth_changes() {
         find("trakt_request_login")["annotations"]["readOnlyHint"],
         false
     );
+    for name in [
+        "trakt_list_operations",
+        "trakt_get_operation",
+        "trakt_api_read",
+    ] {
+        assert_eq!(find(name)["annotations"]["readOnlyHint"], true);
+        assert_eq!(find(name)["annotations"]["destructiveHint"], false);
+    }
+    assert_eq!(
+        find("trakt_list_operations")["annotations"]["openWorldHint"],
+        false
+    );
+    assert_eq!(
+        find("trakt_get_operation")["annotations"]["openWorldHint"],
+        false
+    );
+    assert_eq!(find("trakt_api_read")["annotations"]["openWorldHint"], true);
+    assert_eq!(
+        find("trakt_api_write")["annotations"]["readOnlyHint"],
+        false
+    );
+    assert_eq!(
+        find("trakt_api_write")["annotations"]["destructiveHint"],
+        true
+    );
+    assert_eq!(
+        find("trakt_api_write")["annotations"]["openWorldHint"],
+        true
+    );
+    assert_eq!(
+        find("trakt_api_write")["inputSchema"]["properties"]["confirmed"]["const"],
+        true
+    );
+    assert!(
+        find("trakt_api_write")["inputSchema"]["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("confirmed"))
+    );
+    for tool in tools {
+        jsonschema::validator_for(&tool["inputSchema"])
+            .expect("Every advertised tool has a valid schema");
+    }
     assert!(
         !find("trakt_get_recommendations")["inputSchema"]["properties"]["media_type"]["enum"]
             .as_array()
