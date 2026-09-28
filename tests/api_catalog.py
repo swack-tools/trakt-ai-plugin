@@ -61,13 +61,22 @@ class CatalogTests(unittest.TestCase):
             self.assert_valid(schema, {'shows':[{'ids':{'trakt':456}}]})
             self.assert_invalid(schema, {'shows':[{'ids':{}}]})
             self.assert_invalid(schema, {'shows':[{'ids':{'trakt':456}, 'unexpected':True}]})
+        ids = {'type':'object','properties':{'trakt':{'type':'integer'}},'required':['trakt']}
+        title = {'type':'string'}
+        year = {'type':'integer'}
+        watched_at = {'type':'string'}
+        seasons = {'type':'array'}
         source = {'oneOf':[
-            {'type':'object','required':['ids'],'properties':{'ids':{'type':'object'}}},
-            {'type':'object','required':['ids'],'properties':{'ids':{'type':'object'},'seasons':{'type':'array'}}},
+            {'type':'object','required':['ids'],'properties':{'ids':ids,'watched_at':watched_at}},
+            {'type':'object','required':['title','year'],'properties':{'title':title,'year':year,'watched_at':watched_at}},
+            {'type':'object','required':['ids'],'properties':{'ids':ids,'watched_at':watched_at,'seasons':seasons}},
+            {'type':'object','required':['title','year'],'properties':{'title':title,'year':year,'watched_at':watched_at,'seasons':seasons}},
         ]}
         normalized = GENERATOR.json_schema(source)
         self.assertIn('anyOf', normalized)
-        self.assert_valid(normalized, {'ids':{}})
+        self.assert_valid(normalized, {'ids':{'trakt':456}})
+        self.assert_valid(normalized, {'title':'Fixture show','year':2026})
+        self.assert_invalid(normalized, {'ids':{'trakt':456},'unexpected':True})
 
     def test_calendar_range_and_date(self):
         parameters = {p['name']:p['schema'] for p in CATALOG['getCalendarsShows']['parameters'] if p['in']=='path'}

@@ -113,13 +113,17 @@ def normalize_media_choices(schema):
 def normalize_overlapping_choices(schema):
     """Allow the source's overlapping basic/show-with-seasons list items."""
     branches = schema.get('oneOf', [])
-    if len(branches) == 2 and any(
-        left.get('type') == right.get('type') == 'object'
-        and left.get('required') == right.get('required') == ['ids']
-        and set(left.get('properties', {})) == {'ids'}
-        and set(right.get('properties', {})) == {'ids', 'seasons'}
-        for left in branches for right in branches if left is not right
-    ):
+    expected = {
+        (frozenset({'ids'}), frozenset({'ids', 'watched_at'})),
+        (frozenset({'title', 'year'}), frozenset({'title', 'year', 'watched_at'})),
+        (frozenset({'ids'}), frozenset({'ids', 'watched_at', 'seasons'})),
+        (frozenset({'title', 'year'}), frozenset({'title', 'year', 'watched_at', 'seasons'})),
+    }
+    signatures = {
+        (frozenset(branch.get('required', [])), frozenset(branch.get('properties', {})))
+        for branch in branches if isinstance(branch, dict) and branch.get('type') == 'object'
+    }
+    if len(branches) == len(expected) and signatures == expected:
         return {**{key:value for key,value in schema.items() if key != 'oneOf'},
                 'anyOf':branches}
     return schema

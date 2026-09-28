@@ -170,11 +170,11 @@ pub fn prepare(name: &str, args: Value) -> Result<Call> {
             confirmed(input.confirmed)?;
             let name = input.name.trim();
             if name.is_empty()
-                || name.len() > 100
+                || name.chars().count() > 100
                 || input
                     .description
                     .as_ref()
-                    .is_some_and(|description| description.len() > 1000)
+                    .is_some_and(|description| description.chars().count() > 1000)
             {
                 return Err(invalid());
             }

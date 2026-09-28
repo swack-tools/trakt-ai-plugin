@@ -123,6 +123,35 @@ fn focused_writes_prepare_only_concrete_private_or_owned_list_changes() {
     }
 }
 
+#[test]
+fn focused_list_text_limits_count_unicode_characters() {
+    use trakt_mcp::mcp::focused;
+    let name = "界".repeat(100);
+    let description = "é".repeat(1000);
+    let call = focused::prepare(
+        "trakt_create_list",
+        json!({"name":name,"description":description,"confirmed":true}),
+    )
+    .unwrap();
+    let body = call.body.unwrap();
+    assert_eq!(body["name"].as_str().unwrap().chars().count(), 100);
+    assert_eq!(body["description"].as_str().unwrap().chars().count(), 1000);
+    assert!(
+        focused::prepare(
+            "trakt_create_list",
+            json!({"name":"界".repeat(101),"confirmed":true})
+        )
+        .is_err()
+    );
+    assert!(
+        focused::prepare(
+            "trakt_create_list",
+            json!({"name":"Valid","description":"é".repeat(1001),"confirmed":true})
+        )
+        .is_err()
+    );
+}
+
 fn call(value: Value) -> Call {
     serde_json::from_value(value).unwrap()
 }
