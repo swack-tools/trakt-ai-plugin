@@ -22,11 +22,11 @@ jobs:
           python-version: '3.12.14'
       - name: Install pinned public advisory scanners
         run: |
+          mkdir -p "$RUNNER_TEMP/dependency-reports"
           python3 -m pip install -r requirements-ci.txt
-          curl --fail --silent --show-error --location https://github.com/google/osv-scanner/releases/download/v2.6.0/osv-scanner_linux_amd64 -o "$RUNNER_TEMP/osv-scanner"
+          curl --fail --silent --show-error --location --retry 5 --retry-all-errors --retry-delay 2 https://github.com/google/osv-scanner/releases/download/v2.6.0/osv-scanner_linux_amd64 -o "$RUNNER_TEMP/osv-scanner"
           echo "ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108  $RUNNER_TEMP/osv-scanner" | sha256sum --check
           chmod +x "$RUNNER_TEMP/osv-scanner"
-          mkdir -p "$RUNNER_TEMP/dependency-reports"
       - name: Audit locked Rust and npm dependencies against OSV
         run: '"$RUNNER_TEMP/osv-scanner" scan source --lockfile Cargo.lock --lockfile package-lock.json --all-packages --format json --output-file "$RUNNER_TEMP/dependency-reports/osv.json"'
       - name: Audit npm registry advisories
