@@ -65,6 +65,8 @@ jobs:
         run: python3 -m ruff check scripts tests docs
       - name: Test configuration, package boundaries, and CI policy
         run: python3 -m unittest discover -s tests -p '*.py' -v
+      - name: Validate complete official API catalog offline
+        run: python3 scripts/update_trakt_catalog.py --offline-check
       - name: Check API and documentation route separation
         run: python3 scripts/check_routes.py
       - name: Install actionlint

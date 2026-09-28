@@ -172,6 +172,15 @@ impl<'a> Client<'a> {
             .map_err(|_| ApiError::new(502, "trakt_unavailable"))?;
         let status = res.status_code();
         let headers = res.headers().clone();
+        // Successful deletes commonly have no response stream. Do not report
+        // a runtime failure after Trakt has already applied the mutation.
+        if matches!(status, 204 | 205) {
+            return Ok(Upstream {
+                status,
+                data: Value::Null,
+                headers,
+            });
+        }
         let mut bytes = Vec::new();
         let mut stream = res.stream()?;
         while let Some(chunk) = stream.next().await {
@@ -184,7 +193,13 @@ impl<'a> Client<'a> {
         let data = if bytes.is_empty() {
             Value::Null
         } else {
-            serde_json::from_slice(&bytes).unwrap_or(Value::Null)
+            match serde_json::from_slice(&bytes) {
+                Ok(data) => data,
+                Err(_) if (200..300).contains(&status) => {
+                    return Err(ApiError::new(502, "invalid_trakt_response"));
+                }
+                Err(_) => Value::Null,
+            }
         };
         Ok(Upstream {
             status,
@@ -205,27 +220,13 @@ impl<'a> Client<'a> {
         if !r.data.is_array() {
             return Err(ApiError::new(502, "invalid_trakt_response"));
         }
-        let mut numbers = [None; 4];
-        for (slot, name) in numbers.iter_mut().zip([
-            "X-Pagination-Page",
-            "X-Pagination-Page-Count",
-            "X-Pagination-Limit",
-            "X-Pagination-Item-Count",
-        ]) {
-            if let Some(value) = r.headers.get(name)? {
-                *slot = Some(
-                    value
-                        .parse::<u64>()
-                        .map_err(|_| ApiError::new(502, "invalid_trakt_pagination"))?,
-                );
-            }
-        }
         let requested_page = query
             .iter()
             .find(|(k, _)| *k == "page")
             .and_then(|(_, v)| v.parse::<u64>().ok())
             .unwrap_or(1);
-        let pagination = pagination(numbers, requested_page, r.data.as_array().unwrap().len())?;
+        let pagination =
+            response_pagination(&r.headers, requested_page, r.data.as_array().unwrap().len())?;
         Ok(serde_json::json!({"data":r.data,"pagination":pagination}))
     }
 }
@@ -233,6 +234,10 @@ pub fn upstream_error(r: &Upstream) -> ApiError {
     let mut e = match r.status {
         401 => ApiError::new(401, "trakt_login_required"),
         403 => ApiError::new(403, "trakt_forbidden"),
+        404 => ApiError::new(404, "trakt_not_found"),
+        400 | 422 => ApiError::new(400, "trakt_validation_failed"),
+        409 => ApiError::new(409, "trakt_conflict"),
+        402 | 420 => ApiError::new(403, "trakt_subscription_required"),
         429 => ApiError::new(429, "trakt_rate_limited"),
         _ => ApiError::new(502, "trakt_upstream_error"),
     };
@@ -279,4 +284,23 @@ pub fn pagination(numbers: [Option<u64>; 4], requested: u64, length: usize) -> R
         serde_json::json!({"page":page,"page_count":pages,"limit":limit,
         "item_count":total,"has_more":more,"next_page":if more {page.checked_add(1)} else {None}}),
     )
+}
+
+pub fn response_pagination(headers: &Headers, requested: u64, length: usize) -> Result<Value> {
+    let mut numbers = [None; 4];
+    for (slot, name) in numbers.iter_mut().zip([
+        "X-Pagination-Page",
+        "X-Pagination-Page-Count",
+        "X-Pagination-Limit",
+        "X-Pagination-Item-Count",
+    ]) {
+        if let Some(value) = headers.get(name)? {
+            *slot = Some(
+                value
+                    .parse::<u64>()
+                    .map_err(|_| ApiError::new(502, "invalid_trakt_pagination"))?,
+            );
+        }
+    }
+    pagination(numbers, requested, length)
 }

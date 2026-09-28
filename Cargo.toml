@@ -19,6 +19,7 @@ subtle = "2"
 wasm-bindgen = "=0.2.105"
 wasm-bindgen-futures = "=0.4.55"
 uuid = { version = "1", features = ["v4", "js"] }
+jsonschema = { version = "0.58.1", default-features = false }
 [profile.release]
 opt-level = "z"
 lto = true
