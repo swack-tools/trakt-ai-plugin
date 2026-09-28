@@ -1,0 +1,11 @@
+interface:
+  display_name: "Manage Library"
+  short_description: "Record requested watches, ratings, and collection changes"
+  default_prompt: "Use $manage-library to make a specific change to my Trakt history, ratings, or collection."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "trakt"
+      description: "Independent Trakt MCP service for the hosted deployment"
+      transport: "streamable_http"
+      url: "https://trakt.swacktech.com/mcp"

@@ -1,7 +1,7 @@
 {
   "name": "trakt-mcp",
-  "version": "1.2.0",
-  "description": "Trakt recommendations, title search, watched summaries, and guided connection troubleshooting.",
+  "version": "2.0.0",
+  "description": "Explore Trakt movies, shows, calendars, and lists; manage your watchlist, history, ratings, and collection with explicit write permission.",
   "author": {
     "name": "SwackTech LLC",
     "url": "https://github.com/swack-tools"

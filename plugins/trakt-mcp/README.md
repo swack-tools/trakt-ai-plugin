@@ -1,14 +1,14 @@
-# Trakt MCP — Community
+# Trakt MCP community plugin
 
 ![Community cinema card: a cream play card and gold discovery star on green](assets/mark.svg)
 
-An independent community plugin for choosing films and television with your own Trakt account. Four bundled skills turn the hosted MCP tools into useful conversations: a short list of things to watch, a grounded viewing profile, disambiguated title search, and connection diagnosis. This project is not endorsed by Trakt, Anthropic, or OpenAI. Installing from the repository does not mean any platform has approved a directory listing.
+An independent community plugin for choosing films and television with your own Trakt account. Seven bundled skills support recommendations, viewing profiles, title search, list management, release calendars, library changes, and connection diagnosis. This project is not endorsed by Trakt, Anthropic, or OpenAI. Installing from the repository does not mean any platform has approved a directory listing.
 
 ## Install the plugin
 
 The public repository is [swack-tools/trakt-ai-plugin](https://github.com/swack-tools/trakt-ai-plugin). Its marketplace and plugin identifiers remain `trakt-mcp`.
 
-**Claude desktop chat, claude.ai, and Cowork:** open **Customize → Plugins → Add → Add marketplace**, enter the repository URL, and install **Trakt MCP — Community**. Alternatively, use **Add → Upload plugin** with the packaged plugin ZIP. Open the installed plugin's **Connectors** tab and connect the Trakt server. A Team or Enterprise organization may require its Owner to add the connector first. A command-line install is local to that machine and does not automatically add the plugin to your Claude account.
+**Claude desktop chat, `claude.ai`, and Cowork:** open **Customize → Plugins → Add → Add marketplace**, enter the repository URL, and install `Trakt MCP — Community`. Alternatively, use **Add → Upload plugin** with the packaged plugin ZIP. Open the installed plugin's **Connectors** tab and connect the Trakt server. A Team or Enterprise organization may require its Owner to add the connector first. A command-line install is local to that machine and does not automatically add the plugin to your Claude account.
 
 **Claude Code:** run these commands, then open `/mcp` in Claude Code and complete the connection flow when prompted:
 
@@ -17,7 +17,7 @@ claude plugin marketplace add swack-tools/trakt-ai-plugin
 claude plugin install trakt-mcp@trakt-mcp
 ```
 
-**Codex app and CLI:** add the repository marketplace, then install the plugin:
+**Codex app and command-line tool:** add the repository marketplace, then install the plugin:
 
 ```sh
 codex plugin marketplace add swack-tools/trakt-ai-plugin
@@ -28,18 +28,34 @@ In the desktop app, open the Plugins directory, select the repository marketplac
 
 During browser authorization, approve the service connection, open the displayed Trakt activation page, enter the device code, and return to finish. Each person authorizes their own Trakt account. You do not need the operator's API key or Cloudflare credentials. Do not paste access tokens, passwords, or the private device code into chat or a support issue.
 
-## Use the four skills
+## Use the seven skills
 
 | Skill | Try asking | What it actually does |
 | --- | --- | --- |
-| **What to watch** | “Suggest three science-fiction movies I haven't watched.” | Gets Trakt recommendations; traverses every watched page for all-history grounding or unwatched filtering, or uses the latest 100 events for recent viewing. |
-| **Watching profile** | “Which genres appear most in my watched shows?” | Traverses all watched summaries by default, or summarizes the latest 100 events per medium on a recent-viewing request. |
-| **Find title** | “Help me distinguish the different versions of The Thing.” | Searches title/year/type, asks about ambiguity, and supplies returned identifiers. |
-| **Connection help** | “My Trakt authorization expired; help me reconnect.” | Separates installation, client OAuth, device login, and upstream failures. |
+| **What to watch** | `Suggest three science-fiction movies I haven't watched.` | Gets Trakt recommendations; traverses every watched page for all-history grounding or unwatched filtering, or uses the latest 100 events for recent viewing. |
+| **Watching profile** | `Which genres appear most in my watched shows?` | Traverses all watched summaries by default, or summarizes the latest 100 events per medium on a recent-viewing request. |
+| **Find title** | `Help me distinguish the different versions of The Thing.` | Searches title/year/type, asks about ambiguity, and supplies returned identifiers. |
+| **Lists and watchlist** | `Create a private list called Rainy Sunday and add Arrival (2016).` | Discovers public lists and performs specifically requested changes to owned lists or the watchlist. |
+| **Upcoming releases** | `What episodes air next week in America/Chicago?` | Reads personal or public calendars for bounded dates and explains time zones and release types. |
+| **Manage library** | `Rate Arrival (2016) 8 and add it to my collection.` | Resolves titles, executes the two requested effects, and reads back each result. |
+| **Connection help** | `My Trakt authorization expired; help me reconnect.` | Separates installation, client OAuth, device login, and upstream failures. |
 
 Claude Code exposes skills under names such as `/trakt-mcp:what-to-watch`; other clients may select them from natural language or use their own skill picker. The instructions resolve the actual installed tool names rather than assuming a client namespace.
 
-The media tools only read: `trakt_search`, `trakt_get_watched_history`, and `trakt_get_recommendations`. The login tools, `trakt_request_login` and `trakt_confirm_login`, change authentication state. No tool writes your watched history, ratings, or watchlist. There is no streaming-availability lookup.
+The focused read tools are `trakt_search`, `trakt_get_watched_history`, and `trakt_get_recommendations`. The login tools, `trakt_request_login` and `trakt_confirm_login`, change authentication state. Four additional tools expose the documented API through operation IDs:
+
+| Tool | Purpose |
+| --- | --- |
+| `trakt_list_operations` | Search or filter the local operation catalog by query/category, one catalog page at a time. |
+| `trakt_get_operation` | Inspect exact path, query, and body schemas, authentication, availability, restrictions, and write annotations. |
+| `trakt_api_read` | Execute one supported GET operation with schema-validated parameters. |
+| `trakt_api_write` | Execute one supported write with explicit user intent, `confirmed: true`, and `trakt:write` permission. |
+
+Catalog coverage represents documented operations, including managed authentication and unavailable first-party operations. Presence in the catalog does not guarantee access through this integration or eligibility for an account feature. Inspect an operation before calling it; never invent IDs or parameters. Generic tools accept no raw URLs, headers, or tokens. Release or streaming metadata, where available, does not grant playback rights or prove access in a particular subscription.
+
+New browser OAuth connections request `trakt:read trakt:write` when scope is omitted; the consent page describes writes. Explicit read-only requests remain read-only. Existing tokens and standalone device login retain read-only scope. Reauthorize through the client's OAuth flow for writes; refresh cannot elevate permission. A requested recommendation never authorizes saving or rating it. Skills execute a clear, concrete change without asking for the same confirmation twice, inspect per-item results, and read back the state. After an ambiguous failure, they check state instead of automatically replaying a write.
+
+Generic responses contain `operation_id`, upstream `status`, `data` (object, array, or empty result), and `pagination`. Paginated reads fetch one upstream page; unknown continuation metadata remains unknown and does not establish complete retrieval. Account restrictions, upstream validation, and rate limits still apply. See the [catalog reference](https://trakt.swacktech.com/reference.html#api-coverage) and the source snapshot under `api/trakt/` in the repository.
 
 `trakt_get_watched_history` accepts `media_type: movie|show|all`, `mode: all|recent` (default `all`), `page` (default 1), `limit` (1–100, default 100), and `detail: compact|full` (default `compact`). Each call returns one upstream page per requested medium. Compact detail reduces response size for traversal; full detail preserves the original upstream metadata for specific needs. `mode: all` returns watched-title summaries and play counts; `mode: recent` returns chronological watch events, newest first, including repeated watches. A show summary need not mean you finished the series; show events can represent episodes.
 
@@ -63,31 +79,31 @@ The fixed server URLs in this package describe this project's hosted deployment.
 
 | Surface | Skills and remote MCP | Important limitation |
 | --- | --- | --- |
-| Claude chat on web, desktop, mobile | Supported component types | Connect the remote server from the plugin's Connectors tab; plan/admin rules apply. |
+| Claude chat on web, desktop, mobile | Supported component types | Connect the remote server from the plugin's Connectors tab; plan and administrator rules apply. |
 | Claude Cowork | Supported component types | Connect the bundled server; account installation and policy govern access. |
 | Claude Code | Skills and remote MCP | Local installs are per machine; authenticate through its MCP controls. |
-| Codex app / CLI | Local marketplace package, skills, remote MCP | Version and workspace policy govern availability; test a new session after updates. |
-| OpenAI shared ChatGPT/Codex directory | Proposed “With MCP” server plus skills upload | Owner identity, eligibility, verification, review, and publication are separate; this package is not a directory approval. |
+| Codex app / command-line tool | Local marketplace package, skills, remote MCP | Version and workspace policy govern availability; test a new session after updates. |
+| OpenAI shared ChatGPT/Codex directory | Proposed `With MCP` server plus skills upload | Owner identity, eligibility, verification, review, and publication are separate; this package is not a directory approval. |
 
 No Claude-only agent is bundled: these workflows are short enough to keep their complete procedure in portable skills. An `agents` directory would not give the same behavior on all clients; Claude chat ignores Claude agent files. Per-skill `agents/openai.yaml` files here are skill metadata and MCP dependencies, not autonomous agents. There is no MCP UI or carousel screenshot requirement represented by the artwork.
 
 ## Data and privacy
 
-The client sends tool arguments, such as a title query, filters, or a login confirmation code, to the hosted service on Cloudflare. The service sends corresponding requests to Trakt and returns movie/show metadata, watched summaries or events, recommendations, or connection status. Returned data becomes available to the assistant in your chosen client and is subject to that provider's policies. Skills do not send the entire conversation or inspect private local files.
+The client sends tool arguments, such as queries, filters, identifiers, requested write bodies, or a login confirmation code, to the hosted service on Cloudflare. The service forwards the selected reads or writes to Trakt and returns metadata, account records, operation results, or connection status. Requested writes change the connected Trakt account; this service does not keep a separate local history database. Returned data becomes available to the assistant in your chosen client and is subject to that provider's policies. Skills do not send the entire conversation or inspect private local files.
 
-The service stores authorization and connection state in Cloudflare Durable Objects, with a KV token mirror. Trakt access and refresh tokens stay on the server rather than being returned by media tools. A login tool returns activation details and a private device code needed to complete that connection. Token expiration is not a promise of deletion. Removing the plugin from a client does not prove that server state was deleted or that Trakt access was revoked. Consult the service's [privacy information](https://trakt.swacktech.com/privacy) and [deployment documentation](https://trakt.swacktech.com/reference.html) for session deletion and revoke the integration through Trakt's account controls when appropriate. Cloudflare and the client provider may process request metadata independently of the application.
+The service stores authorization and connection state in Cloudflare Durable Objects, with a KV token mirror. Trakt access and refresh tokens stay on the server rather than being returned by media tools. A login tool returns activation details and a private device code needed to complete that connection. Token expiration is not a promise of deletion. Removing the plugin from a client does not prove that server state was deleted or that Trakt access was revoked. Consult the service's [privacy information](https://trakt.swacktech.com/privacy) and [deployment documentation](https://trakt.swacktech.com/reference.html) for session deletion and revoke the integration through Trakt's account controls when appropriate. Cloudflare and the client provider may process request metadata independently of the app.
 
 ## Troubleshooting and support
 
 If skills appear but tools do not, enable or connect the bundled connector and start a fresh conversation. If an MCP request is unauthorized before a tool runs, use the client's OAuth connection flow. If a callable tool reports `trakt_login_required`, ask to reconnect your Trakt account. Wait for the stated polling interval; an expired device code must be replaced, not retried indefinitely. Rate limits and service outages are not fixed by repeated login attempts.
 
-An empty recommendation list can reflect your Trakt account or filters. An empty filtered search page does not establish that no matching title exists. If a page fails, is truncated, or reports inconsistent pagination, the assistant reports partial coverage and the next page to resume. It respects retry delays and never claims to have used all viewing while pages are missing. Large pages can exceed response limits; retry a smaller page size from page 1 to avoid changing offsets midway, and deduplicate summary IDs. A recent 100-event sample does not establish complete calendar-period statistics.
+An empty recommendation list can reflect your Trakt account or filters. An empty filtered search page does not establish that no matching title exists. If a page fails, is truncated, or reports inconsistent pagination, the assistant reports partial coverage. It includes the next page to resume. It respects retry delays and never claims to have used all viewing while pages are missing. Large pages can exceed response limits; retry a smaller page size from page 1 to avoid changing offsets midway, and deduplicate summary IDs. A recent 100-event sample does not establish complete calendar-period statistics.
 
 For reproducible bugs, use [GitHub issues](https://github.com/swack-tools/trakt-ai-plugin/issues) and include the client/version, workflow, and redacted error code. Never post credentials, device codes, or personal watched history. The [documentation site](https://trakt.swacktech.com/) contains the operator and installation guides. Publisher identity, legal terms, private reviewer access, and directory permissions remain owner responsibilities.
 
 ## License and assets
 
-This package is licensed under [GPL-3.0-only](LICENSE). Its original geometric artwork is also covered by that license; [asset provenance](assets/README.md) records the source and limitations. Trakt and platform names identify interoperable services, not project ownership of their marks. Version 1.2.0 adds compact watched responses, watched-summary pagination, recent watch events, normalized continuation metadata, and complete-history skill traversal while retaining the same five tools and `trakt-mcp` identity.
+This package is licensed under [GPL-3.0-only](LICENSE). Its original geometric artwork is also covered by that license; [asset provenance](assets/README.md) records the source and limitations. Trakt and platform names identify interoperable services, not project ownership of their marks. Version 2.0.0 adds an API operation catalog, generic read and write tools, explicit write authorization, and three additional skills. It preserves the five focused tools, compact watched responses, full-history traversal, and the `trakt-mcp` identity.
 
 ## Publisher and private reports
 

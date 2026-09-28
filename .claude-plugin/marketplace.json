@@ -10,7 +10,7 @@
     {
       "name": "trakt-mcp",
       "source": "./plugins/trakt-mcp",
-      "description": "Trakt recommendations, title search, watched summaries, and guided connection troubleshooting.",
+      "description": "Trakt discovery, release calendars, viewing profiles, and explicitly requested list and library changes.",
       "category": "productivity"
     }
   ]

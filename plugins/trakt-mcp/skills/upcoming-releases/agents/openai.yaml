@@ -1,0 +1,11 @@
+interface:
+  display_name: "Upcoming Releases"
+  short_description: "Explore personal and public release calendars"
+  default_prompt: "Use $upcoming-releases to show my upcoming episodes for the next seven days."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "trakt"
+      description: "Independent Trakt MCP service for the hosted deployment"
+      transport: "streamable_http"
+      url: "https://trakt.swacktech.com/mcp"
