@@ -142,7 +142,7 @@ impl<'a> Client<'a> {
             .map_err(|_| ApiError::new(500, "invalid_upstream_configuration"))?;
         url.query_pairs_mut()
             .extend_pairs(query.iter().map(|(k, v)| (*k, v.as_str())));
-        let mut headers = Headers::new();
+        let headers = Headers::new();
         headers.set("Content-Type", "application/json")?;
         headers.set(
             "User-Agent",

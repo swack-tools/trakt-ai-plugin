@@ -66,7 +66,10 @@ pub fn requested_scope(value: Option<&str>) -> Result<String> {
     .into())
 }
 pub async fn require_write(storage: &mut Storage) -> Result<()> {
-    let session: Session = storage.get("session").await?;
+    let session: Session = storage
+        .get("session")
+        .await?
+        .ok_or(ApiError::new(401, "invalid_token"))?;
     if !session.scope.split_whitespace().any(|s| s == "trakt:write") {
         return Err(ApiError::new(403, "write_authorization_required"));
     }
@@ -153,7 +156,10 @@ pub async fn authenticate(storage: &mut Storage, token: &str) -> Result<Session>
     Ok(s)
 }
 pub async fn issue(storage: &mut Storage) -> Result<Value> {
-    let mut s: Session = storage.get("session").await?;
+    let mut s: Session = storage
+        .get("session")
+        .await?
+        .ok_or(ApiError::new(401, "invalid_token"))?;
     let access = format!("{}.{}", s.id, security::random());
     let refresh = format!("{}.{}", s.id, security::random());
     s.access_hash = security::hash(&access);
@@ -206,7 +212,10 @@ pub async fn begin(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> 
     let id = v["_id"].as_str().ok_or(ApiError::new(500, "missing_id"))?;
     let ticket = security::random();
     create(storage, id, Some(r.client_id.clone()), resource.clone()).await?;
-    let mut session: Session = storage.get("session").await?;
+    let mut session: Session = storage
+        .get("session")
+        .await?
+        .ok_or(ApiError::new(500, "missing_session"))?;
     session.scope = scope.clone();
     storage.put("session", &session).await?;
     let f = Flow {

@@ -35,11 +35,7 @@ pub async fn get_optional<T: serde::de::DeserializeOwned>(
     storage: &mut Storage,
     key: &str,
 ) -> Result<Option<T>> {
-    match storage.get(key).await {
-        Ok(v) => Ok(Some(v)),
-        Err(e) if e.to_string().contains("No such value") => Ok(None),
-        Err(e) => Err(e.into()),
-    }
+    Ok(storage.get(key).await?)
 }
 pub async fn request_device_code(c: &Client<'_>, storage: &mut Storage) -> Result<Value> {
     if let Some(p) = get_optional::<Pending>(storage, "pending").await?

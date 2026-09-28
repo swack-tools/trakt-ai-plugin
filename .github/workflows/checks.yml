@@ -32,7 +32,7 @@ jobs:
             ~/.cargo/git
             ~/.cargo/bin/worker-build
             target
-          key: ${{ runner.os }}-rust-1.98.1-worker-build-0.1.14-${{ hashFiles('Cargo.lock') }}
+          key: ${{ runner.os }}-rust-1.98.1-worker-build-0.7.0-${{ hashFiles('Cargo.lock') }}
       - run: npm ci
       - name: Generate credential-free validation configuration
         env:
@@ -47,7 +47,7 @@ jobs:
           cargo test --locked
           cargo clippy --locked --target wasm32-unknown-unknown -- -D warnings
       - name: Install matching worker-build
-        run: command -v worker-build || cargo install worker-build --version 0.1.14 --locked
+        run: command -v worker-build || cargo install worker-build --version 0.7.0 --locked
       - run: npm run build
       - name: Exercise MCP with the official SDK and local workerd
         run: npm run test:integration

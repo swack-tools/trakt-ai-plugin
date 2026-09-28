@@ -8,26 +8,27 @@ use crate::{
 };
 use futures::{channel::mpsc, lock::Mutex};
 use serde_json::{Value, json};
-use std::{collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use worker::*;
-#[durable_object]
+type SseStreams = HashMap<String, mpsc::Sender<std::result::Result<Vec<u8>, worker::Error>>>;
+
+#[durable_object(fetch)]
 pub struct TraktCoordinator {
     state: State,
     env: Env,
     lock: Rc<Mutex<()>>,
-    streams: HashMap<String, mpsc::Sender<std::result::Result<Vec<u8>, worker::Error>>>,
+    streams: RefCell<SseStreams>,
 }
-#[durable_object]
 impl DurableObject for TraktCoordinator {
     fn new(state: State, env: Env) -> Self {
         Self {
             state,
             env,
             lock: Rc::new(Mutex::new(())),
-            streams: HashMap::new(),
+            streams: RefCell::new(HashMap::new()),
         }
     }
-    async fn fetch(&mut self, req: Request) -> worker::Result<Response> {
+    async fn fetch(&self, req: Request) -> worker::Result<Response> {
         let lock = self.lock.clone();
         let _guard = lock.lock().await;
         match self.handle(req).await {
@@ -37,7 +38,7 @@ impl DurableObject for TraktCoordinator {
     }
 }
 impl TraktCoordinator {
-    async fn handle(&mut self, mut req: Request) -> ApiResult<Response> {
+    async fn handle(&self, mut req: Request) -> ApiResult<Response> {
         let path = req.path();
         let mut storage = self.state.storage();
         match path.as_str() {
@@ -122,7 +123,7 @@ impl TraktCoordinator {
             return Err(e);
         }
         if path == "/auth/session" {
-            self.streams.clear();
+            self.streams.borrow_mut().clear();
             self.env
                 .kv("TRAKT_SESSIONS")?
                 .delete(&format!("user:{}:tokens", session.id))
@@ -131,8 +132,8 @@ impl TraktCoordinator {
             return Ok(Response::empty()?.with_status(204));
         }
         if path == "/sse" {
-            self.streams.retain(|_, s| !s.is_closed());
-            if self.streams.len() >= 8 {
+            self.streams.borrow_mut().retain(|_, s| !s.is_closed());
+            if self.streams.borrow().len() >= 8 {
                 return Err(ApiError::new(429, "too_many_streams"));
             }
             let channel = security::random();
@@ -142,7 +143,7 @@ impl TraktCoordinator {
             )
             .into_bytes()))
                 .map_err(|_| ApiError::new(500, "stream_error"))?;
-            self.streams.insert(channel, tx);
+            self.streams.borrow_mut().insert(channel, tx);
             let mut r = Response::from_stream(rx)?;
             r.headers_mut().set("Content-Type", "text/event-stream")?;
             r.headers_mut().set("Cache-Control", "no-store")?;
@@ -156,7 +157,12 @@ impl TraktCoordinator {
                     .find(|(k, _)| k == "session_id")
                     .map(|(_, v)| v.into_owned())
                     .ok_or(ApiError::new(400, "missing_sse_session"))?;
-                if self.streams.get(&id).is_none_or(|tx| tx.is_closed()) {
+                if self
+                    .streams
+                    .borrow()
+                    .get(&id)
+                    .is_none_or(|tx| tx.is_closed())
+                {
                     return Err(ApiError::new(404, "sse_session_expired"));
                 }
                 Some(id)
@@ -175,17 +181,18 @@ impl TraktCoordinator {
                     // copy. Allow the former 1 MiB text payload plus its duplicate,
                     // while retaining a finite per-event bound for slow consumers.
                     if event.len() > 3 * 1024 * 1024 {
-                        self.streams.remove(&channel);
+                        self.streams.borrow_mut().remove(&channel);
                         return Err(ApiError::new(413, "sse_response_too_large"));
                     }
                     let failed = self
                         .streams
+                        .borrow_mut()
                         .get_mut(&channel)
                         .unwrap()
                         .try_send(Ok(event))
                         .is_err();
                     if failed {
-                        self.streams.remove(&channel);
+                        self.streams.borrow_mut().remove(&channel);
                         return Err(ApiError::new(429, "slow_sse_consumer"));
                     }
                 }
