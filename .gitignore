@@ -21,3 +21,8 @@ __pycache__/
 
 # Removed historical documentation
 /docs/archive/
+
+# Downloaded Vale styles and local linter cache
+/.vale/styles/*
+!/.vale/styles/config/
+/.ruff_cache/

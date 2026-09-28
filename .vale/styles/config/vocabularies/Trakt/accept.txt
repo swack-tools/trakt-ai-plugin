@@ -1,0 +1,12 @@
+(?i:Trakt)
+MCP
+Claude
+Claude Code
+ChatGPT
+Codex
+OpenAPI
+HTTP
+OAuth
+(?i:SwackTech)
+Streamable
+Node
