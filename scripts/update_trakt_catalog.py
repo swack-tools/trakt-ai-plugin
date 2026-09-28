@@ -110,6 +110,27 @@ def normalize_media_choices(schema):
     return schema
 
 
+def normalize_overlapping_choices(schema):
+    """Allow the source's overlapping basic/show-with-seasons list items."""
+    branches = schema.get('oneOf', [])
+    expected = {
+        (frozenset({'ids'}), frozenset({'ids', 'watched_at'})),
+        (frozenset({'title', 'year'}), frozenset({'title', 'year', 'watched_at'})),
+        (frozenset({'ids'}), frozenset({'ids', 'watched_at', 'seasons'})),
+        (frozenset({'title', 'year'}), frozenset({'title', 'year', 'watched_at', 'seasons'})),
+    }
+    signatures = {
+        (frozenset(branch.get('required', [])), frozenset(branch.get('properties', {})))
+        for branch in branches if isinstance(branch, dict) and branch.get('type') == 'object'
+    }
+    if len(branches) == len(expected) and signatures == expected:
+        identifier_branches = [branch for branch in branches if branch['required'] == ['ids']]
+        title_branches = [branch for branch in branches if set(branch['required']) == {'title', 'year'}]
+        return {**{key:value for key,value in schema.items() if key != 'oneOf'},
+                'oneOf':[{'anyOf':identifier_branches}, {'anyOf':title_branches}]}
+    return schema
+
+
 def has_object_properties(schema):
     """Identify object properties applying to this instance, not child instances."""
     return 'properties' in schema or any(
@@ -124,7 +145,7 @@ def json_schema(schema, close_object=True):
         return [json_schema(v) for v in schema]
     if not isinstance(schema, dict):
         return schema
-    schema = normalize_media_choices(schema)
+    schema = normalize_overlapping_choices(normalize_media_choices(schema))
     # Never strip a property named description, title, or examples.
     result = {}
     for key, value in schema.items():
@@ -221,6 +242,8 @@ def extract(url: str, refresh: bool = False) -> list[dict]:
                 record['calendar_normalization_note'] = 'Calendar windows use UTC dates in YYYY-MM-DD form and 1 to 33 days, per the official calendar guide.'
             if request_body is not None:
                 record['schema_normalization_note'] = 'Objects with documented properties reject unknown fields unless the source explicitly allows additional properties; composed objects close after evaluating all branches. Identifier alternatives allow one or more supported IDs; ambiguous source oneOf ID alternatives are normalized to anyOf. Exclusive media-target alternatives require their named non-null target.'
+                if operation_id in {'postUsersListsListAdd', 'postUsersListsListRemove'}:
+                    record['schema_normalization_note'] += ' Overlapping show item variants are inclusive within each identifier form, while ID and title/year forms remain exclusive.'
             if paginated:
                 record['normalization_note'] = 'Pagination page and limit use positive integer inputs; MCP locally caps limit at 100 and page at 4294967295. Pagination parameters are included for documented paginated operations.'
             if reason:

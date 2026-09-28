@@ -2,7 +2,7 @@
   "name": "trakt-mcp",
   "private": true,
   "scripts": {
-    "build": "worker-build --release",
+    "build": "worker-build --release --locked",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "test:integration": "node --test --test-timeout=90000 tests/integration.mjs"

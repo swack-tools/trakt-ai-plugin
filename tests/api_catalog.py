@@ -55,6 +55,32 @@ class CatalogTests(unittest.TestCase):
         self.assert_valid(schema, {'name':'Rainy Sunday', 'description':'Fixture list', 'privacy':'private'})
         self.assert_invalid(schema, {'name':'Rainy Sunday', 'unexpected':True})
 
+    def test_list_item_variants_accept_show_ids_without_duplicate_branch_failure(self):
+        for operation in ('postUsersListsListAdd', 'postUsersListsListRemove'):
+            schema = self.body(operation)
+            self.assert_valid(schema, {'shows':[{'ids':{'trakt':456}}]})
+            self.assert_valid(schema, {'shows':[{'title':'Fixture show','year':2026}]})
+            self.assert_invalid(schema, {'shows':[{'ids':{}}]})
+            self.assert_invalid(schema, {'shows':[{'ids':{'trakt':456}, 'unexpected':True}]})
+            self.assert_invalid(schema, {'shows':[{'ids':{'trakt':456},'title':'Fixture show','year':2026}]})
+        ids = {'type':'object','properties':{'trakt':{'type':'integer'}},'required':['trakt']}
+        title = {'type':'string'}
+        year = {'type':'integer'}
+        watched_at = {'type':'string'}
+        seasons = {'type':'array'}
+        source = {'oneOf':[
+            {'type':'object','required':['ids'],'properties':{'ids':ids,'watched_at':watched_at}},
+            {'type':'object','required':['title','year'],'properties':{'title':title,'year':year,'watched_at':watched_at}},
+            {'type':'object','required':['ids'],'properties':{'ids':ids,'watched_at':watched_at,'seasons':seasons}},
+            {'type':'object','required':['title','year'],'properties':{'title':title,'year':year,'watched_at':watched_at,'seasons':seasons}},
+        ]}
+        normalized = GENERATOR.json_schema(source)
+        self.assertIn('oneOf', normalized)
+        self.assert_valid(normalized, {'ids':{'trakt':456}})
+        self.assert_valid(normalized, {'title':'Fixture show','year':2026})
+        self.assert_invalid(normalized, {'ids':{'trakt':456},'unexpected':True})
+        self.assert_invalid(normalized, {'ids':{'trakt':456},'title':'Fixture show','year':2026})
+
     def test_calendar_range_and_date(self):
         parameters = {p['name']:p['schema'] for p in CATALOG['getCalendarsShows']['parameters'] if p['in']=='path'}
         self.assert_valid(parameters['days'], 33)

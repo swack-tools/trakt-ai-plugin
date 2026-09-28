@@ -11,7 +11,9 @@ SKILLS = {'what-to-watch','watching-profile','find-title','connection-help',
           'lists-and-watchlist','upcoming-releases','manage-library'}
 TOOLS = {'trakt_search','trakt_get_watched_history','trakt_get_recommendations',
          'trakt_request_login','trakt_confirm_login','trakt_list_operations',
-         'trakt_get_operation','trakt_api_read','trakt_api_write'}
+         'trakt_get_operation','trakt_api_read','trakt_api_write',
+         'trakt_discover_lists','trakt_get_list_items','trakt_get_calendar',
+         'trakt_create_list','trakt_add_list_items','trakt_remove_list_items'}
 FORBIDDEN_NAMES = {'.DS_Store','Thumbs.db','node_modules','.git','.env','wrangler.toml','__pycache__'}
 
 

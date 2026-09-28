@@ -1,0 +1,58 @@
+{
+  "repository": "swack-tools/trakt-ai-plugin",
+  "branch": "main",
+  "protection": {
+    "required_status_checks": {
+      "strict": true,
+      "checks": [
+        {
+          "context": "rust-and-mcp",
+          "app_id": 15368
+        },
+        {
+          "context": "python-and-workflows",
+          "app_id": 15368
+        },
+        {
+          "context": "validate",
+          "app_id": 15368
+        },
+        {
+          "context": "documentation",
+          "app_id": 15368
+        },
+        {
+          "context": "analyze (javascript-typescript)",
+          "app_id": 15368
+        },
+        {
+          "context": "analyze (python)",
+          "app_id": 15368
+        },
+        {
+          "context": "dependency-audit",
+          "app_id": 15368
+        }
+      ]
+    },
+    "enforce_admins": true,
+    "required_pull_request_reviews": {
+      "dismiss_stale_reviews": true,
+      "require_code_owner_reviews": false,
+      "required_approving_review_count": 1,
+      "require_last_push_approval": true
+    },
+    "restrictions": null,
+    "required_linear_history": true,
+    "allow_force_pushes": false,
+    "allow_deletions": false,
+    "block_creations": false,
+    "required_conversation_resolution": true,
+    "lock_branch": false,
+    "allow_fork_syncing": false
+  },
+  "workflow_permissions": {
+    "default_workflow_permissions": "read",
+    "can_approve_pull_request_reviews": false
+  }
+}

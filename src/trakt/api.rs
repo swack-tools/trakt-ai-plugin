@@ -18,8 +18,18 @@ pub async fn execute(
 ) -> Result<Value> {
     let call: Call =
         serde_json::from_value(args).map_err(|_| ApiError::new(400, "invalid_api_parameters"))?;
+    execute_call(c, storage, session_id, &call, write).await
+}
+
+pub async fn execute_call(
+    c: &Client<'_>,
+    storage: &mut Storage,
+    session_id: &str,
+    call: &Call,
+    write: bool,
+) -> Result<Value> {
     let op = catalog::find(&call.operation_id)?;
-    let request = catalog::prepare(op, &call, write)?;
+    let request = catalog::prepare(op, call, write)?;
     if write {
         oauth::require_write(storage).await?;
     }
