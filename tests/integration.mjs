@@ -39,7 +39,7 @@ before(async()=>{
  else if(u.pathname==='/oauth/device/token'){const user=users.get(body.code);assert.equal(body.client_secret,'test-client-secret');if(!user){status=404;data={};}else if(user.status){status=user.status;data={};}else if(!user.authorized){status=400;data={};}else{data={access_token:`trakt-${user.id}`,refresh_token:`refresh-${user.id}`,created_at:Math.floor(Date.now()/1000),expires_in:user.expired?1:3600};}}
  else if(u.pathname==='/oauth/token'){refreshes++;await pause(150);data={access_token:body.refresh_token.replace('refresh-','trakt-'),refresh_token:`rotated-${refreshes}`,created_at:Math.floor(Date.now()/1000),expires_in:3600};}
  else if(upstreamFailures.has(`${req.method} ${u.pathname}`)&&!upstreamFailures.get(`${req.method} ${u.pathname}`).commit){
-  const failure=upstreamFailures.get(`${req.method} ${u.pathname}`);status=failure.status;data={private_upstream_detail:'must not be returned'};if(status===429)res.setHeader('Retry-After','13');
+  const failure=upstreamFailures.get(`${req.method} ${u.pathname}`);status=failure.status;data=failure.data??{private_upstream_detail:'must not be returned'};if(failure.pagination)paginationHeaders(res,failure.pagination);if(status===429)res.setHeader('Retry-After','13');
  }
  else if(u.pathname==='/users/me/lists'&&req.method==='POST'){
   const id=++nextList;data={name:body.name,privacy:body.privacy,ids:{trakt:id,slug:`fixture-${id}`}};
@@ -77,13 +77,13 @@ before(async()=>{
    const media=u.pathname.split('/').at(-1),page=Number(u.searchParams.get('page')||1),limit=fixture.limit||Number(u.searchParams.get('limit')||100);
    const rows=u.pathname.includes('/history/')?(fixture.recent?.[media]||[]):(fixture[media]||[]);
    if(fixture.failPage===page){status=fixture.failStatus;data={private_upstream_detail:'must not be returned'};if(status===429)res.setHeader('Retry-After','9');}
-   else {data=fixture.noHeaders?rows:rows.slice((page-1)*limit,page*limit);if(!fixture.noHeaders)paginationHeaders(res,{page,limit,item_count:rows.length},fixture.headers);}
+   else {data=fixture.noHeaders?rows:rows.slice((page-1)*limit,page*limit);if(fixture.truncatePage===page)data=data.slice(0,fixture.truncatedLength);if(!fixture.noHeaders)paginationHeaders(res,{page,limit,item_count:rows.length},fixture.headers);}
   }
  }
  else if(u.pathname.startsWith('/recommendations/')){data=[{title:'Recommendation',genres:['drama'],year:2020}];}
  else if(u.pathname.startsWith('/search/') && u.searchParams.get('query')==='rate-limit'){status=429;res.setHeader('Retry-After','7');data={private_upstream_detail:'must not be returned'};}
  else if(u.pathname.startsWith('/search/') && u.searchParams.get('query')==='upstream-error'){status=503;data={private_upstream_detail:'must not be returned'};}
- else if(u.pathname.startsWith('/search/')){if(u.searchParams.get('query')!=='no-headers')paginationHeaders(res,{page:Number(u.searchParams.get('page')||1),limit:Number(u.searchParams.get('limit')||20),page_count:3,item_count:3*Number(u.searchParams.get('limit')||20)});data=[{type:'movie',movie:{title:'A & B',year:2020,genres:['drama']}},{type:'show',show:{title:'Wrong year',year:1999,genres:['comedy']}}];}
+ else if(u.pathname.startsWith('/search/')){if(u.searchParams.get('query')!=='no-headers')paginationHeaders(res,{page:Number(u.searchParams.get('page')||1),limit:Number(u.searchParams.get('limit')||20),page_count:3,item_count:2*Number(u.searchParams.get('limit')||20)+Math.min(2,Number(u.searchParams.get('limit')||20))});data=[{type:'movie',movie:{title:'A & B',year:2020,genres:['drama']}},{type:'show',show:{title:'Wrong year',year:1999,genres:['comedy']}}].slice(0,Number(u.searchParams.get('limit')||20));}
  else {status=404;data={};}res.writeHead(status,{'Content-Type':'application/json'});res.end(upstreamFailures.get(`${req.method} ${u.pathname}`)?.raw??JSON.stringify(data));});
  mock.listen(8799,'127.0.0.1');await once(mock,'listening');
  stateDir=await mkdtemp(join(tmpdir(),'trakt-mcp-test-'));
@@ -414,4 +414,39 @@ test('generic API failures preserve safe errors and never retry ambiguous writes
  assert.equal(readback.status,200);assert.deepEqual(readback.data,[]);
  await callSuccess(user.access_token,'trakt_api_write',{operation_id:'deleteUsersListsListDelete',path_params:{id:'me',list_id:id},confirmed:true});
  assert.equal(mockLists.size,before);
+});
+
+
+test('contradictory page counts and truncated final pages cannot claim complete history',async()=>{
+ const user=await paginationUser(),rows=summaries('movies',250);
+ fixtureFor(user,{movies:rows,headers:{'X-Pagination-Page-Count':'1'}});
+ const contradictory=await api('/sync/watched?media_type=movies&page=1&limit=100',{token:user.access_token});
+ assert.equal(contradictory.status,502);assert.equal(contradictory.data.error,'invalid_trakt_pagination');
+ assert.equal(contradictory.data.pagination,undefined,'contradictory metadata cannot report has_more=false');
+ fixtureFor(user,{movies:rows,truncatePage:3,truncatedLength:20});const start=requests.length,partial=[];
+ for(const page of [1,2]){
+  const result=await api(`/sync/watched?media_type=movies&page=${page}&limit=100`,{token:user.access_token});
+  assert.equal(result.status,200);assert.equal(result.data.pagination.has_more,true);partial.push(...result.data.data);
+ }
+ const truncated=await api('/sync/watched?media_type=movies&page=3&limit=100',{token:user.access_token});
+ assert.equal(truncated.status,502);assert.equal(truncated.data.error,'invalid_trakt_pagination');
+ assert.equal(truncated.data.data,undefined);assert.deepEqual(partial,rows.slice(0,200));
+ assert.equal(watchedRequests(start).length,3,'partial final pages do not trigger retries or erase prior results');
+ fixtureFor(user,{movies:rows});
+ const resumed=await api('/sync/watched?media_type=movies&page=3&limit=100',{token:user.access_token});
+ assert.equal(resumed.status,200);assert.equal(resumed.data.data.length,50);assert.equal(resumed.data.pagination.has_more,false);
+ assert.deepEqual([...partial,...resumed.data.data],rows);
+});
+
+
+test('generic API reads reject contradictory completion metadata too',async()=>{
+ const user=await paginationUser(),key='GET /lists/popular';
+ for(const [page,page_count,length] of [[1,1,100],[3,3,20]]){
+  upstreamFailures.set(key,{status:200,data:Array.from({length},(_,id)=>({list:{ids:{trakt:id}}})),pagination:{page,page_count,limit:100,item_count:250}});
+  const start=requests.length;
+  try{
+   const error=await callFailure(user.access_token,'trakt_api_read',{operation_id:'getListsPopular',query_params:{page,limit:100}},'invalid_trakt_pagination');
+   assert.equal(error.pagination,undefined);assert.equal(requests.length,start+1);
+  }finally{upstreamFailures.delete(key);}
+ }
 });

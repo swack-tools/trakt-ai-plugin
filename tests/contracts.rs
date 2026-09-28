@@ -168,3 +168,25 @@ fn compact_watched_rows_preserve_identity_genres_and_watch_events() {
     assert!(Query::parse(json!({"detail":"compact"})).is_ok());
     assert!(Query::parse(json!({"detail":"anything"})).is_err());
 }
+
+#[test]
+fn pagination_never_reports_completion_for_contradictory_or_truncated_totals() {
+    use trakt_mcp::trakt::client::pagination;
+    // A single advertised page cannot contain 250 items at a limit of 100.
+    assert!(pagination([Some(1), Some(1), Some(100), Some(250)], 1, 100).is_err());
+    // Even a consistent page count is insufficient if the last page is cut short.
+    assert!(pagination([Some(3), Some(3), Some(100), Some(250)], 3, 20).is_err());
+    assert!(pagination([Some(3), Some(3), Some(100), Some(250)], 3, 49).is_err());
+    let complete = pagination([Some(3), Some(3), Some(100), Some(250)], 3, 50).unwrap();
+    assert_eq!(complete["has_more"], false);
+    assert!(complete["next_page"].is_null());
+    // Hostile metadata must be rejected without overflowing multiplication.
+    assert!(
+        pagination(
+            [Some(u64::MAX), Some(u64::MAX), Some(2), Some(u64::MAX)],
+            u64::MAX,
+            1
+        )
+        .is_err()
+    );
+}
