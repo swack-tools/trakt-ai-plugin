@@ -47,10 +47,26 @@ before(async()=>{
   mockLists.set(String(id),{...data,owner:req.headers.authorization,items:[]});status=201;
   if(upstreamFailures.get(`${req.method} ${u.pathname}`)?.commit){status=503;data={private_upstream_detail:'committed, then response failed'};}
  }
+ else if(u.pathname==='/users/settings'&&req.method==='GET'){
+  const id=req.headers.authorization?.replace('Bearer trakt-','');data={user:{ids:{slug:`fixture-user-${id}`}}};
+ }
+ else if(/^\/users\/me\/lists\/\d+\/$/.test(u.pathname)&&req.method==='GET'){
+  const list=mockLists.get(u.pathname.split('/')[4]);
+  if(!list){status=404;data={};}
+  else data={...list,user:{ids:{slug:`fixture-user-${list.owner.replace('Bearer trakt-','')}`}}};
+ }
  else if(/^\/users\/me\/lists\/\d+\/items$/.test(u.pathname)&&req.method==='POST'){
   const list=mockLists.get(u.pathname.split('/')[4]);
   if(!list){status=404;data={};}else if(list.owner!==req.headers.authorization){status=403;data={};}else{
    list.items.push(...(body.movies||[]).map(movie=>({type:'movie',movie})));status=201;data={added:{movies:(body.movies||[]).length}};
+  }
+ }
+ else if(/^\/users\/me\/lists\/\d+\/items\/remove$/.test(u.pathname)&&req.method==='POST'){
+  const list=mockLists.get(u.pathname.split('/')[4]);
+  if(!list){status=404;data={};}else if(list.owner!==req.headers.authorization){status=403;data={};}else{
+   const ids=new Set((body.movies||[]).map(movie=>movie.ids.trakt));
+   const before=list.items.length;list.items=list.items.filter(item=>!ids.has(item.movie?.ids?.trakt));
+   data={deleted:{movies:before-list.items.length}};
   }
  }
  else if(/^\/users\/me\/lists\/\d+\/items\//.test(u.pathname)&&req.method==='GET'){
@@ -151,6 +167,21 @@ test('watched summaries traverse 251 movies in exactly three caller-requested pa
   assert.equal(request.headers.authorization,`Bearer trakt-${users.get(u.device.device_code).id}`);
  }
 });
+test('an explicit all-watched traversal reaches 1,001 movies with bounded calls',async()=>{
+ const user=await paginationUser(),rows=summaries('movies',1001);fixtureFor(user,{movies:rows});
+ const start=requests.length,seen=[];let page=1;
+ for(;;){
+  const result=await api(`/sync/watched?media_type=movie&page=${page}&limit=100`,{token:user.access_token});
+  assert.equal(result.status,200,JSON.stringify(result.data));
+  assert.ok(JSON.stringify(result.data).length<128*1024,'fixture pages stay within a reviewed per-call size');
+  seen.push(...result.data.data);
+  if(!result.data.pagination.has_more){assert.equal(result.data.pagination.next_page,null);break;}
+  page=result.data.pagination.next_page;
+  assert.ok(page<=11,'fixture traversal must advance');
+ }
+ assert.equal(page,11);assert.equal(watchedRequests(start).length,11);
+ assert.deepEqual(seen,rows);
+});
 test('compact traversal preserves viewing evidence while full metadata stays opt-in',async()=>{
  const u=await paginationUser(),rows=summaries('movies',2);rows[0].movie.overview='Long plot';rows[0].movie.images={poster:'https://example.test/poster'};fixtureFor(u,{movies:rows});
  const compact=await api('/sync/watched?media_type=movie',{token:u.access_token});assert.equal(compact.status,200);assert.equal(compact.data.data[0].movie.overview,undefined);assert.equal(compact.data.data[0].movie.images,undefined);assert.equal(compact.data.data[0].plays,1);assert.deepEqual(compact.data.data[0].movie.ids,rows[0].movie.ids);assert.deepEqual(compact.data.data[0].movie.genres,['drama']);
@@ -226,10 +257,12 @@ test('pagination inputs stay endpoint-specific and filtered empty search pages c
 });
 test('real MCP SDK initializes and calls both transports',async()=>{
  const u=await connect();fixtureFor(u,{movies:summaries('movies',251),recent:{movies:events(130)}});for(const kind of ['http','sse']){const client=new Client({name:'integration',version:'1.0.0'});const headers={Authorization:`Bearer ${u.access_token}`};const transport=kind==='http'?new StreamableHTTPClientTransport(new URL(base+'/mcp'),{requestInit:{headers}}):new SSEClientTransport(new URL(base+'/sse'),{requestInit:{headers},eventSourceInit:{fetch:(url,init)=>fetch(url,{...init,headers:{...init?.headers,...headers}})}});
- try{await client.connect(transport);assert.equal((await client.listTools()).tools.length,9);
+ try{await client.connect(transport);assert.equal((await client.listTools()).tools.length,15);
  const discovered=await client.callTool({name:'trakt_list_operations',arguments:{query:'calendars',limit:10}});assert.equal(discovered.isError,false);assert.ok(JSON.parse(discovered.content[0].text).data.length>0);
+ assert.deepEqual(discovered.structuredContent,{schema_version:'1',tool:'trakt_list_operations',result:JSON.parse(discovered.content[0].text)});
  const description=await client.callTool({name:'trakt_get_operation',arguments:{operation_id:'getCalendarsMovies'}});assert.equal(description.isError,false);
  const calendar=await client.callTool({name:'trakt_api_read',arguments:{operation_id:'getCalendarsMovies',path_params:{target:'all',start_date:'2026-09-27',days:7}}});assert.equal(calendar.isError,false,JSON.stringify(calendar));assert.equal(JSON.parse(calendar.content[0].text).data[0].movie.ids.trakt,123);
+ assert.deepEqual(calendar.structuredContent,{schema_version:'1',tool:'trakt_api_read',result:JSON.parse(calendar.content[0].text)});
  const result=await client.callTool({name:'trakt_search',arguments:{query:'A & B'}});assert.equal(result.isError,false);
  const start=requests.length;
  for(const [mode,page,limit,expectedLength] of [['all',2,100,100],['recent',2,100,30]]){
@@ -237,6 +270,16 @@ test('real MCP SDK initializes and calls both transports',async()=>{
   const data=JSON.parse(watched.content[0].text);assert.equal(data.pagination.page,page);assert.equal(data.data.length,expectedLength);assert.equal(requests.at(-1).query.get('page'),'2');assert.equal(requests.at(-1).path,mode==='all'?'/sync/watched/movies':'/sync/history/movies');
  }
  assert.equal(watchedRequests(start).length,2);
+ if(kind==='sse'){
+  // The escaped legacy text alone fits the former 1 MiB event cap.
+  // A structured copy must not make this previously valid response fail.
+  const overview='x'.repeat(700*1024);
+  fixtureFor(u,{movies:[{plays:1,movie:{title:'Large fixture',ids:{trakt:42},overview}}]});
+  const large=await client.callTool({name:'trakt_get_watched_history',arguments:{media_type:'movie',detail:'full',limit:1}});
+  assert.equal(large.isError,false);
+  assert.equal(JSON.parse(large.content[0].text).data[0].movie.overview,overview);
+  assert.equal(large.structuredContent.result.data[0].movie.overview,overview);
+ }
  }finally{await client.close();}}
  const notify=await api('/mcp',{method:'POST',token:u.access_token,body:{jsonrpc:'2.0',method:'notifications/initialized'}});assert.equal(notify.status,202);assert.equal(notify.data,'');
  assert.equal((await api('/mcp',{method:'POST',token:u.access_token,body:{jsonrpc:'2.0',id:1,method:'unknown'}})).data.error.code,-32601);
@@ -351,6 +394,55 @@ test('generic reads discover public lists and personal/public release calendars'
   assert.equal(requests.at(-1).path,`/calendars/${target}/movies/2026-09-27/7`);assert.equal(requests.at(-1).query.get('genres'),'drama&token=injected');assert.equal(requests.at(-1).query.has('token'),false);
  }
  assert.equal(requests.length,start+4,'each requested operation makes one upstream call');
+});
+
+test('focused actions browse lists and releases and edit only an owned list',async()=>{
+ const user=await writer();
+ const discovered=await callSuccess(user.access_token,'trakt_discover_lists',{view:'popular',page:1});
+ assert.equal(discovered.operation_id,'getListsPopular');assert.equal(discovered.pagination.next_page,2);
+ const calendar=await callSuccess(user.access_token,'trakt_get_calendar',{target:'all',media_type:'movie',start_date:'2026-09-27',days:7});
+ assert.equal(calendar.data[0].released,'2026-09-29');
+ const created=await callSuccess(user.access_token,'trakt_create_list',{name:'Focused fixture',confirmed:true});
+ assert.equal(created.data.privacy,'private');const id=String(created.data.ids.trakt);
+ const added=await callSuccess(user.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:123}],confirmed:true});
+ assert.equal(added.data.added.movies,1);
+ const items=await callSuccess(user.access_token,'trakt_get_list_items',{owner:'me',list_id:id,media_type:'movie'});
+ assert.equal(items.data[0].movie.ids.trakt,123);
+ const removed=await callSuccess(user.access_token,'trakt_remove_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:123}],confirmed:true});
+ assert.equal(removed.data.deleted.movies,1);
+ assert.deepEqual((await callSuccess(user.access_token,'trakt_get_list_items',{owner:'me',list_id:id,media_type:'movie'})).data,[]);
+ const other=await browserConnect();
+ const start=requests.length;
+ await callFailure(other.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:456}],confirmed:true},'list_not_owned');
+ assert.equal(requests.slice(start).filter(r=>r.method==='POST').length,0);
+ const readOnly=await paginationUser(),beforeReadOnly=requests.length;
+ await callFailure(readOnly.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:456}],confirmed:true},'write_authorization_required');
+ assert.equal(requests.length,beforeReadOnly,'read-only scope fails before owner lookups');
+ const beforeInvalid=requests.length;
+ await callFailure(user.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:0}],confirmed:true},'invalid_parameters');
+ assert.equal(requests.length,beforeInvalid,'invalid items fail before owner lookups');
+ upstreamFailures.set('GET /users/settings',{status:200,raw:'{"user":{}}'});
+ try{
+  const beforeUnverified=requests.length;
+  await callFailure(user.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:456}],confirmed:true},'list_ownership_unverified');
+  assert.equal(requests.slice(beforeUnverified).filter(r=>r.method==='POST').length,0);
+ }finally{upstreamFailures.delete('GET /users/settings');}
+ await callSuccess(user.access_token,'trakt_api_write',{operation_id:'deleteUsersListsListDelete',path_params:{id:'me',list_id:id},confirmed:true});
+});
+
+test('focused create followed by a failed add preserves the new list without retry',async()=>{
+ const user=await writer();
+ const created=await callSuccess(user.access_token,'trakt_create_list',{name:'Partial fixture',confirmed:true});
+ const id=String(created.data.ids.trakt),path=`/users/me/lists/${id}/items`;
+ upstreamFailures.set(`POST ${path}`,{status:503});
+ try{
+  const start=requests.length;
+  await callFailure(user.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:123}],confirmed:true},'trakt_upstream_error');
+  assert.equal(requests.slice(start).filter(r=>r.method==='POST').length,1,'uncertain writes are attempted once');
+  assert.equal(mockLists.has(id),true,'failed add must not delete or recreate the list');
+  assert.deepEqual((await callSuccess(user.access_token,'trakt_get_list_items',{owner:'me',list_id:id,media_type:'movie'})).data,[]);
+ }finally{upstreamFailures.delete(`POST ${path}`);}
+ await callSuccess(user.access_token,'trakt_api_write',{operation_id:'deleteUsersListsListDelete',path_params:{id:'me',list_id:id},confirmed:true});
 });
 
 test('browser-authorized account creates a private list, adds a movie, reads it back, and deletes it',async()=>{

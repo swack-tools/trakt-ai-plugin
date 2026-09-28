@@ -1,8 +1,10 @@
-use super::protocol;
+use super::{focused, output, protocol};
 use crate::{
     error::{ApiError, Result},
+    oauth,
     trakt::{
         self, auth,
+        catalog::Call,
         client::{Client, Query},
     },
 };
@@ -28,6 +30,18 @@ pub async fn operation(
         "trakt_get_operation" => trakt::catalog::describe(args),
         "trakt_api_read" | "trakt_api_write" => {
             trakt::api::execute(&c, storage, id, args, name == "trakt_api_write").await
+        }
+        "trakt_discover_lists" | "trakt_get_list_items" | "trakt_get_calendar" => {
+            let call = focused::prepare(name, args)?;
+            trakt::api::execute_call(&c, storage, id, &call, false).await
+        }
+        "trakt_create_list" | "trakt_add_list_items" | "trakt_remove_list_items" => {
+            let call = focused::prepare(name, args)?;
+            oauth::require_write(storage).await?;
+            if name != "trakt_create_list" {
+                verify_list_ownership(&c, storage, id, &call).await?;
+            }
+            trakt::api::execute_call(&c, storage, id, &call, true).await
         }
         "trakt_request_login" => {
             if args.as_object().is_none_or(|a| !a.is_empty()) {
@@ -67,6 +81,35 @@ pub async fn operation(
         }
         _ => Err(ApiError::new(404, "unknown_tool")),
     }
+}
+
+async fn verify_list_ownership(
+    client: &Client<'_>,
+    storage: &mut Storage,
+    session_id: &str,
+    mutation: &Call,
+) -> Result<()> {
+    let list_id = mutation.path_params["list_id"]
+        .as_str()
+        .ok_or(ApiError::new(400, "invalid_parameters"))?;
+    let summary: Call = serde_json::from_value(json!({
+        "operation_id":"getUsersListsListSummary",
+        "path_params":{"id":"me","list_id":list_id}
+    }))
+    .map_err(|_| ApiError::new(500, "list_ownership_unverified"))?;
+    let settings: Call = serde_json::from_value(json!({"operation_id":"getUsersSettings"}))
+        .map_err(|_| ApiError::new(500, "list_ownership_unverified"))?;
+    let list = trakt::api::execute_call(client, storage, session_id, &summary, false).await?;
+    let account = trakt::api::execute_call(client, storage, session_id, &settings, false).await?;
+    let owner = list["data"]["user"]["ids"]["slug"].as_str();
+    let connected = account["data"]["user"]["ids"]["slug"].as_str();
+    if owner.is_none() || connected.is_none() {
+        return Err(ApiError::new(403, "list_ownership_unverified"));
+    }
+    if owner != connected {
+        return Err(ApiError::new(403, "list_not_owned"));
+    }
+    Ok(())
 }
 pub async fn handle(env: &Env, storage: &mut Storage, session_id: &str, v: Value) -> Option<Value> {
     if protocol::validate(&v).is_err() {
@@ -110,12 +153,8 @@ pub async fn handle(env: &Env, storage: &mut Storage, session_id: &str, v: Value
             }
             let args = p.get("arguments").cloned().unwrap_or(json!({}));
             match operation(env, storage, session_id, name, args).await {
-                Ok(data) => {
-                    json!({"content":[{"type":"text","text":data.to_string()}],"isError":false})
-                }
-                Err(e) => {
-                    json!({"content":[{"type":"text","text":e.value().to_string()}],"isError":true})
-                }
+                Ok(data) => output::success(name, data),
+                Err(e) => output::failure(&e),
             }
         }
         _ => return Some(protocol::error(id.clone(), -32601, "Method not found")),

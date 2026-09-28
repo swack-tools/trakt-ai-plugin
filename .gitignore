@@ -25,3 +25,8 @@ __pycache__/
 /.vale/styles/*
 !/.vale/styles/config/
 /.ruff_cache/
+
+# Local implementation plans; do not publish or package these files.
+TODO.md
+/todo/
+/plans/

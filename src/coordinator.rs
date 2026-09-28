@@ -171,7 +171,10 @@ impl TraktCoordinator {
             if let Some(channel) = channel {
                 if let Some(v) = reply {
                     let event = format!("event: message\ndata: {v}\n\n").into_bytes();
-                    if event.len() > 1024 * 1024 {
+                    // Tool results include both the legacy JSON text and a structured
+                    // copy. Allow the former 1 MiB text payload plus its duplicate,
+                    // while retaining a finite per-event bound for slow consumers.
+                    if event.len() > 3 * 1024 * 1024 {
                         self.streams.remove(&channel);
                         return Err(ApiError::new(413, "sse_response_too_large"));
                     }
