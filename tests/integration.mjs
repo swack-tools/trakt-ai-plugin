@@ -32,7 +32,7 @@ function events(count){return Array.from({length:count},(_,i)=>({id:1000+i,watch
 function fixtureFor(user,fixture){watchedFixtures.set(users.get(user.device.device_code).id,fixture);}
 function watchedRequests(start=0){return requests.slice(start).filter(r=>/^\/sync\/(watched|history)\//.test(r.path));}
 before(async()=>{
- mock=http.createServer(async(req,res)=>{let raw='';for await(const chunk of req)raw+=chunk;const body=raw?JSON.parse(raw):{};const u=new URL(req.url,'http://mock');requests.push({method:req.method,path:u.pathname,query:u.searchParams,headers:req.headers,body});
+ mock=http.createServer(async(req,res)=>{let raw='';for await(const chunk of req)raw+=chunk;const body=raw?JSON.parse(raw):{};const u=new URL(req.url,'http://mock');requests.push({method:req.method,path:u.pathname,query:u.searchParams,headers:req.headers,body,bodyPresent:raw.length>0});
  assert.equal(req.headers['user-agent'],'trakt-mcp/1.0 (+https://plugin.example.test)');assert.equal(req.headers['trakt-api-key'],'test-client-id');assert.equal(req.headers['trakt-api-version'],'2');
  let status=200,data;
  if(u.pathname==='/oauth/device/code'){const code=`device-${++next}`;users.set(code,{id:next,authorized:false});data={device_code:code,user_code:`USER${next}`,verification_url:'https://trakt.tv/activate',expires_in:600,interval:deviceInterval};}
@@ -41,6 +41,7 @@ before(async()=>{
  else if(upstreamFailures.has(`${req.method} ${u.pathname}`)&&!upstreamFailures.get(`${req.method} ${u.pathname}`).commit){
   const failure=upstreamFailures.get(`${req.method} ${u.pathname}`);status=failure.status;data=failure.data??{private_upstream_detail:'must not be returned'};if(failure.pagination)paginationHeaders(res,failure.pagination);if(status===429)res.setHeader('Retry-After','13');
  }
+ else if(u.pathname==='/comments/123/like'&&req.method==='POST'){status=204;data=null;}
  else if(u.pathname==='/users/me/lists'&&req.method==='POST'){
   const id=++nextList;data={name:body.name,privacy:body.privacy,ids:{trakt:id,slug:`fixture-${id}`}};
   mockLists.set(String(id),{...data,owner:req.headers.authorization,items:[]});status=201;
@@ -471,4 +472,19 @@ test('short first or intermediate pages stop traversal before any false complete
   }
   assert.deepEqual(partial,rows);assert.equal(partial.length,250);
  }
+});
+
+
+test('optional-body comment likes send no JSON payload and GET rejects explicit null bodies',async()=>{
+ const user=await writer(),start=requests.length;
+ const description=await callSuccess(user.access_token,'trakt_get_operation',{operation_id:'postCommentsLike'});
+ assert.equal(description.input_schema.required.includes('body'),false);
+ const liked=await callSuccess(user.access_token,'trakt_api_write',{operation_id:'postCommentsLike',path_params:{id:'123'},confirmed:true});
+ assert.equal(liked.status,204);assert.equal(liked.data,null);assert.equal(requests.length,start+1);
+ assert.equal(requests.at(-1).method,'POST');assert.equal(requests.at(-1).path,'/comments/123/like');
+ assert.equal(requests.at(-1).bodyPresent,false,'optional omission must send zero payload bytes, not {} or null');
+ for(const body of [null,{},'unexpected']){
+  await callFailure(user.access_token,'trakt_api_read',{operation_id:'getCalendarsMovies',path_params:{target:'my',start_date:'2026-09-27',days:7},body},'invalid_api_parameters');
+ }
+ assert.equal(requests.length,start+1,'GET bodies must be rejected before an upstream call');
 });

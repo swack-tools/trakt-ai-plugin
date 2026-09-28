@@ -59,7 +59,7 @@ function inputSchema(op){
   properties[name]={...object(Object.fromEntries(parameters.map(p=>[p.name,p.schema]))),required:parameters.filter(p=>place==='path'||p.required).map(p=>p.name)};
  }
  const required=['path_params','query_params'];
- if(op.request_body){properties.body=op.request_body.schema;required.push('body');}
+ if(op.request_body){properties.body=op.request_body.schema;if(op.request_body.required)required.push('body');}
  return {...object(properties),required};
 }
 function describe(op){return {...op,input_schema:inputSchema(op),tool:op.method==='GET'?'trakt_api_read':'trakt_api_write',write_scope_required:op.method!=='GET'};}
@@ -73,8 +73,7 @@ function prepare(args,write){
  for(const name of Object.keys(query))if(query[name]===null)delete query[name];
  if(op.pagination.supported){query.page??=1;query.limit??=100;}
  const input={path_params:args.path_params??{},query_params:query};
- if(op.request_body)input.body=args.body??{};
- else if(args.body!==undefined)input.body=args.body;
+ if(args.body!==undefined)input.body=args.body;
  let validate=operationValidators.get(op.operation_id);
  if(!validate){validate=ajv.compile(inputSchema(op));operationValidators.set(op.operation_id,validate);}
  if(!validate(input))fail('invalid_api_parameters');

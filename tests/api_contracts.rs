@@ -256,3 +256,108 @@ fn optional_nullable_queries_are_omitted_without_relaxing_unknown_keys_or_paths(
         false,
     ).is_err());
 }
+
+#[test]
+fn optional_request_bodies_remain_absent_in_schema_and_prepared_request() {
+    let op = catalog::find("postCommentsLike").unwrap();
+    let schema = catalog::input_schema(op);
+    assert!(
+        !schema["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("body"))
+    );
+    assert!(
+        jsonschema::validator_for(&schema)
+            .unwrap()
+            .is_valid(&json!({
+                "path_params":{"id":"123"},"query_params":{}
+            }))
+    );
+    let omitted = call(
+        json!({"operation_id":"postCommentsLike","path_params":{"id":"123"},"confirmed":true}),
+    );
+    assert!(omitted.body.is_none());
+    let prepared = catalog::prepare(op, &omitted, true).unwrap();
+    assert_eq!(prepared.path, "/comments/123/like");
+    assert!(
+        prepared.body.is_none(),
+        "omission must not become an empty JSON object"
+    );
+    // This operation's unrestricted schema accepts explicit JSON null, which
+    // remains present instead of being silently converted into omission.
+    let explicit_null = call(
+        json!({"operation_id":"postCommentsLike","path_params":{"id":"123"},"confirmed":true,"body":null}),
+    );
+    assert_eq!(explicit_null.body, Some(Value::Null));
+    assert_eq!(
+        catalog::prepare(op, &explicit_null, true).unwrap().body,
+        Some(Value::Null)
+    );
+}
+
+#[test]
+fn required_and_typed_request_bodies_reject_omission_or_invalid_null() {
+    let required = catalog::find("postUsersListsCreate").unwrap();
+    let schema = catalog::input_schema(required);
+    assert!(
+        schema["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("body"))
+    );
+    assert!(
+        !jsonschema::validator_for(&schema)
+            .unwrap()
+            .is_valid(&json!({
+                "path_params":{"id":"me"},"query_params":{}
+            }))
+    );
+    assert!(
+        catalog::prepare(
+            required,
+            &call(json!({
+                "operation_id":"postUsersListsCreate","path_params":{"id":"me"},"confirmed":true
+            })),
+            true
+        )
+        .is_err()
+    );
+    let typed_optional = catalog::find("postNotesCreate").unwrap();
+    assert!(
+        catalog::prepare(
+            typed_optional,
+            &call(json!({
+                "operation_id":"postNotesCreate","confirmed":true
+            })),
+            true
+        )
+        .unwrap()
+        .body
+        .is_none()
+    );
+    assert!(
+        catalog::prepare(
+            typed_optional,
+            &call(json!({
+                "operation_id":"postNotesCreate","confirmed":true,"body":null
+            })),
+            true
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn get_operations_reject_any_body_including_explicit_json_null() {
+    let op = catalog::find("getCalendarsMovies").unwrap();
+    for body in [Value::Null, json!({}), json!("unexpected")] {
+        let input = call(json!({"operation_id":"getCalendarsMovies",
+            "path_params":{"target":"my","start_date":"2026-09-27","days":7},"body":body}));
+        assert!(input.body.is_some());
+        assert_eq!(
+            catalog::prepare(op, &input, false).err().unwrap().code,
+            "invalid_api_parameters"
+        );
+    }
+}
