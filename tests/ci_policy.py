@@ -52,7 +52,7 @@ class WorkflowPolicyTests(unittest.TestCase):
         }
 
     def test_all_workflows_follow_event_and_permission_policy(self):
-        self.assertTrue(DEPLOYMENTS <= self.workflows.keys())
+        self.assertLessEqual(DEPLOYMENTS, self.workflows.keys())
         for name, workflow in self.workflows.items():
             with self.subTest(workflow=name):
                 validate_policy(name, workflow)
