@@ -267,6 +267,26 @@ fn focused_list_path_schemas_reject_unsafe_segments() {
 }
 
 #[test]
+fn focused_write_schemas_reject_whitespace_names_and_duplicate_items() {
+    let definitions = protocol::tools();
+    let tools = definitions["tools"].as_array().unwrap();
+    let find = |name| tools.iter().find(|tool| tool["name"] == name).unwrap();
+    let create = jsonschema::validator_for(&find("trakt_create_list")["inputSchema"]).unwrap();
+    assert!(create.is_valid(&json!({"name":"Rainy Sunday","confirmed":true})));
+    assert!(!create.is_valid(&json!({"name":"   ","confirmed":true})));
+    for name in ["trakt_add_list_items", "trakt_remove_list_items"] {
+        let validator = jsonschema::validator_for(&find(name)["inputSchema"]).unwrap();
+        let item = json!({"media_type":"movie","trakt_id":123});
+        assert!(
+            !validator.is_valid(&json!({
+                "list_id":"77","items":[item.clone(),item],"confirmed":true
+            })),
+            "{name}"
+        );
+    }
+}
+
+#[test]
 fn pagination_follows_actual_limits_and_rejects_unreliable_metadata() {
     use trakt_mcp::trakt::client::pagination;
     let first = pagination([Some(1), Some(7), Some(40), Some(251)], 1, 40).unwrap();
