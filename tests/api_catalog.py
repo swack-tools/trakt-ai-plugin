@@ -55,6 +55,20 @@ class CatalogTests(unittest.TestCase):
         self.assert_valid(schema, {'name':'Rainy Sunday', 'description':'Fixture list', 'privacy':'private'})
         self.assert_invalid(schema, {'name':'Rainy Sunday', 'unexpected':True})
 
+    def test_list_item_variants_accept_show_ids_without_duplicate_branch_failure(self):
+        for operation in ('postUsersListsListAdd', 'postUsersListsListRemove'):
+            schema = self.body(operation)
+            self.assert_valid(schema, {'shows':[{'ids':{'trakt':456}}]})
+            self.assert_invalid(schema, {'shows':[{'ids':{}}]})
+            self.assert_invalid(schema, {'shows':[{'ids':{'trakt':456}, 'unexpected':True}]})
+        source = {'oneOf':[
+            {'type':'object','required':['ids'],'properties':{'ids':{'type':'object'}}},
+            {'type':'object','required':['ids'],'properties':{'ids':{'type':'object'},'seasons':{'type':'array'}}},
+        ]}
+        normalized = GENERATOR.json_schema(source)
+        self.assertIn('anyOf', normalized)
+        self.assert_valid(normalized, {'ids':{}})
+
     def test_calendar_range_and_date(self):
         parameters = {p['name']:p['schema'] for p in CATALOG['getCalendarsShows']['parameters'] if p['in']=='path'}
         self.assert_valid(parameters['days'], 33)

@@ -2,6 +2,127 @@ use serde_json::{Value, json};
 use std::collections::HashSet;
 use trakt_mcp::trakt::catalog::{self, Call};
 
+#[test]
+fn focused_reads_use_supported_catalog_paths_and_reject_invalid_inputs() {
+    use trakt_mcp::mcp::focused;
+    let examples = [
+        (
+            "trakt_discover_lists",
+            json!({"view":"popular","genres":"science-fiction","page":2,"limit":20}),
+            "getListsPopular",
+            "/lists/popular",
+        ),
+        (
+            "trakt_get_list_items",
+            json!({"owner":"me","list_id":"77","media_type":"movie","page":1}),
+            "getUsersListsListItemsMovie",
+            "/users/me/lists/77/items/movie",
+        ),
+        (
+            "trakt_get_calendar",
+            json!({"target":"my","media_type":"show","start_date":"2026-09-27","days":7}),
+            "getCalendarsShows",
+            "/calendars/my/shows/2026-09-27/7",
+        ),
+    ];
+    for (name, args, operation_id, path) in examples {
+        let call = focused::prepare(name, args).unwrap();
+        assert_eq!(call.operation_id, operation_id);
+        let prepared =
+            catalog::prepare(catalog::find(&call.operation_id).unwrap(), &call, false).unwrap();
+        assert_eq!(prepared.path, path);
+    }
+    for (name, args) in [
+        ("trakt_discover_lists", json!({"query":"arbitrary title"})),
+        (
+            "trakt_get_list_items",
+            json!({"owner":"../other","list_id":"77","media_type":"movie"}),
+        ),
+        (
+            "trakt_get_list_items",
+            json!({"owner":"me","list_id":"77","media_type":"season"}),
+        ),
+        (
+            "trakt_get_calendar",
+            json!({"target":"my","media_type":"movie","start_date":"2026-02-30","days":7}),
+        ),
+        (
+            "trakt_get_calendar",
+            json!({"target":"all","media_type":"show","start_date":"2026-09-27","days":32}),
+        ),
+    ] {
+        assert!(focused::prepare(name, args).is_err(), "{name}");
+    }
+}
+
+#[test]
+fn focused_writes_prepare_only_concrete_private_or_owned_list_changes() {
+    use trakt_mcp::mcp::focused;
+    let create = focused::prepare(
+        "trakt_create_list",
+        json!({"name":"Rainy Sunday","confirmed":true}),
+    )
+    .unwrap();
+    assert_eq!(create.operation_id, "postUsersListsCreate");
+    let request =
+        catalog::prepare(catalog::find(&create.operation_id).unwrap(), &create, true).unwrap();
+    assert_eq!(request.path, "/users/me/lists");
+    assert_eq!(request.body.unwrap()["privacy"], "private");
+
+    for (name, operation_id, path) in [
+        (
+            "trakt_add_list_items",
+            "postUsersListsListAdd",
+            "/users/me/lists/77/items",
+        ),
+        (
+            "trakt_remove_list_items",
+            "postUsersListsListRemove",
+            "/users/me/lists/77/items/remove",
+        ),
+    ] {
+        let call = focused::prepare(name, json!({"list_id":"77","items":[{"media_type":"movie","trakt_id":123},{"media_type":"show","trakt_id":456}],"confirmed":true})).unwrap();
+        assert_eq!(call.operation_id, operation_id);
+        let prepared =
+            catalog::prepare(catalog::find(&call.operation_id).unwrap(), &call, true).unwrap();
+        assert_eq!(prepared.path, path);
+        assert_eq!(
+            prepared.body.unwrap(),
+            json!({"movies":[{"ids":{"trakt":123}}],"shows":[{"ids":{"trakt":456}}]})
+        );
+    }
+    for (name, args) in [
+        ("trakt_create_list", json!({"name":"Rainy Sunday"})),
+        ("trakt_create_list", json!({"name":" ","confirmed":true})),
+        (
+            "trakt_create_list",
+            json!({"name":"Rainy Sunday","privacy":"friends","confirmed":true}),
+        ),
+        (
+            "trakt_add_list_items",
+            json!({"list_id":"77","items":[],"confirmed":true}),
+        ),
+        (
+            "trakt_add_list_items",
+            json!({"list_id":"77","items":[{"media_type":"movie","trakt_id":0}],"confirmed":true}),
+        ),
+        (
+            "trakt_add_list_items",
+            json!({"list_id":"77","items":[{"media_type":"movie","trakt_id":123},{"media_type":"movie","trakt_id":123}],"confirmed":true}),
+        ),
+        (
+            "trakt_remove_list_items",
+            json!({"list_id":"../other","items":[{"media_type":"movie","trakt_id":123}],"confirmed":true}),
+        ),
+        (
+            "trakt_remove_list_items",
+            json!({"list_id":"77","items":[{"media_type":"movie","trakt_id":123}],"confirmed":false}),
+        ),
+    ] {
+        assert!(focused::prepare(name, args).is_err(), "{name}");
+    }
+}
+
 fn call(value: Value) -> Call {
     serde_json::from_value(value).unwrap()
 }

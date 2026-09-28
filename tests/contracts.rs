@@ -45,7 +45,32 @@ fn bearer_tokens_require_both_routing_id_and_secret() {
 fn tool_metadata_distinguishes_account_reads_catalog_and_auth_changes() {
     let definitions = protocol::tools();
     let tools = definitions["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 9);
+    let names: std::collections::BTreeSet<_> = tools
+        .iter()
+        .map(|tool| tool["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "trakt_search",
+            "trakt_get_watched_history",
+            "trakt_get_recommendations",
+            "trakt_request_login",
+            "trakt_confirm_login",
+            "trakt_list_operations",
+            "trakt_get_operation",
+            "trakt_api_read",
+            "trakt_api_write",
+            "trakt_discover_lists",
+            "trakt_get_list_items",
+            "trakt_get_calendar",
+            "trakt_create_list",
+            "trakt_add_list_items",
+            "trakt_remove_list_items",
+        ]
+        .into_iter()
+        .collect()
+    );
     for tool in tools {
         assert!(tool["title"].as_str().unwrap().len() > 5);
     }
@@ -116,6 +141,71 @@ fn tool_metadata_distinguishes_account_reads_catalog_and_auth_changes() {
             .unwrap()
             .contains(&json!("all"))
     );
+}
+
+#[test]
+fn tool_output_contracts_are_advertised_and_validate_success_envelopes() {
+    let definitions = protocol::tools();
+    for tool in definitions["tools"].as_array().unwrap() {
+        let name = tool["name"].as_str().unwrap();
+        let schema = &tool["outputSchema"];
+        assert!(schema.is_object(), "{name}: missing output schema");
+        let validator = jsonschema::validator_for(schema).unwrap();
+        let result = match name {
+            "trakt_list_operations" => json!({"data":[],"pagination":{}}),
+            "trakt_get_operation" => json!({"operation_id":"getCalendarsMovies"}),
+            "trakt_api_read"
+            | "trakt_api_write"
+            | "trakt_discover_lists"
+            | "trakt_get_list_items"
+            | "trakt_get_calendar"
+            | "trakt_create_list"
+            | "trakt_add_list_items"
+            | "trakt_remove_list_items" => {
+                json!({"operation_id":"getCalendarsMovies","status":200,"data":[],"pagination":null})
+            }
+            "trakt_request_login" => {
+                json!({"device_code":"device","user_code":"ABCD","verification_url":"https://trakt.tv/activate","expires_in":600,"interval":5,"instructions":"Visit Trakt"})
+            }
+            "trakt_confirm_login" => json!({"status":"connected"}),
+            "trakt_get_watched_history" => json!({"data":[],"pagination":{}}),
+            "trakt_get_recommendations" => json!({"data":[],"pagination":{}}),
+            "trakt_search" => json!({"data":[],"pagination":{},"filters_applied_to_page":false}),
+            _ => panic!("unexpected tool {name}"),
+        };
+        let example = json!({"schema_version":"1","tool":name,"result":result});
+        assert!(
+            validator.is_valid(&example),
+            "{name}: valid envelope rejected"
+        );
+        assert!(
+            !validator.is_valid(&json!({"schema_version":"1","tool":name})),
+            "{name}: missing result accepted"
+        );
+        if name == "trakt_api_read" {
+            assert!(
+                !validator
+                    .is_valid(&json!({"schema_version":"1","tool":name,"result":{"data":[]}})),
+                "generic result must identify the operation and status"
+            );
+        }
+    }
+}
+
+#[test]
+fn focused_read_actions_are_registered_with_read_only_contracts() {
+    let definitions = protocol::tools();
+    let tools = definitions["tools"].as_array().unwrap();
+    for name in [
+        "trakt_discover_lists",
+        "trakt_get_list_items",
+        "trakt_get_calendar",
+    ] {
+        let tool = tools.iter().find(|tool| tool["name"] == name).expect(name);
+        assert_eq!(tool["annotations"]["readOnlyHint"], true);
+        assert_eq!(tool["annotations"]["destructiveHint"], false);
+        assert!(tool["outputSchema"].is_object());
+    }
 }
 
 #[test]

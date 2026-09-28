@@ -110,6 +110,21 @@ def normalize_media_choices(schema):
     return schema
 
 
+def normalize_overlapping_choices(schema):
+    """Allow the source's overlapping basic/show-with-seasons list items."""
+    branches = schema.get('oneOf', [])
+    if len(branches) == 2 and any(
+        left.get('type') == right.get('type') == 'object'
+        and left.get('required') == right.get('required') == ['ids']
+        and set(left.get('properties', {})) == {'ids'}
+        and set(right.get('properties', {})) == {'ids', 'seasons'}
+        for left in branches for right in branches if left is not right
+    ):
+        return {**{key:value for key,value in schema.items() if key != 'oneOf'},
+                'anyOf':branches}
+    return schema
+
+
 def has_object_properties(schema):
     """Identify object properties applying to this instance, not child instances."""
     return 'properties' in schema or any(
@@ -124,7 +139,7 @@ def json_schema(schema, close_object=True):
         return [json_schema(v) for v in schema]
     if not isinstance(schema, dict):
         return schema
-    schema = normalize_media_choices(schema)
+    schema = normalize_overlapping_choices(normalize_media_choices(schema))
     # Never strip a property named description, title, or examples.
     result = {}
     for key, value in schema.items():
@@ -221,6 +236,8 @@ def extract(url: str, refresh: bool = False) -> list[dict]:
                 record['calendar_normalization_note'] = 'Calendar windows use UTC dates in YYYY-MM-DD form and 1 to 33 days, per the official calendar guide.'
             if request_body is not None:
                 record['schema_normalization_note'] = 'Objects with documented properties reject unknown fields unless the source explicitly allows additional properties; composed objects close after evaluating all branches. Identifier alternatives allow one or more supported IDs; ambiguous source oneOf ID alternatives are normalized to anyOf. Exclusive media-target alternatives require their named non-null target.'
+                if operation_id in {'postUsersListsListAdd', 'postUsersListsListRemove'}:
+                    record['schema_normalization_note'] += ' Overlapping show item variants are inclusive because seasons is optional in the source.'
             if paginated:
                 record['normalization_note'] = 'Pagination page and limit use positive integer inputs; MCP locally caps limit at 100 and page at 4294967295. Pagination parameters are included for documented paginated operations.'
             if reason:

@@ -45507,7 +45507,7 @@
                 {
                   "type": "array",
                   "items": {
-                    "oneOf": [
+                    "anyOf": [
                       {
                         "type": "object",
                         "properties": {
@@ -46509,7 +46509,7 @@
         "supported": false
       },
       "status": "supported",
-      "schema_normalization_note": "Objects with documented properties reject unknown fields unless the source explicitly allows additional properties; composed objects close after evaluating all branches. Identifier alternatives allow one or more supported IDs; ambiguous source oneOf ID alternatives are normalized to anyOf. Exclusive media-target alternatives require their named non-null target.",
+      "schema_normalization_note": "Objects with documented properties reject unknown fields unless the source explicitly allows additional properties; composed objects close after evaluating all branches. Identifier alternatives allow one or more supported IDs; ambiguous source oneOf ID alternatives are normalized to anyOf. Exclusive media-target alternatives require their named non-null target. Overlapping show item variants are inclusive because seasons is optional in the source.",
       "restrictions": [
         "Account VIP features or limits apply; see source documentation."
       ]
@@ -46822,7 +46822,7 @@
                 {
                   "type": "array",
                   "items": {
-                    "oneOf": [
+                    "anyOf": [
                       {
                         "type": "object",
                         "properties": {
@@ -47824,7 +47824,7 @@
         "supported": false
       },
       "status": "supported",
-      "schema_normalization_note": "Objects with documented properties reject unknown fields unless the source explicitly allows additional properties; composed objects close after evaluating all branches. Identifier alternatives allow one or more supported IDs; ambiguous source oneOf ID alternatives are normalized to anyOf. Exclusive media-target alternatives require their named non-null target."
+      "schema_normalization_note": "Objects with documented properties reject unknown fields unless the source explicitly allows additional properties; composed objects close after evaluating all branches. Identifier alternatives allow one or more supported IDs; ambiguous source oneOf ID alternatives are normalized to anyOf. Exclusive media-target alternatives require their named non-null target. Overlapping show item variants are inclusive because seasons is optional in the source."
     },
     {
       "operation_id": "postUsersListsListReorder",

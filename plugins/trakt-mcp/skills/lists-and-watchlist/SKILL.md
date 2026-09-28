@@ -7,6 +7,8 @@ description: Use when the user wants to discover public Trakt lists, inspect a w
 
 Use the connected account for private lists and mutations. Discover public lists without changing the user's library. Resolve the installed Trakt tool names; a skill alone supplies no connection.
 
+When the installed server advertises the focused tools, use `trakt_discover_lists` for trending or popular discovery and `trakt_get_list_items` for a chosen movie/show list. Discovery supports a genre filter but no arbitrary list-title search; for other list or watchlist operations, use the inspected generic catalog. For a requested personal list, prefer `trakt_create_list`, then `trakt_add_list_items` or `trakt_remove_list_items` with concrete Trakt IDs, at most 100 distinct items per call, and `confirmed: true`. These tools enforce write scope and list ownership. Keep the generic path below for other media types and clients where focused tools are unavailable. A failed ownership check is not permission to try a generic write against that list.
+
 ## Find the operation and the titles
 
 1. Call `trakt_list_operations` with a relevant query such as `lists` or `watchlist`. Follow its catalog pagination only as needed to locate the operation. Call `trakt_get_operation` for the returned `operation_id` before execution. Read its exact path parameters, query parameters, body schema, authentication, status, restrictions, and write annotations. Select by method and documented purpose, not a plausible ID or an endpoint remembered from another API.
