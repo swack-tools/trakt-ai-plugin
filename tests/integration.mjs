@@ -270,6 +270,16 @@ test('real MCP SDK initializes and calls both transports',async()=>{
   const data=JSON.parse(watched.content[0].text);assert.equal(data.pagination.page,page);assert.equal(data.data.length,expectedLength);assert.equal(requests.at(-1).query.get('page'),'2');assert.equal(requests.at(-1).path,mode==='all'?'/sync/watched/movies':'/sync/history/movies');
  }
  assert.equal(watchedRequests(start).length,2);
+ if(kind==='sse'){
+  // The escaped legacy text alone fits the former 1 MiB event cap.
+  // A structured copy must not make this previously valid response fail.
+  const overview='x'.repeat(700*1024);
+  fixtureFor(u,{movies:[{plays:1,movie:{title:'Large fixture',ids:{trakt:42},overview}}]});
+  const large=await client.callTool({name:'trakt_get_watched_history',arguments:{media_type:'movie',detail:'full',limit:1}});
+  assert.equal(large.isError,false);
+  assert.equal(JSON.parse(large.content[0].text).data[0].movie.overview,overview);
+  assert.equal(large.structuredContent.result.data[0].movie.overview,overview);
+ }
  }finally{await client.close();}}
  const notify=await api('/mcp',{method:'POST',token:u.access_token,body:{jsonrpc:'2.0',method:'notifications/initialized'}});assert.equal(notify.status,202);assert.equal(notify.data,'');
  assert.equal((await api('/mcp',{method:'POST',token:u.access_token,body:{jsonrpc:'2.0',id:1,method:'unknown'}})).data.error.code,-32601);

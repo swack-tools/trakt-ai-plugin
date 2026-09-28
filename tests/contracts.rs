@@ -226,6 +226,28 @@ fn list_discovery_genre_schema_matches_runtime_validation() {
 }
 
 #[test]
+fn focused_list_page_schemas_match_u32_runtime_bounds() {
+    let definitions = protocol::tools();
+    let tools = definitions["tools"].as_array().unwrap();
+    for name in ["trakt_discover_lists", "trakt_get_list_items"] {
+        let tool = tools.iter().find(|tool| tool["name"] == name).unwrap();
+        let validator = jsonschema::validator_for(&tool["inputSchema"]).unwrap();
+        let mut args = if name == "trakt_get_list_items" {
+            json!({"owner":"me","list_id":"77","media_type":"movie"})
+        } else {
+            json!({})
+        };
+        args["page"] = json!(4_294_967_295_u64);
+        assert!(validator.is_valid(&args), "{name}: u32 maximum rejected");
+        args["page"] = json!(4_294_967_296_u64);
+        assert!(
+            !validator.is_valid(&args),
+            "{name}: value beyond u32 accepted"
+        );
+    }
+}
+
+#[test]
 fn focused_list_path_schemas_reject_unsafe_segments() {
     let definitions = protocol::tools();
     let tools = definitions["tools"].as_array().unwrap();
