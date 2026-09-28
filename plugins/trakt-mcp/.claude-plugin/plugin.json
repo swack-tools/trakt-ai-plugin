@@ -1,7 +1,7 @@
 {
   "name": "trakt-mcp",
-  "version": "1.2.0",
-  "description": "Independent Trakt integration: find films and shows, explore watched summaries, and explain personalized recommendations.",
+  "version": "2.0.0",
+  "description": "Explore Trakt movies, shows, calendars, and lists; manage your watchlist, history, ratings, and collection with explicit write permission.",
   "author": {
     "name": "SwackTech LLC",
     "url": "https://github.com/swack-tools"
@@ -14,7 +14,11 @@
     "movies",
     "tv",
     "watch-history",
-    "recommendations"
+    "recommendations",
+    "watchlist",
+    "calendars",
+    "ratings",
+    "collection"
   ],
   "mcpServers": "./.mcp.json",
   "displayName": "Trakt MCP \u2014 Community"

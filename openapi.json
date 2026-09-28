@@ -650,7 +650,7 @@
     "/oauth/token": {
       "post": {
         "operationId": "exchangePluginToken",
-        "description": "Exchange a single-use authorization code plus verifier, or rotate a plugin refresh token. The optional resource must equal the deployment resource URL advertised by OAuth discovery (including its trailing slash). Client-bound tokens require the original client_id and confidential client secret where applicable.",
+        "description": "Exchange a single-use authorization code plus verifier, or rotate a plugin refresh token. The optional resource must equal the deployment resource URL advertised by OAuth discovery (including its trailing slash). Client-bound tokens require the original client_id and confidential client secret where applicable. Refresh can preserve or narrow scopes, never add write access.",
         "responses": {
           "200": {
             "description": "Success",
@@ -734,6 +734,9 @@
                   },
                   "resource": {
                     "type": "string"
+                  },
+                  "scope": {
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -769,6 +772,9 @@
                   },
                   "resource": {
                     "type": "string"
+                  },
+                  "scope": {
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -784,7 +790,7 @@
     "/oauth/authorize": {
       "get": {
         "operationId": "authorizeClient",
-        "description": "Browser authorization and explicit consent. Public clients require code_challenge_method=S256. Exact registered redirect required.",
+        "description": "Browser authorization and explicit consent. Public clients require code_challenge_method=S256. Exact registered redirect required. Omitted scope requests read and write access with explicit browser consent; request trakt:read for read-only access. Existing connections retain their prior scopes.",
         "responses": {
           "200": {
             "description": "Browser consent page",
@@ -1569,7 +1575,8 @@
             "authorizationUrl": "https://example.invalid/oauth/authorize",
             "tokenUrl": "https://example.invalid/oauth/token",
             "scopes": {
-              "trakt:read": "Read personal Trakt data"
+              "trakt:read": "Read personal Trakt data",
+              "trakt:write": "Make explicitly requested Trakt account changes through MCP write tools"
             }
           }
         }

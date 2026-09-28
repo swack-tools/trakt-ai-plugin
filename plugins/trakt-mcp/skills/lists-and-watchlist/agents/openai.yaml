@@ -1,0 +1,11 @@
+interface:
+  display_name: "Lists and Watchlist"
+  short_description: "Discover lists and manage saved titles"
+  default_prompt: "Use $lists-and-watchlist to find public lists or make a specific change to my own list or watchlist."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "trakt"
+      description: "Independent Trakt MCP service for the hosted deployment"
+      transport: "streamable_http"
+      url: "https://trakt.swacktech.com/mcp"

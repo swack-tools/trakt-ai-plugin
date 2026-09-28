@@ -1,0 +1,28 @@
+name: Documentation checks
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  documentation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12.14'
+      - name: Build documentation and validate local links
+        run: |
+          python3 docs/build.py "$RUNNER_TEMP/trakt-mcp-site"
+          python3 docs/check.py "$RUNNER_TEMP/trakt-mcp-site"
+      - name: Install Vale
+        run: |
+          curl --fail --silent --show-error --location https://github.com/errata-ai/vale/releases/download/v3.23.0/vale_3.23.0_Linux_64-bit.tar.gz -o "$RUNNER_TEMP/vale.tar.gz"
+          echo "cc35445a45186b8f0b01e11c01359694cf941e72cf6ab0fc44774f0e54c9d5fc  $RUNNER_TEMP/vale.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/vale.tar.gz" -C "$RUNNER_TEMP" vale
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Lint Markdown and HTML documentation with Google style
+        run: |
+          vale sync
+          python3 scripts/check_prose.py

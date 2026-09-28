@@ -27,6 +27,8 @@ pub struct Session {
     pub refresh_expires: u64,
     pub client_id: Option<String>,
     pub resource: String,
+    #[serde(default = "read_scope")]
+    pub scope: String,
 }
 #[derive(Serialize, Deserialize)]
 pub struct Flow {
@@ -40,12 +42,42 @@ pub struct Flow {
     pub code_hash: Option<String>,
     pub resource: String,
 }
+pub fn read_scope() -> String {
+    "trakt:read".into()
+}
+pub fn requested_scope(value: Option<&str>) -> Result<String> {
+    let value = value.unwrap_or("trakt:read trakt:write");
+    let scopes: Vec<_> = value.split_whitespace().collect();
+    if scopes.is_empty()
+        || scopes
+            .iter()
+            .any(|s| !matches!(*s, "trakt:read" | "trakt:write"))
+    {
+        return Err(ApiError::new(400, "invalid_scope"));
+    }
+    if !scopes.contains(&"trakt:read") {
+        return Err(ApiError::new(400, "invalid_scope"));
+    }
+    Ok(if scopes.contains(&"trakt:write") {
+        "trakt:read trakt:write"
+    } else {
+        "trakt:read"
+    }
+    .into())
+}
+pub async fn require_write(storage: &mut Storage) -> Result<()> {
+    let session: Session = storage.get("session").await?;
+    if !session.scope.split_whitespace().any(|s| s == "trakt:write") {
+        return Err(ApiError::new(403, "write_authorization_required"));
+    }
+    Ok(())
+}
 pub fn metadata(base: &str) -> Value {
-    json!({"issuer":base,"authorization_endpoint":format!("{base}/oauth/authorize"),"token_endpoint":format!("{base}/oauth/token"),"registration_endpoint":format!("{base}/oauth/register"),"response_types_supported":["code"],"grant_types_supported":["authorization_code","refresh_token"],"token_endpoint_auth_methods_supported":["none","client_secret_post"],"code_challenge_methods_supported":["S256"],"scopes_supported":["trakt:read"]})
+    json!({"issuer":base,"authorization_endpoint":format!("{base}/oauth/authorize"),"token_endpoint":format!("{base}/oauth/token"),"registration_endpoint":format!("{base}/oauth/register"),"response_types_supported":["code"],"grant_types_supported":["authorization_code","refresh_token"],"token_endpoint_auth_methods_supported":["none","client_secret_post"],"code_challenge_methods_supported":["S256"],"scopes_supported":["trakt:read","trakt:write"]})
 }
 pub fn resource_metadata(base: &str) -> Value {
     let resource = format!("{base}/");
-    json!({"resource":resource,"authorization_servers":[base],"scopes_supported":["trakt:read"],"bearer_methods_supported":["header"]})
+    json!({"resource":resource,"authorization_servers":[base],"scopes_supported":["trakt:read","trakt:write"],"bearer_methods_supported":["header"]})
 }
 pub async fn register(storage: &mut Storage, v: Value) -> Result<Value> {
     let redirects = v["redirect_uris"]
@@ -105,6 +137,7 @@ pub async fn create(
                 refresh_expires: 0,
                 client_id,
                 resource,
+                scope: read_scope(),
             },
         )
         .await?;
@@ -137,9 +170,9 @@ pub async fn issue(storage: &mut Storage) -> Result<Value> {
     }
     s.refresh_hash = Some(security::hash(&refresh));
     s.refresh_expires = now() + 30 * 86400;
-    storage.put("session", s).await?;
+    storage.put("session", &s).await?;
     Ok(
-        json!({"access_token":access,"token_type":"Bearer","expires_in":3600,"refresh_token":refresh,"scope":"trakt:read"}),
+        json!({"access_token":access,"token_type":"Bearer","expires_in":3600,"refresh_token":refresh,"scope":s.scope}),
     )
 }
 pub async fn begin(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> {
@@ -169,12 +202,13 @@ pub async fn begin(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> 
     if !get("resource").is_empty() && get("resource") != resource {
         return Err(ApiError::new(400, "invalid_target"));
     }
-    if !get("scope").is_empty() && get("scope") != "trakt:read" {
-        return Err(ApiError::new(400, "invalid_scope"));
-    }
+    let scope = requested_scope(q["scope"].as_str())?;
     let id = v["_id"].as_str().ok_or(ApiError::new(500, "missing_id"))?;
     let ticket = security::random();
     create(storage, id, Some(r.client_id.clone()), resource.clone()).await?;
+    let mut session: Session = storage.get("session").await?;
+    session.scope = scope.clone();
+    storage.put("session", &session).await?;
     let f = Flow {
         client_id: r.client_id,
         redirect_uri: get("redirect_uri").into(),
@@ -188,7 +222,7 @@ pub async fn begin(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> 
     };
     storage.put("flow", &f).await?;
     Ok(
-        json!({"session_id":id,"ticket":ticket,"client_name":r.client_name,"redirect_uri":f.redirect_uri}),
+        json!({"session_id":id,"ticket":ticket,"client_name":r.client_name,"redirect_uri":f.redirect_uri,"scope":scope}),
     )
 }
 pub async fn browser_step(env: &Env, storage: &mut Storage, id: &str, v: Value) -> Result<Value> {
@@ -239,7 +273,7 @@ pub async fn browser_step(env: &Env, storage: &mut Storage, id: &str, v: Value) 
 pub async fn exchange(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> {
     let q = &v["params"];
     let r: Option<Registration> = serde_json::from_value(v["registration"].clone())?;
-    let s: Session = get_optional(storage, "session")
+    let mut s: Session = get_optional(storage, "session")
         .await?
         .ok_or(ApiError::new(400, "invalid_grant"))?;
     if let Some(expected) = &s.client_id {
@@ -285,6 +319,16 @@ pub async fn exchange(env: &Env, storage: &mut Storage, v: Value) -> Result<Valu
             storage.delete("flow").await?;
         }
         Some("refresh_token") => {
+            if let Some(scope) = q["scope"].as_str() {
+                let scope = requested_scope(Some(scope))?;
+                if scope
+                    .split_whitespace()
+                    .any(|permission| !s.scope.split_whitespace().any(|old| old == permission))
+                {
+                    return Err(ApiError::new(400, "invalid_scope"));
+                }
+                s.scope = scope;
+            }
             let presented = security::hash(q["refresh_token"].as_str().unwrap_or(""));
             let used = get_optional::<Vec<String>>(storage, "used_refreshes")
                 .await?
@@ -309,13 +353,25 @@ pub async fn exchange(env: &Env, storage: &mut Storage, v: Value) -> Result<Valu
         }
         _ => return Err(ApiError::new(400, "unsupported_grant_type")),
     }
+    storage.put("session", &s).await?;
     issue(storage).await
 }
 pub fn login_page(v: &Value) -> String {
     let field = |k: &str| security::escape(v[k].as_str().unwrap_or(""));
+    let permissions = if v["scope"]
+        .as_str()
+        .unwrap_or("trakt:read")
+        .split_whitespace()
+        .any(|s| s == "trakt:write")
+    {
+        "read your Trakt data and make changes you request, including lists, ratings, watch history, comments, and other account actions"
+    } else {
+        "read your Trakt data without making account changes"
+    };
     format!(
-        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Connect Trakt</title><link rel="stylesheet" href="/login.css"><main><p>TRAKT MCP</p><h1>Connect your Trakt account</h1><p><strong>{}</strong> is requesting read access to your watched history and personalized recommendations. Your credentials stay on this server.</p><p>After authorization you will return to <code>{}</code>.</p><form id="connect" data-session="{}" data-ticket="{}"><button type="submit">Connect Trakt</button></form><section id="status" aria-live="polite"></section><p>You can close this page to cancel.</p></main><script src="/login.js" defer></script></html>"#,
+        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Connect Trakt</title><link rel="stylesheet" href="/login.css"><main><p>TRAKT MCP</p><h1>Connect your Trakt account</h1><p><strong>{}</strong> is requesting permission to {}. Your credentials stay on this server.</p><p>After authorization you will return to <code>{}</code>.</p><form id="connect" data-session="{}" data-ticket="{}"><button type="submit">Connect Trakt</button></form><section id="status" aria-live="polite"></section><p>You can close this page to cancel.</p></main><script src="/login.js" defer></script></html>"#,
         field("client_name"),
+        permissions,
         field("redirect_uri"),
         field("session_id"),
         field("ticket")
@@ -326,3 +382,33 @@ async function step(action){const response=await fetch('/oauth/complete',{method
 async function poll(){if(Date.now()>expires){status.append(document.createTextNode(' Code expired. Close this page and reconnect.'));return;}try{const [r,d]=await step('poll');if(d.redirect){location.assign(d.redirect);return;}if(d.error==='authorization_pending'||d.error==='slow_down'){setTimeout(poll,(d.retry_after||interval)*1000);return;}status.append(document.createTextNode(' '+(d.error||'Connection failed.')));}catch{status.append(document.createTextNode(' Network error. Reconnect to retry.'));}}
 form.addEventListener('submit',async e=>{e.preventDefault();form.querySelector('button').disabled=true;try{const [r,d]=await step('start');if(!r.ok){status.textContent=d.error;return;}interval=d.interval;expires=Date.now()+d.expires_in*1000;const p=document.createElement('p');p.textContent='Enter this code: ';const code=document.createElement('strong');code.textContent=d.user_code;p.append(code);const a=document.createElement('a');a.href='https://trakt.tv/activate';a.target='_blank';a.rel='noopener noreferrer';a.textContent='Open Trakt activation';status.replaceChildren(p,a);setTimeout(poll,interval*1000);}catch{status.textContent='Network error. Reconnect to retry.'}});"#;
 pub const LOGIN_CSS: &str = "body{font:18px/1.6 system-ui;background:#101419;color:#ecf1f5;margin:0;padding:8vh 24px}main{max-width:640px;margin:auto}h1{line-height:1.15;font-size:40px}button,a{display:inline-block;background:#ef4444;color:white;border:0;border-radius:8px;padding:12px 20px;font:inherit;cursor:pointer}code{overflow-wrap:anywhere;font-size:14px}strong{color:#fff}#status strong{font-size:32px;letter-spacing:4px}button:disabled{opacity:.5}";
+
+#[cfg(test)]
+mod scope_tests {
+    use super::*;
+    use serde_json::json;
+    #[test]
+    fn old_sessions_are_read_only_and_consent_scopes_are_explicit() {
+        let legacy: Session = serde_json::from_value(json!({
+            "id":"fixture", "access_hash":"hash", "access_expires":123,
+            "refresh_hash":null,"refresh_expires":456,"client_id":null,
+            "resource":"https://plugin.example.test"
+        }))
+        .unwrap();
+        assert_eq!(legacy.scope, "trakt:read");
+        assert_eq!(requested_scope(None).unwrap(), "trakt:read trakt:write");
+        assert_eq!(requested_scope(Some("trakt:read")).unwrap(), "trakt:read");
+        for scope in ["", "trakt:write", "trakt:read admin", "trakt:read_write"] {
+            assert_eq!(
+                requested_scope(Some(scope)).err().unwrap().code,
+                "invalid_scope"
+            );
+        }
+        let write_page = login_page(&json!({"scope":"trakt:read trakt:write"}));
+        assert!(write_page.contains("make changes you request"));
+        assert!(write_page.contains("lists, ratings, watch history, comments"));
+        let read_page = login_page(&json!({"scope":"trakt:read"}));
+        assert!(read_page.contains("without making account changes"));
+        assert!(!read_page.contains("make changes you request"));
+    }
+}

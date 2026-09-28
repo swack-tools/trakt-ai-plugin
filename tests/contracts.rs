@@ -45,7 +45,7 @@ fn bearer_tokens_require_both_routing_id_and_secret() {
 fn tool_metadata_distinguishes_account_reads_catalog_and_auth_changes() {
     let definitions = protocol::tools();
     let tools = definitions["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 5);
+    assert_eq!(tools.len(), 9);
     for tool in tools {
         assert!(tool["title"].as_str().unwrap().len() > 5);
     }
@@ -67,6 +67,49 @@ fn tool_metadata_distinguishes_account_reads_catalog_and_auth_changes() {
         find("trakt_request_login")["annotations"]["readOnlyHint"],
         false
     );
+    for name in [
+        "trakt_list_operations",
+        "trakt_get_operation",
+        "trakt_api_read",
+    ] {
+        assert_eq!(find(name)["annotations"]["readOnlyHint"], true);
+        assert_eq!(find(name)["annotations"]["destructiveHint"], false);
+    }
+    assert_eq!(
+        find("trakt_list_operations")["annotations"]["openWorldHint"],
+        false
+    );
+    assert_eq!(
+        find("trakt_get_operation")["annotations"]["openWorldHint"],
+        false
+    );
+    assert_eq!(find("trakt_api_read")["annotations"]["openWorldHint"], true);
+    assert_eq!(
+        find("trakt_api_write")["annotations"]["readOnlyHint"],
+        false
+    );
+    assert_eq!(
+        find("trakt_api_write")["annotations"]["destructiveHint"],
+        true
+    );
+    assert_eq!(
+        find("trakt_api_write")["annotations"]["openWorldHint"],
+        true
+    );
+    assert_eq!(
+        find("trakt_api_write")["inputSchema"]["properties"]["confirmed"]["const"],
+        true
+    );
+    assert!(
+        find("trakt_api_write")["inputSchema"]["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("confirmed"))
+    );
+    for tool in tools {
+        jsonschema::validator_for(&tool["inputSchema"])
+            .expect("Every advertised tool has a valid schema");
+    }
     assert!(
         !find("trakt_get_recommendations")["inputSchema"]["properties"]["media_type"]["enum"]
             .as_array()
@@ -124,4 +167,43 @@ fn compact_watched_rows_preserve_identity_genres_and_watch_events() {
     assert!(row.get("private_unneeded_field").is_none());
     assert!(Query::parse(json!({"detail":"compact"})).is_ok());
     assert!(Query::parse(json!({"detail":"anything"})).is_err());
+}
+
+#[test]
+fn pagination_never_reports_completion_for_contradictory_or_truncated_totals() {
+    use trakt_mcp::trakt::client::pagination;
+    // A single advertised page cannot contain 250 items at a limit of 100.
+    assert!(pagination([Some(1), Some(1), Some(100), Some(250)], 1, 100).is_err());
+    // Even a consistent page count is insufficient if the last page is cut short.
+    assert!(pagination([Some(3), Some(3), Some(100), Some(250)], 3, 20).is_err());
+    assert!(pagination([Some(3), Some(3), Some(100), Some(250)], 3, 49).is_err());
+    let complete = pagination([Some(3), Some(3), Some(100), Some(250)], 3, 50).unwrap();
+    assert_eq!(complete["has_more"], false);
+    assert!(complete["next_page"].is_null());
+    // Hostile metadata must be rejected without overflowing multiplication.
+    assert!(
+        pagination(
+            [Some(u64::MAX), Some(u64::MAX), Some(2), Some(u64::MAX)],
+            u64::MAX,
+            1
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn pagination_rejects_short_nonfinal_pages_before_completion() {
+    use trakt_mcp::trakt::client::pagination;
+    for page in [1, 2] {
+        assert!(pagination([Some(page), Some(3), Some(100), Some(250)], page, 20).is_err());
+        assert!(pagination([Some(page), Some(3), Some(100), Some(250)], page, 99).is_err());
+        assert_eq!(
+            pagination([Some(page), Some(3), Some(100), Some(250)], page, 100).unwrap()["has_more"],
+            true
+        );
+    }
+    assert_eq!(
+        pagination([Some(3), Some(3), Some(100), Some(250)], 3, 50).unwrap()["has_more"],
+        false
+    );
 }

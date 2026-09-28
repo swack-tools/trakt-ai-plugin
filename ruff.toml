@@ -1,0 +1,5 @@
+target-version = "py312"
+
+[lint]
+# Catch correctness and unsafe-execution mistakes without a formatting migration.
+select = ["E9", "F", "B", "S307", "S602", "S605"]

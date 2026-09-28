@@ -15,6 +15,8 @@ import tempfile
 import time
 import zipfile
 
+from check_plugin import SKILLS, validate
+
 ROOT=Path(__file__).resolve().parents[1]
 
 
@@ -38,11 +40,12 @@ def codex_probe(market, cwd):
         process.stdin.write(json.dumps({'method':'initialized','params':{}})+'\n');process.stdin.flush()
         result=request(2,'plugin/read',{'marketplacePath':str(market/'.agents/plugins/marketplace.json'),'pluginName':'trakt-mcp'})['plugin']
         names={s['name'].split(':')[-1] for s in result['skills']}
-        assert names=={'what-to-watch','watching-profile','find-title','connection-help'},names
+        assert names==SKILLS,names
         assert result['mcpServers']==['trakt'],result['mcpServers']
         assert result['summary']['interface']['developerName']=='SwackTech LLC'
+        assert set(result['summary']['interface']['capabilities'])=={'Read','Write'}
         assert not result['hooks']
-        print('Codex package discovery passed: four skills, one MCP server, correct publisher; no personal installation or authentication performed.')
+        print(f'Codex package discovery passed: {len(SKILLS)} skills, one MCP server, read/write capabilities, correct publisher; no personal installation or authentication performed.')
     finally:
         process.terminate()
         try:process.wait(timeout=10)
@@ -65,12 +68,13 @@ def main():
                 if not target.is_relative_to((market/'plugins/trakt-mcp').resolve()):raise ValueError('Unsafe archive path')
                 if (item.external_attr>>16)&0o170000==0o120000:raise ValueError('Symlink in archive')
             archive.extractall(market/'plugins/trakt-mcp')
+        validate(market/'plugins/trakt-mcp',repository_checks=False)
         if args.client in ('claude','both'):
             env=os.environ|{'CLAUDE_CONFIG_DIR':str(temp/'claude-config'),'DISABLE_TELEMETRY':'1'}
             for command in (['plugin','marketplace','add',str(market)],['plugin','install','trakt-mcp@trakt-mcp'],['plugin','details','trakt-mcp@trakt-mcp']):
                 result=subprocess.run(['claude',*command],cwd=temp,env=env,check=True,capture_output=True,text=True,timeout=90)
                 if command[1]=='details':
-                    for name in ('what-to-watch','watching-profile','find-title','connection-help'):assert name in result.stdout
+                    for name in SKILLS:assert name in result.stdout
                     assert 'MCP servers (1)' in result.stdout and 'Agents (0)' in result.stdout
                     print(result.stdout)
             print('Claude isolated installation and inventory passed; no authenticated workflow performed.')
