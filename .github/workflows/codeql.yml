@@ -3,6 +3,9 @@ on:
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: codeql-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   analyze:
     runs-on: ubuntu-24.04
@@ -16,6 +19,8 @@ jobs:
         language: [javascript-typescript, python]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - name: Initialize CodeQL
         uses: github/codeql-action/init@7999b86c43a865dc79d8923397f35af22de63401 # v4
         with:

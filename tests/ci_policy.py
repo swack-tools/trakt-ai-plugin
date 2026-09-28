@@ -36,9 +36,12 @@ def validate_policy(name, workflow):
             assert all(allowed.get(key) == value for key, value in permissions.items()), name
             assert 'environment' not in job, f'{name}: no PR deployment environment'
     for job in workflow['jobs'].values():
+        assert 1 <= int(job.get('timeout-minutes', 0)) <= 30, f'{name}: bounded job timeout required'
         assert job.get('runs-on') == 'ubuntu-24.04', f'{name}: use a standard pinned Ubuntu runner'
         for step in job.get('steps', []):
             action = step.get('uses', '')
+            if action.startswith('actions/checkout@'):
+                assert str(step.get('with', {}).get('persist-credentials')).lower() == 'false', name
             if action:
                 assert re.fullmatch(r'[^@]+@[0-9a-f]{40}', action), f'{name}: pin action commit: {action}'
 
@@ -95,6 +98,38 @@ class WorkflowPolicyTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             validate_policy('deploy.yml', workflow)
 
+    def test_jobs_reject_unbounded_execution_and_persisted_checkout_tokens(self):
+        workflow = deepcopy(self.workflows['checks.yml'])
+        del workflow['jobs']['rust-and-mcp']['timeout-minutes']
+        with self.assertRaises(AssertionError):
+            validate_policy('checks.yml', workflow)
+        workflow = deepcopy(self.workflows['checks.yml'])
+        workflow['jobs']['rust-and-mcp']['steps'][0]['with']['persist-credentials'] = 'true'
+        with self.assertRaises(AssertionError):
+            validate_policy('checks.yml', workflow)
+
+    def test_automated_updates_cover_all_dependency_ecosystems(self):
+        config = yaml.safe_load((ROOT / '.github/dependabot.yml').read_text())
+        self.assertEqual(config['version'], 2)
+        self.assertEqual({u['package-ecosystem'] for u in config['updates']},
+                         {'github-actions', 'cargo', 'npm', 'pip'})
+        for update in config['updates']:
+            self.assertEqual(update['directory'], '/')
+            self.assertEqual(update['schedule']['interval'], 'weekly')
+        self.assertTrue((ROOT / 'Cargo.lock').is_file())
+        self.assertNotIn('Cargo.lock', (ROOT / '.gitignore').read_text().splitlines())
+
+    def test_dependency_scans_fail_on_findings_and_preserve_evidence(self):
+        workflow = self.workflows['dependencies.yml']
+        steps = workflow['jobs']['dependency-audit']['steps']
+        commands = '\n'.join(step.get('run', '') for step in steps)
+        for command in ('--lockfile Cargo.lock', '--lockfile package-lock.json',
+                        'npm audit --json', 'pip_audit -r requirements-ci.txt', 'sha256sum --check'):
+            self.assertIn(command, commands)
+        self.assertNotIn('continue-on-error', str(workflow))
+        self.assertNotIn('|| true', commands)
+        self.assertEqual(steps[-1]['with']['if-no-files-found'], 'error')
+
     def test_validation_categories_remain_present(self):
         commands = '\n'.join(
             step.get('run', '')
@@ -102,8 +137,8 @@ class WorkflowPolicyTests(unittest.TestCase):
             for job in workflow['jobs'].values()
             for step in job.get('steps', [])
         )
-        for required in ('cargo fmt --check', 'cargo test',
-                         'cargo clippy --target wasm32-unknown-unknown -- -D warnings',
+        for required in ('cargo fmt --check', 'cargo test --locked',
+                         'cargo clippy --locked --target wasm32-unknown-unknown -- -D warnings',
                          'ruff check', 'unittest discover', 'test:integration',
                          'scripts/check_plugin.py', 'scripts/check_portable_schema.py',
                          'skills-ref validate', 'docs/build.py', 'docs/check.py',
