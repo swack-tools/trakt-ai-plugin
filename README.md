@@ -67,7 +67,7 @@ Use natural language or your client’s skill picker. See the [plugin README](pl
 - “Show me the movies and TV shows I’ve watched.”
 - “Search Trakt for Arrival.”
 
-Recommendations come from Trakt’s personalized results. By default, history returns watched-title summaries with play counts, one page per tool call. The skills follow `pagination.next_page` to completion for all-history requests and recommendations based on all viewing. Ask for “recently watched” to use the latest 100 chronological watch events per medium, including repeat watches. Interrupted traversals are reported as partial with a resume page.
+Recommendations come from Trakt’s personalized results. By default, history returns watched-title summaries with play counts, one compact page per tool call. Compact detail keeps identifying metadata, genres, counts, and watch timestamps; request full detail only for additional metadata. The skills follow `pagination.next_page` to completion for all-history requests and recommendations based on all viewing. Ask for “recently watched” to use the latest 100 chronological watch events per medium, including repeat watches. Interrupted traversals are reported as partial with a resume page.
 
 For standalone MCP or skills-only setup, see the [installation guide](https://trakt.swacktech.com/connect.html). Skills alone still require the authenticated MCP connection.
 
