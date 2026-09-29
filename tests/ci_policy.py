@@ -8,6 +8,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 DEPLOYMENTS = {'deploy.yml', 'docs.yml'}
+RELEASES = {'release.yml'}
 
 
 def validate_policy(name, workflow):
@@ -24,6 +25,15 @@ def validate_policy(name, workflow):
                     r'check_(?:plugin|portable_schema|routes|prose)\.py|docs/check\.py|vale ',
                     command,
                 ), f'{name}: test-only work belongs in PR checks'
+    elif name in RELEASES:
+        assert set(events) == {'push'}, f'{name}: releases must only run for tag pushes'
+        assert events['push'].get('tags') == ['v*'], f'{name}: version tags required'
+        assert 'branches' not in events['push'], f'{name}: release must not run for branch pushes'
+        assert workflow.get('permissions') == {'contents': 'write'}, f'{name}: release asset permission required'
+        assert 'pull_request' not in events, f'{name}: PRs must not publish releases'
+        assert 'secrets.' not in str(workflow), f'{name}: use the scoped GitHub token only'
+        for job in workflow['jobs'].values():
+            assert job.get('permissions') == {'contents': 'write'}, f'{name}: scope write access to release job'
     else:
         assert set(events) == {'pull_request'}, f'{name}: checks must only run on PRs'
         assert not events['pull_request'], f'{name}: all PRs need required checks'
@@ -72,6 +82,21 @@ class WorkflowPolicyTests(unittest.TestCase):
         workflow['on']['pull_request'] = {}
         with self.assertRaises(AssertionError):
             validate_policy('deploy.yml', workflow)
+
+    def test_release_only_accepts_version_tag_pushes(self):
+        workflow = deepcopy(self.workflows['release.yml'])
+        validate_policy('release.yml', workflow)
+        for mutation in (
+            lambda w: w['on'].__setitem__('pull_request', {}),
+            lambda w: w['on']['push'].__setitem__('branches', ['main']),
+            lambda w: w['on']['push'].__setitem__('tags', ['*']),
+            lambda w: w.__setitem__('permissions', {'contents': 'read'}),
+            lambda w: w['jobs']['release'].__setitem__('permissions', {'contents': 'read'}),
+        ):
+            bad = deepcopy(workflow)
+            mutation(bad)
+            with self.subTest(workflow=bad), self.assertRaises(AssertionError):
+                validate_policy('release.yml', bad)
         workflow = deepcopy(self.workflows['deploy.yml'])
         workflow['on']['push']['branches'] = ['main', 'development']
         with self.assertRaises(AssertionError):
