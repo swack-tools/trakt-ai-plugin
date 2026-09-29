@@ -253,7 +253,7 @@ def changelog_files(root):
         subdirs[:] = [name for name in subdirs if name not in excluded]
         candidates.extend(Path(directory) / name for name in files)
     return {p.relative_to(root).as_posix() for p in candidates
-            if p.is_file() and p.suffix.lower() in {'.md', '.html'}
+            if p.is_file() and p.suffix.lower() in {'', '.md', '.html'}
             and re.search(r'(?:^|[-_. ])(?:changelog|changes|history)(?:$|[-_. ])', p.stem, re.I)}
 
 
@@ -261,7 +261,8 @@ def reviewed_files(root, selected):
     """Conservative review scope: additions and removals change this mapping too."""
     paths = set(selected) | changelog_files(root) | {
         'catalog-info.json', SCHEMA, 'Cargo.toml', 'package.json', 'requirements-catalog.txt',
-        'api/trakt/catalog.json', 'openapi.json', 'scripts/check_catalog.py'}
+        'api/trakt/catalog.json', 'openapi.json', 'scripts/check_catalog.py',
+        'Cargo.lock', 'package-lock.json'}
     for pattern in ('README*', '*CHANGELOG*', '*CHANGES*', '*HISTORY*',
                     f'{PLUGIN}/**/*', 'docs/pages/**/*', 'src/**/*.rs',
                     '.claude-plugin/*.json', '.agents/plugins/*.json', '.mcp.json'):

@@ -23,7 +23,7 @@ class CatalogMetadataTests(unittest.TestCase):
         for name in ('plugins', 'docs/pages', 'src', 'schemas', '.claude-plugin', '.agents', 'api'):
             shutil.copytree(ROOT / name, self.root / name)
         for name in ('README.md', 'catalog-info.json', 'Cargo.toml', 'package.json', '.mcp.json',
-                     'requirements-catalog.txt', 'openapi.json'):
+                     'requirements-catalog.txt', 'openapi.json', 'Cargo.lock', 'package-lock.json'):
             shutil.copyfile(ROOT / name, self.root / name)
         (self.root / 'scripts').mkdir()
         shutil.copyfile(ROOT / 'scripts/check_catalog.py', self.root / 'scripts/check_catalog.py')
@@ -237,7 +237,8 @@ class CatalogMetadataTests(unittest.TestCase):
         import check_catalog
         self.validate(refresh_review=True)
         for name in ('api/trakt/CHANGELOG.md', 'scripts/releases/changes.md',
-                     'other/project-changelog.html'):
+                     'other/project-changelog.html', 'api/trakt/CHANGELOG',
+                     'other/CHANGES', 'other/HISTORY'):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('Project release notes.\n')
@@ -262,7 +263,7 @@ class CatalogMetadataTests(unittest.TestCase):
         paths = ['README.md', 'plugins/trakt-mcp/skills/what-to-watch/SKILL.md',
                  'src/mcp/handlers.rs', 'docs/pages/new-guide.html', 'CHANGELOG.md',
                  'requirements-catalog.txt', 'api/trakt/catalog.json',
-                 'openapi.json', 'scripts/check_catalog.py']
+                 'openapi.json', 'scripts/check_catalog.py', 'Cargo.lock', 'package-lock.json']
         for name in paths:
             path = self.root / name
             original = path.read_bytes() if path.exists() else None

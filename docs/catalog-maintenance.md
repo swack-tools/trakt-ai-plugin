@@ -42,12 +42,13 @@ Reviewers must compare the claims with the selected sources.
 The review receipt, `catalog-sources.lock.json`, records SHA-256 fingerprints of
 the sidecar, selected sources, canonical package, source code, public pages,
 root README files, changelogs, native compatibility manifests, runtime dependency
-manifests, catalog parser requirements, the validator, the embedded OpenAPI
+manifests and lockfiles, catalog parser requirements, the validator, the embedded OpenAPI
 contract, and the compiled API operation catalog.
 Changelog discovery searches all project directories recursively, excluding
 conventional dependency, cache, and build trees such as `node_modules`, `target`,
 and `.venv`. It recognizes prefixed and suffixed names such as
-`project-changelog.md` and `CHANGELOG-2026.md`. Additions, removals, and content
+`project-changelog.md` and `CHANGELOG-2026.md`, plus extensionless `CHANGELOG`,
+`CHANGES`, and `HISTORY` files. Additions, removals, and content
 changes require review.
 This conservative scope can require reviewing metadata even when its text stays
 accurate. The receipt contains no local paths, environment values, or timestamps.
