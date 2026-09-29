@@ -253,8 +253,8 @@ def changelog_files(root):
         subdirs[:] = [name for name in subdirs if name not in excluded]
         candidates.extend(Path(directory) / name for name in files)
     return {p.relative_to(root).as_posix() for p in candidates
-            if p.is_file() and p.suffix.lower() in {'', '.md', '.html'}
-            and re.search(r'(?:^|[-_. ])(?:changelog|changes|history)(?:$|[-_. ])', p.stem, re.I)}
+            if p.is_file()
+            and re.search(r'(?:^|[-_. ])(?:changelog|changes|history)(?:$|[-_. ])', p.name, re.I)}
 
 
 def reviewed_files(root, selected):

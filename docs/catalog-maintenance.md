@@ -48,7 +48,8 @@ Changelog discovery searches all project directories recursively, excluding
 conventional dependency, cache, and build trees such as `node_modules`, `target`,
 and `.venv`. It recognizes prefixed and suffixed names such as
 `project-changelog.md` and `CHANGELOG-2026.md`, plus extensionless `CHANGELOG`,
-`CHANGES`, and `HISTORY` files. Additions, removals, and content
+`CHANGES`, and `HISTORY` files. Detection does not restrict file extensions;
+`CHANGELOG.txt` and `HISTORY.rst` also require review. Additions, removals, and content
 changes require review.
 This conservative scope can require reviewing metadata even when its text stays
 accurate. The receipt contains no local paths, environment values, or timestamps.

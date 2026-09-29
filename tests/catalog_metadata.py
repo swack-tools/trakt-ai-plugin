@@ -238,7 +238,8 @@ class CatalogMetadataTests(unittest.TestCase):
         self.validate(refresh_review=True)
         for name in ('api/trakt/CHANGELOG.md', 'scripts/releases/changes.md',
                      'other/project-changelog.html', 'api/trakt/CHANGELOG',
-                     'other/CHANGES', 'other/HISTORY'):
+                     'other/CHANGES', 'other/HISTORY', 'api/trakt/CHANGELOG.txt',
+                     'docs/releases/HISTORY.rst', 'other/changes.markdown'):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('Project release notes.\n')
