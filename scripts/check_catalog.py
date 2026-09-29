@@ -247,7 +247,7 @@ def native_inventory(root):
 def changelog_files(root):
     # Search every project directory, pruning conventional dependency, cache,
     # and build trees. Never follow directory symlinks outside the snapshot.
-    excluded = {'.git', 'node_modules', 'target', 'dist', 'build', 'worker',
+    excluded = {'.git', 'node_modules', 'vendor', 'target', 'dist', 'build', 'worker',
                 '.wrangler', '.vale', '.ruff_cache', '.venv', 'venv', '__pycache__', '.firecrawl'}
     non_document_extensions = {
         '.rs', '.py', '.pyc', '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
@@ -286,7 +286,7 @@ def reviewed_files(root, selected):
         'scripts/manage.py', '.github/workflows/deploy.yml', '.env.example', 'docs/build.py', 'scripts/login.py',
         'scripts/package_plugin.py', 'scripts/package_release.py'}
     for pattern in ('README*', '*CHANGELOG*', '*CHANGES*', '*HISTORY*',
-                    f'{PLUGIN}/**/*', 'docs/pages/**/*', 'src/**/*.rs',
+                    f'{PLUGIN}/**/*', 'docs/pages/**/*', 'docs/assets/**/*', 'src/**/*.rs',
                     '.claude-plugin/*.json', '.agents/plugins/*.json', '.mcp.json'):
         for path in root.glob(pattern):
             if path.is_file():

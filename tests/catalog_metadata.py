@@ -21,7 +21,7 @@ class CatalogMetadataTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        for name in ('plugins', 'docs/pages', 'src', 'schemas', '.claude-plugin', '.agents', 'api', '.github'):
+        for name in ('plugins', 'docs/pages', 'docs/assets', 'src', 'schemas', '.claude-plugin', '.agents', 'api', '.github'):
             shutil.copytree(ROOT / name, self.root / name)
         for name in ('README.md', 'catalog-info.json', 'Cargo.toml', 'package.json', '.mcp.json',
                      'requirements-catalog.txt', 'openapi.json', 'Cargo.lock', 'package-lock.json', 'wrangler.toml.example', '.env.example'):
@@ -250,7 +250,7 @@ class CatalogMetadataTests(unittest.TestCase):
                 self.validate(refresh_review=True)
             path.unlink()
         for name in ('target/dependency/CHANGELOG.md', 'node_modules/library/CHANGELOG.md',
-                     '.venv/lib/CHANGELOG.md'):
+                     '.venv/lib/CHANGELOG.md', 'vendor/library/CHANGELOG.md'):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('Dependency release notes.\n')
@@ -394,7 +394,7 @@ class CatalogMetadataTests(unittest.TestCase):
         paths = ['README.md', 'plugins/trakt-mcp/skills/what-to-watch/SKILL.md',
                  'src/mcp/handlers.rs', 'docs/pages/new-guide.html', 'CHANGELOG.md',
                  'requirements-catalog.txt', 'api/trakt/catalog.json',
-                 'openapi.json', 'scripts/check_catalog.py', 'docs/build.py', 'scripts/login.py', 'scripts/package_plugin.py', 'scripts/package_release.py', 'Cargo.lock', 'package-lock.json']
+                 'openapi.json', 'scripts/check_catalog.py', 'docs/build.py', 'docs/assets/style.css', 'scripts/login.py', 'scripts/package_plugin.py', 'scripts/package_release.py', 'Cargo.lock', 'package-lock.json']
         for name in paths:
             path = self.root / name
             original = path.read_bytes() if path.exists() else None

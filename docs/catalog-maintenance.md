@@ -46,10 +46,10 @@ manifests and lockfiles, catalog parser requirements, the validator, the embedde
 contract, and the compiled API operation catalog. The Worker configuration
 template, `.env.example` prerequisite template, configuration script, and deployment
 workflow, standalone login client, packaging entry points, and public documentation
-builder are also fingerprinted. The review receipt cannot serve as source evidence. Changelog selectors must target a discovered
+builder and deployed documentation assets are also fingerprinted. The review receipt cannot serve as source evidence. Changelog selectors must target a discovered
 changelog file; selectors pointing to unrelated documentation are rejected.
 Changelog discovery searches all project directories recursively, excluding
-conventional dependency, cache, and build trees such as `node_modules`, `target`,
+conventional dependency, cache, and build trees such as `node_modules`, `vendor`, `target`,
 and `.venv`. It recognizes prefixed and suffixed names such as
 `project-changelog.md` and `CHANGELOG-2026.md`, plus extensionless `CHANGELOG`,
 `CHANGES`, and `HISTORY` files. Conventional `RELEASE_NOTES`, `release-notes`,
