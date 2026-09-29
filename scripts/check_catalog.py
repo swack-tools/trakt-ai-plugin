@@ -248,12 +248,18 @@ def changelog_files(root):
     # and build trees. Never follow directory symlinks outside the snapshot.
     excluded = {'.git', 'node_modules', 'target', 'dist', 'build', 'worker',
                 '.wrangler', '.vale', '.ruff_cache', '.venv', 'venv', '__pycache__', '.firecrawl'}
+    non_document_extensions = {
+        '.rs', '.py', '.pyc', '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
+        '.c', '.cpp', '.h', '.hpp', '.cs', '.java', '.go', '.rb', '.php',
+        '.sh', '.bash', '.zsh', '.sql', '.json', '.jsonc', '.yaml', '.yml',
+        '.toml', '.lock', '.xml', '.csv', '.tsv', '.wasm', '.png', '.jpg',
+        '.jpeg', '.gif', '.webp', '.svg', '.ico', '.pdf', '.zip', '.gz', '.bin'}
     candidates = []
     for directory, subdirs, files in os.walk(root, followlinks=False):
         subdirs[:] = [name for name in subdirs if name not in excluded]
         candidates.extend(Path(directory) / name for name in files)
     return {p.relative_to(root).as_posix() for p in candidates
-            if p.is_file()
+            if p.is_file() and p.suffix.lower() not in non_document_extensions
             and re.search(r'(?:^|[-_. ])(?:changelog|changes|history)(?:$|[-_. ])', p.name, re.I)}
 
 
@@ -317,9 +323,11 @@ def validate(root=ROOT, *, check_review=True, refresh_review=False):
         require(example.get('evidence') in ('documented', 'reviewed_illustration'),
                 'Example requires an explicit evidence classification')
         evidence(example.get('sources'), allow_file=True)
-        if example['evidence'] == 'reviewed_illustration':
+        if example['evidence'] == 'reviewed_illustration' or 'source_digests' in example:
             digests = example.get('source_digests', {})
             require(isinstance(digests, dict), 'Illustration requires source digests')
+            require(set(digests) == {source['path'] for source in example['sources']},
+                    'Source digest keys must exactly match example sources')
             for source in example['sources']:
                 actual = hashlib.sha256(source_path(root, source['path']).read_bytes()).hexdigest()
                 require(digests.get(source['path']) == actual, 'Illustration evidence changed; review its digest')

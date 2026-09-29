@@ -46,7 +46,7 @@
   "plugins/trakt-mcp/skills/what-to-watch/agents/openai.yaml": "c89f3bf33efb565f45a2c0c2075fcb526d43550a2fa54cb725d2cab4ebf62b50",
   "requirements-catalog.txt": "33debc3e64c5541bd9d3c905c1112f0143f3580ffff5e6bf3ab8282d393dbadc",
   "schemas/upstream-info.schema.json": "d115d44f2d32c653f97c08e889587a04353c871db55821d11e126d2e14707e13",
-  "scripts/check_catalog.py": "8496f7d1247add4135c7e148c06bfa004fe25e5220624e23dce1e3acc7bf6163",
+  "scripts/check_catalog.py": "22febc3e507c50096fc522791d6a2c083bff1aa251f2f0e7f27c2ad40da0e6eb",
   "src/config.rs": "74327e5f2eabea060d8953e84d339cc60c8b9f415426305565467379bafe127b",
   "src/coordinator.rs": "09bfa9bed2241cf9d1a965c15371643d7c1be07a6ec7be82bcf5bc3df35aad51",
   "src/error.rs": "9b611a574799137c09355833537f943d2573bb681c92879f4bd9a46e054f1f0b",

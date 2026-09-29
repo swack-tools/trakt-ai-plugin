@@ -1,5 +1,6 @@
 """Exercise offline catalog validation against isolated repository snapshots."""
 from copy import deepcopy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -257,6 +258,33 @@ class CatalogMetadataTests(unittest.TestCase):
         data = deepcopy(self.data)
         del data['changelog']
         self.rejected(data)
+
+    def test_code_and_data_named_history_are_not_changelogs(self):
+        for name in ('src/trakt/history.rs', 'tests/changes.py', 'api/history.json',
+                     'scripts/changes.sh', 'assets/history.png', 'config/changes.yaml'):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('Not a changelog.\n')
+        self.validate(refresh_review=True)
+        self.validate()
+
+    def test_illustration_digests_exactly_match_sources(self):
+        data = deepcopy(self.data)
+        example = data['examples'][0]
+        example['evidence'] = 'reviewed_illustration'
+        example['source_digests'] = {
+            source['path']: hashlib.sha256((self.root / source['path']).read_bytes()).hexdigest()
+            for source in example['sources']}
+        self.validate(data, refresh_review=True)
+        for extra in ('/outside/private-note.md', 'unused.md'):
+            bad = deepcopy(data)
+            bad['examples'][0]['source_digests'][extra] = '0' * 64
+            self.rejected(bad)
+            bad['examples'][0]['evidence'] = 'documented'
+            self.rejected(bad)
+        bad = deepcopy(data)
+        del bad['examples'][0]['source_digests'][example['sources'][0]['path']]
+        self.rejected(bad)
 
     def test_source_changes_additions_and_metadata_edits_require_review(self):
         import check_catalog
