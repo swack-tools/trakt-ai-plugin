@@ -19,7 +19,9 @@ The validator checks the approved marketplace schema and adds repository rules:
 identity, required example fields, native references, evidence, source paths,
 unique selectors, and example coverage for every native capability. Paths must
 stay inside the repository, including after symlink resolution. Diagnostics omit
-source values and file contents.
+source values and file contents. Nested source references in extension fields
+receive the same validation. Every native hook also needs a unique catalog note
+that targets its exact declaration.
 
 HTML sources use `format: html`, `mode: section`, and a CSS `selector` that
 matches exactly one element with text. Markdown sources use `format: markdown`
@@ -40,7 +42,8 @@ Reviewers must compare the claims with the selected sources.
 The review receipt, `catalog-sources.lock.json`, records SHA-256 fingerprints of
 the sidecar, selected sources, canonical package, source code, public pages,
 root README files, changelogs, native compatibility manifests, runtime dependency
-manifests, catalog parser requirements, and the compiled API operation catalog.
+manifests, catalog parser requirements, the validator, the embedded OpenAPI
+contract, and the compiled API operation catalog.
 Changelog discovery also searches the documentation and canonical package
 directories recursively. It recognizes prefixed and suffixed names such as
 `project-changelog.md` and `CHANGELOG-2026.md`. Additions, removals, and content
@@ -75,7 +78,10 @@ To refresh the schema, select an approved immutable marketplace commit and copy
 its schema bytes. Review the schema and marketplace selector semantics together.
 Update the provenance link, `SCHEMA_SHA256`, and the supported version check in
 `scripts/check_catalog.py` when required. Match parser versions in
-`requirements-catalog.txt` to the reviewed marketplace dependencies. Run valid
+`requirements-catalog.txt` to the reviewed marketplace dependencies. Pin their
+complete dependency closure, including JSON Schema reference handling. Resolve
+updates with `uv pip compile requirements-catalog.txt --python-version 3.12`
+and review the resulting version pins before changing the requirements. Run valid
 and invalid regression cases, review the sidecar, and refresh its receipt in
 the same PR. Do not relax checks just to accept an unreviewed schema change.
 

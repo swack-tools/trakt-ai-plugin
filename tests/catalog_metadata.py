@@ -23,8 +23,10 @@ class CatalogMetadataTests(unittest.TestCase):
         for name in ('plugins', 'docs/pages', 'src', 'schemas', '.claude-plugin', '.agents', 'api'):
             shutil.copytree(ROOT / name, self.root / name)
         for name in ('README.md', 'catalog-info.json', 'Cargo.toml', 'package.json', '.mcp.json',
-                     'requirements-catalog.txt'):
+                     'requirements-catalog.txt', 'openapi.json'):
             shutil.copyfile(ROOT / name, self.root / name)
+        (self.root / 'scripts').mkdir()
+        shutil.copyfile(ROOT / 'scripts/check_catalog.py', self.root / 'scripts/check_catalog.py')
         self.data = json.loads((self.root / 'catalog-info.json').read_text())
 
     def validate(self, data=None, **kwargs):
@@ -77,10 +79,48 @@ class CatalogMetadataTests(unittest.TestCase):
                                          'mode': 'section', 'heading_path': ['Missing']}
         self.rejected(data)
 
+    def test_nested_extension_sources_cannot_bypass_validation(self):
+        data = deepcopy(self.data)
+        data['examples'][0]['additional_evidence'] = {'sources': [{'path': '../outside.md'}]}
+        self.rejected(data)
+        data['examples'][0]['additional_evidence'] = {'sources': [
+            {'path': 'README.md', 'format': 'markdown', 'mode': 'section',
+             'heading_path': ['Missing heading']}]}
+        self.rejected(data)
+        data['examples'][0]['additional_evidence'] = {'sources': [{'path': 'docs/extra.md'}]}
+        (self.root / 'docs/extra.md').write_text('Reviewed supporting evidence.\n')
+        self.validate(data, refresh_review=True)
+        (self.root / 'docs/extra.md').write_text('Changed evidence.\n')
+        import check_catalog
+        with self.assertRaises(check_catalog.CatalogError):
+            self.validate(data)
+
+    def test_native_hook_needs_a_targeted_note_as_well_as_an_example(self):
+        import check_catalog
+        hooks = self.root / 'plugins/trakt-mcp/hooks/hooks.json'
+        hooks.parent.mkdir()
+        hooks.write_text(json.dumps({'hooks': {'SessionStart': [{'hooks': [
+            {'type': 'command', 'command': 'echo example'}]}]}}))
+        self.data['examples'][0]['capability_refs'].append('hook:SessionStart:0:0')
+        with self.assertRaises(check_catalog.CatalogError):
+            self.validate(refresh_review=True)
+        note = {'target': {'path': 'plugins/trakt-mcp/hooks/hooks.json',
+                           'pointer': '/hooks/SessionStart/0/hooks/0'},
+                'description': 'Illustrative test hook; never executed by validation.',
+                'sources': [self.data['overview']]}
+        self.data['hooks'] = [note]
+        self.validate(refresh_review=True)
+        self.validate()
+        self.data['hooks'].append(deepcopy(note))
+        with self.assertRaises(check_catalog.CatalogError):
+            self.validate(refresh_review=True)
+
     def test_platform_evidence_and_invented_component_notes(self):
         for status in ('documented', 'unsupported'):
             data = deepcopy(self.data)
             data['platforms']['slack']['status'] = status
+            self.rejected(data)
+            data['platforms']['slack']['sources'] = [{'path': 'missing.md', 'required': False}]
             self.rejected(data)
         for field, value in [('mcpServers', {'invented': {}}),
                              ('hooks', [{'target': {'path': 'README.md', 'pointer': '/hooks/fake'}}])]:
@@ -198,7 +238,8 @@ class CatalogMetadataTests(unittest.TestCase):
         self.validate(refresh_review=True)
         paths = ['README.md', 'plugins/trakt-mcp/skills/what-to-watch/SKILL.md',
                  'src/mcp/handlers.rs', 'docs/pages/new-guide.html', 'CHANGELOG.md',
-                 'requirements-catalog.txt', 'api/trakt/catalog.json']
+                 'requirements-catalog.txt', 'api/trakt/catalog.json',
+                 'openapi.json', 'scripts/check_catalog.py']
         for name in paths:
             path = self.root / name
             original = path.read_bytes() if path.exists() else None
@@ -252,7 +293,8 @@ class CatalogMetadataTests(unittest.TestCase):
         self.assertLess(build_index, publish_index)
         # Execute the actual gate command in a broken snapshot. Subsequent marker
         # commands represent build/publish, neither of which may be reached.
-        shutil.copytree(ROOT / 'scripts', self.root / 'scripts', ignore=shutil.ignore_patterns('__pycache__'))
+        shutil.copytree(ROOT / 'scripts', self.root / 'scripts', dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns('__pycache__'))
         (self.root / 'catalog-info.json').write_text('{"schemaVersion": 999}')
         command = next(line for line in gate['run'].splitlines() if 'scripts/check_catalog.py' in line)
         result = subprocess.run(['sh', '-ec', command + '\ntouch built\ntouch published\n'],

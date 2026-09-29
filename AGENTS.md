@@ -82,6 +82,9 @@ in `CI_SECURITY.md`.
 Use signed commits authored as `swackhamer`. Verify the local signature and
 GitHub's verification status and author for every PR commit. Do not assume
 signing succeeded. Open a focused PR; do not merge or tag without authorization.
+Check signatures against the actual GitHub PR commit list. A synthetic commit
+created for a review checkout does not establish the published commit's author
+or signature status.
 
 PR checks and tag releases must validate the checked-out metadata before
 building or publishing plugin assets. A failed check blocks publication. Correct

@@ -257,7 +257,7 @@ def reviewed_files(root, selected):
     """Conservative review scope: additions and removals change this mapping too."""
     paths = set(selected) | changelog_files(root) | {
         'catalog-info.json', SCHEMA, 'Cargo.toml', 'package.json', 'requirements-catalog.txt',
-        'api/trakt/catalog.json'}
+        'api/trakt/catalog.json', 'openapi.json', 'scripts/check_catalog.py'}
     for pattern in ('README*', '*CHANGELOG*', '*CHANGES*', '*HISTORY*',
                     f'{PLUGIN}/**/*', 'docs/pages/**/*', 'src/**/*.rs',
                     '.claude-plugin/*.json', '.agents/plugins/*.json', '.mcp.json'):
@@ -331,16 +331,38 @@ def validate(root=ROOT, *, check_review=True, refresh_review=False):
         evidence(note.get('sources'))
     hooks = data.get('hooks', [])
     require(isinstance(hooks, list), 'Hook notes must be a list of explicit targets')
+    noted_hooks = set()
     for note in hooks:
         require(isinstance(note, dict) and isinstance(note.get('target'), dict), 'Missing hook note target')
         target = note['target']
-        require((target.get('path'), target.get('pointer')) in hook_targets, 'Unknown native hook action')
+        identity = (target.get('path'), target.get('pointer'))
+        require(identity in hook_targets, 'Unknown native hook action')
+        require(identity not in noted_hooks, 'Duplicate native hook note')
+        noted_hooks.add(identity)
         require(nonempty(note.get('description')), 'Missing hook description')
         evidence(note.get('sources'))
+    require(noted_hooks == hook_targets, 'A native hook lacks a targeted catalog note')
     if data.get('changelog') is not None:
         resolve(data['changelog'])
     else:
         require(not changelog_files(root), 'A changelog exists; review the null changelog selector')
+    # The marketplace schema permits extension fields inside examples and notes.
+    # Validate their evidence too; no nested path may bypass containment checks.
+    def extra_sources(value):
+        if isinstance(value, dict):
+            if 'path' in value:
+                if set(value) == {'path', 'pointer'}:
+                    require((value['path'], value['pointer']) in hook_targets, 'Unknown native hook target')
+                    source_path(root, value['path'])
+                    selected.add(value['path'])
+                else:
+                    resolve(value, allow_file=True)
+            for child in value.values():
+                extra_sources(child)
+        elif isinstance(value, list):
+            for child in value:
+                extra_sources(child)
+    extra_sources(data)
     current = reviewed_files(root, selected)
     if refresh_review:
         # Only fingerprints change. Curated text and metadata are never rewritten.
