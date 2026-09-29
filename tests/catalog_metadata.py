@@ -21,13 +21,14 @@ class CatalogMetadataTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        for name in ('plugins', 'docs/pages', 'src', 'schemas', '.claude-plugin', '.agents', 'api'):
+        for name in ('plugins', 'docs/pages', 'src', 'schemas', '.claude-plugin', '.agents', 'api', '.github'):
             shutil.copytree(ROOT / name, self.root / name)
         for name in ('README.md', 'catalog-info.json', 'Cargo.toml', 'package.json', '.mcp.json',
-                     'requirements-catalog.txt', 'openapi.json', 'Cargo.lock', 'package-lock.json'):
+                     'requirements-catalog.txt', 'openapi.json', 'Cargo.lock', 'package-lock.json', 'wrangler.toml.example'):
             shutil.copyfile(ROOT / name, self.root / name)
         (self.root / 'scripts').mkdir()
-        shutil.copyfile(ROOT / 'scripts/check_catalog.py', self.root / 'scripts/check_catalog.py')
+        for name in ('check_catalog.py', 'manage.py'):
+            shutil.copyfile(ROOT / 'scripts' / name, self.root / 'scripts' / name)
         self.data = json.loads((self.root / 'catalog-info.json').read_text())
 
     def validate(self, data=None, **kwargs):
@@ -253,6 +254,32 @@ class CatalogMetadataTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('Dependency release notes.\n')
         self.validate()
+
+    def test_release_notes_and_news_require_changelog_review(self):
+        import check_catalog
+        self.validate(refresh_review=True)
+        for name in ('RELEASE_NOTES.md', 'NEWS.md', 'docs/releases/release-notes.rst',
+                     'api/ReleaseNotes.txt', 'other/NEWS', 'docs/releases/RELEASE_NOTES-2026.md'):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('Release history.\n')
+            with self.subTest(name=name), self.assertRaises(check_catalog.CatalogError):
+                self.validate(refresh_review=True)
+            path.unlink()
+
+    def test_worker_configuration_changes_require_review(self):
+        import check_catalog
+        self.validate(refresh_review=True)
+        for name in ('wrangler.toml.example', 'scripts/manage.py', '.github/workflows/deploy.yml'):
+            path = self.root / name
+            original = path.read_bytes()
+            path.write_bytes(original + b'\n# Runtime configuration changed\n')
+            with self.subTest(name=name), self.assertRaises(check_catalog.CatalogError):
+                self.validate()
+            self.validate(refresh_review=True)
+            self.validate()
+            path.write_bytes(original)
+            self.validate(refresh_review=True)
 
     def test_missing_changelog_field_is_not_the_explicit_fallback(self):
         data = deepcopy(self.data)

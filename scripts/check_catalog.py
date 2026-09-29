@@ -260,7 +260,7 @@ def changelog_files(root):
         candidates.extend(Path(directory) / name for name in files)
     return {p.relative_to(root).as_posix() for p in candidates
             if p.is_file() and p.suffix.lower() not in non_document_extensions
-            and re.search(r'(?:^|[-_. ])(?:changelog|changes|history)(?:$|[-_. ])', p.name, re.I)}
+            and re.search(r'(?:^|[-_. ])(?:changelog|changes|history|release[-_ .]?notes|news)(?:$|[-_. ])', p.name, re.I)}
 
 
 def reviewed_files(root, selected):
@@ -268,7 +268,8 @@ def reviewed_files(root, selected):
     paths = set(selected) | changelog_files(root) | {
         'catalog-info.json', SCHEMA, 'Cargo.toml', 'package.json', 'requirements-catalog.txt',
         'api/trakt/catalog.json', 'openapi.json', 'scripts/check_catalog.py',
-        'Cargo.lock', 'package-lock.json'}
+        'Cargo.lock', 'package-lock.json', 'wrangler.toml.example',
+        'scripts/manage.py', '.github/workflows/deploy.yml'}
     for pattern in ('README*', '*CHANGELOG*', '*CHANGES*', '*HISTORY*',
                     f'{PLUGIN}/**/*', 'docs/pages/**/*', 'src/**/*.rs',
                     '.claude-plugin/*.json', '.agents/plugins/*.json', '.mcp.json'):

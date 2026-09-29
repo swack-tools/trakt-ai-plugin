@@ -43,12 +43,14 @@ The review receipt, `catalog-sources.lock.json`, records SHA-256 fingerprints of
 the sidecar, selected sources, canonical package, source code, public pages,
 root README files, changelogs, native compatibility manifests, runtime dependency
 manifests and lockfiles, catalog parser requirements, the validator, the embedded OpenAPI
-contract, and the compiled API operation catalog.
+contract, and the compiled API operation catalog. The Worker configuration
+template, configuration script, and deployment workflow are also fingerprinted.
 Changelog discovery searches all project directories recursively, excluding
 conventional dependency, cache, and build trees such as `node_modules`, `target`,
 and `.venv`. It recognizes prefixed and suffixed names such as
 `project-changelog.md` and `CHANGELOG-2026.md`, plus extensionless `CHANGELOG`,
-`CHANGES`, and `HISTORY` files. Detection excludes known code, data, and binary file extensions;
+`CHANGES`, and `HISTORY` files. Conventional `RELEASE_NOTES`, `release-notes`,
+`ReleaseNotes`, and `NEWS` names are also recognized. Detection excludes known code, data, and binary file extensions;
 `CHANGELOG.txt` and `HISTORY.rst` also require review. Additions, removals, and content
 changes require review.
 This conservative scope can require reviewing metadata even when its text stays
