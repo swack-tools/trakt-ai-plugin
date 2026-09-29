@@ -22,7 +22,7 @@ def archive(target: Path, client: str) -> None:
             continue
         if client == "claude" and (rel.parts[0] == ".codex-plugin" or rel.as_posix() == "plugin.json" or rel.as_posix() == "mcp.json"):
             continue
-        if client == "codex" and (rel.parts[0] == ".claude-plugin" or rel.as_posix() == ".mcp.json"):
+        if client == "codex" and (rel.parts[0] in {".claude-plugin", ".codex-plugin"} or rel.as_posix() == ".mcp.json"):
             continue
         files.append((source, rel.as_posix()))
     with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:

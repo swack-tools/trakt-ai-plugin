@@ -39,10 +39,9 @@ class ReleasePackageTests(unittest.TestCase):
                     self.assertIn(f'trakt-mcp/{manifest_path}', names)
                     self.assertIn(f'trakt-mcp/{mcp_path}', names)
                     self.assertTrue(expected_skills <= names)
-                    self.assertEqual('claude' == client,
+                    self.assertEqual(client == 'claude',
                                      'trakt-mcp/.claude-plugin/plugin.json' in names)
-                    self.assertEqual('codex' == client,
-                                     'trakt-mcp/.codex-plugin/plugin.json' in names)
+                    self.assertNotIn('trakt-mcp/.codex-plugin/plugin.json', names)
                     manifest = json.loads(zipped.read(f'trakt-mcp/{manifest_path}'))
                     mcp = json.loads(zipped.read(f'trakt-mcp/{mcp_path}'))
                     self.assertEqual(manifest['name'], 'trakt-mcp')
