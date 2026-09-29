@@ -270,7 +270,8 @@ def changelog_files(root):
 
     return {p.relative_to(root).as_posix() for p in candidates
             if p.is_file() and p.suffix.lower() not in non_document_extensions
-            and (any(component.lower() in {'release', 'releases'}
+            and (p.stem.lower() in {'release', 'releases'}
+                 or any(component.lower() in {'release', 'releases'}
                      for component in p.relative_to(root).parts[:-1])
                  or any(re.search(r'(?:^|[-_. ])(?:changelogs?|changes|history|histories|release[-_ .]?notes|news)(?:$|[-_. ])',
                               component, re.I) for component in p.relative_to(root).parts))
@@ -280,12 +281,12 @@ def changelog_files(root):
 def reviewed_files(root, selected):
     """Conservative review scope: additions and removals change this mapping too."""
     paths = set(selected) | changelog_files(root) | {
-        'catalog-info.json', SCHEMA, 'Cargo.toml', 'package.json', 'requirements-catalog.txt',
+        'catalog-info.json', 'SECURITY.md', SCHEMA, 'Cargo.toml', 'package.json', 'requirements-catalog.txt',
         'api/trakt/catalog.json', 'openapi.json', 'scripts/check_catalog.py',
         'Cargo.lock', 'package-lock.json', 'wrangler.toml.example',
         'scripts/manage.py', '.github/workflows/deploy.yml', '.env.example', 'docs/build.py', 'scripts/login.py',
         'scripts/package_plugin.py', 'scripts/package_release.py', '.github/workflows/docs.yml'}
-    for pattern in ('README*', '*CHANGELOG*', '*CHANGES*', '*HISTORY*',
+    for pattern in ('build.rs', 'README*', '*CHANGELOG*', '*CHANGES*', '*HISTORY*',
                     f'{PLUGIN}/**/*', 'docs/pages/**/*', 'docs/assets/**/*', 'src/**/*.rs',
                     '.claude-plugin/*.json', '.agents/plugins/*.json', '.mcp.json'):
         for path in root.glob(pattern):

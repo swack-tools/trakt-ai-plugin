@@ -47,7 +47,8 @@ contract, and the compiled API operation catalog. The Worker configuration
 template, `.env.example` prerequisite template, configuration script, and deployment
 workflow, documentation deployment workflow, standalone login client, packaging
 entry points, and public documentation
-builder and deployed documentation assets are also fingerprinted. The review receipt cannot serve as source evidence. Changelog selectors must target a discovered
+builder, deployed documentation assets, linked security policy, and optional Cargo
+root build script are also fingerprinted. The review receipt cannot serve as source evidence. Changelog selectors must target a discovered
 changelog file; selectors pointing to unrelated documentation are rejected.
 Changelog discovery searches all project directories recursively, excluding
 conventional dependency, cache, and build trees such as `node_modules`, `vendor`, `target`,
@@ -55,7 +56,8 @@ and `.venv`. It recognizes prefixed and suffixed names such as
 `project-changelog.md` and `CHANGELOG-2026.md`, plus extensionless `CHANGELOG`,
 `CHANGES`, and `HISTORY` files. Conventional `RELEASE_NOTES`, `release-notes`,
 `ReleaseNotes`, and `NEWS` names are also recognized in filenames and directory
-components, including `docs/changelog/2026.md` and plural `docs/changelogs/2026.md` or `docs/releases/2026.md`.
+components, including `docs/changelog/2026.md` and plural `docs/changelogs/2026.md` or `docs/releases/2026.md`. Leaf files named `RELEASE.md` and `RELEASES.md`
+are also recognized.
 Extensionless programs identified by executable permissions or a shebang are excluded. Detection excludes known code, data, and binary file extensions;
 `CHANGELOG.txt` and `HISTORY.rst` also require review. Additions, removals, and content
 changes require review.

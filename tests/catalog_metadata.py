@@ -23,7 +23,7 @@ class CatalogMetadataTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         for name in ('plugins', 'docs/pages', 'docs/assets', 'src', 'schemas', '.claude-plugin', '.agents', 'api', '.github'):
             shutil.copytree(ROOT / name, self.root / name)
-        for name in ('README.md', 'catalog-info.json', 'Cargo.toml', 'package.json', '.mcp.json',
+        for name in ('README.md', 'SECURITY.md', 'catalog-info.json', 'Cargo.toml', 'package.json', '.mcp.json',
                      'requirements-catalog.txt', 'openapi.json', 'Cargo.lock', 'package-lock.json', 'wrangler.toml.example', '.env.example'):
             shutil.copyfile(ROOT / name, self.root / name)
         shutil.copyfile(ROOT / 'docs/build.py', self.root / 'docs/build.py')
@@ -300,7 +300,7 @@ class CatalogMetadataTests(unittest.TestCase):
         import check_catalog
         self.validate(refresh_review=True)
         for name in ('docs/changelog/2026.md', 'docs/release-notes/v2.md',
-                     'other/NEWS/2026.txt', 'docs/changelogs/2026.md', 'docs/releases/2026.md'):
+                     'other/NEWS/2026.txt', 'docs/changelogs/2026.md', 'docs/releases/2026.md', 'RELEASES.md', 'other/RELEASE.md'):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('# Releases\nRelease history.\n')
@@ -391,7 +391,7 @@ class CatalogMetadataTests(unittest.TestCase):
     def test_source_changes_additions_and_metadata_edits_require_review(self):
         import check_catalog
         self.validate(refresh_review=True)
-        paths = ['README.md', 'plugins/trakt-mcp/skills/what-to-watch/SKILL.md',
+        paths = ['SECURITY.md', 'build.rs', 'README.md', 'plugins/trakt-mcp/skills/what-to-watch/SKILL.md',
                  'src/mcp/handlers.rs', 'docs/pages/new-guide.html', 'CHANGELOG.md',
                  'requirements-catalog.txt', 'api/trakt/catalog.json',
                  'openapi.json', 'scripts/check_catalog.py', 'docs/build.py', 'docs/assets/style.css', 'scripts/login.py', 'scripts/package_plugin.py', 'scripts/package_release.py', '.github/workflows/docs.yml', 'Cargo.lock', 'package-lock.json']
