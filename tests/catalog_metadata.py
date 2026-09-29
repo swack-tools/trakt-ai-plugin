@@ -28,7 +28,7 @@ class CatalogMetadataTests(unittest.TestCase):
             shutil.copyfile(ROOT / name, self.root / name)
         shutil.copyfile(ROOT / 'docs/build.py', self.root / 'docs/build.py')
         (self.root / 'scripts').mkdir()
-        for name in ('check_catalog.py', 'manage.py'):
+        for name in ('check_catalog.py', 'manage.py', 'login.py'):
             shutil.copyfile(ROOT / 'scripts' / name, self.root / 'scripts' / name)
         self.data = json.loads((self.root / 'catalog-info.json').read_text())
 
@@ -300,7 +300,7 @@ class CatalogMetadataTests(unittest.TestCase):
         import check_catalog
         self.validate(refresh_review=True)
         for name in ('docs/changelog/2026.md', 'docs/release-notes/v2.md',
-                     'other/NEWS/2026.txt'):
+                     'other/NEWS/2026.txt', 'docs/changelogs/2026.md'):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('# Releases\nRelease history.\n')
@@ -316,6 +316,31 @@ class CatalogMetadataTests(unittest.TestCase):
         path.parent.mkdir(parents=True)
         path.write_text('// Not a changelog\n')
         self.validate(refresh_review=True)
+
+    def test_extensionless_programs_are_not_changelogs(self):
+        for name, content, mode in (('scripts/history', '#!/bin/sh\necho history\n', 0o755),
+                                    ('bin/changes', '#!/usr/bin/env python3\nprint(1)\n', 0o644),
+                                    ('bin/NEWS', 'executable content', 0o755)):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+            path.chmod(mode)
+        self.validate(refresh_review=True)
+        self.validate()
+
+    def test_deep_json_errors_are_sanitized(self):
+        self.validate(refresh_review=True)
+        for name in ('catalog-info.json', 'catalog-sources.lock.json', 'package.json'):
+            path = self.root / name
+            original = path.read_bytes()
+            path.write_text('[' * 2000 + '0' + ']' * 2000)
+            result = subprocess.run([sys.executable, str(ROOT / 'scripts/check_catalog.py'),
+                                     '--root', str(self.root)], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('Catalog validation failed', result.stderr)
+            self.assertNotIn('Traceback', result.stderr)
+            self.assertNotIn(str(self.root), result.stderr)
+            path.write_bytes(original)
 
     def test_missing_changelog_field_is_not_the_explicit_fallback(self):
         data = deepcopy(self.data)
@@ -355,7 +380,7 @@ class CatalogMetadataTests(unittest.TestCase):
         paths = ['README.md', 'plugins/trakt-mcp/skills/what-to-watch/SKILL.md',
                  'src/mcp/handlers.rs', 'docs/pages/new-guide.html', 'CHANGELOG.md',
                  'requirements-catalog.txt', 'api/trakt/catalog.json',
-                 'openapi.json', 'scripts/check_catalog.py', 'docs/build.py', 'Cargo.lock', 'package-lock.json']
+                 'openapi.json', 'scripts/check_catalog.py', 'docs/build.py', 'scripts/login.py', 'Cargo.lock', 'package-lock.json']
         for name in paths:
             path = self.root / name
             original = path.read_bytes() if path.exists() else None

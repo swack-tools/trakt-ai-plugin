@@ -258,10 +258,20 @@ def changelog_files(root):
     for directory, subdirs, files in os.walk(root, followlinks=False):
         subdirs[:] = [name for name in subdirs if name not in excluded]
         candidates.extend(Path(directory) / name for name in files)
+    def extensionless_program(path):
+        if path.suffix:
+            return False
+        safe = source_path(root, path.relative_to(root).as_posix())
+        if safe.stat().st_mode & 0o111:
+            return True
+        with safe.open('rb') as stream:
+            return stream.read(2) == b'#!'
+
     return {p.relative_to(root).as_posix() for p in candidates
             if p.is_file() and p.suffix.lower() not in non_document_extensions
-            and any(re.search(r'(?:^|[-_. ])(?:changelog|changes|history|release[-_ .]?notes|news)(?:$|[-_. ])',
-                              component, re.I) for component in p.relative_to(root).parts)}
+            and any(re.search(r'(?:^|[-_. ])(?:changelogs?|changes|history|histories|release[-_ .]?notes|news)(?:$|[-_. ])',
+                              component, re.I) for component in p.relative_to(root).parts)
+            and not extensionless_program(p)}
 
 
 def reviewed_files(root, selected):
@@ -270,7 +280,7 @@ def reviewed_files(root, selected):
         'catalog-info.json', SCHEMA, 'Cargo.toml', 'package.json', 'requirements-catalog.txt',
         'api/trakt/catalog.json', 'openapi.json', 'scripts/check_catalog.py',
         'Cargo.lock', 'package-lock.json', 'wrangler.toml.example',
-        'scripts/manage.py', '.github/workflows/deploy.yml', '.env.example', 'docs/build.py'}
+        'scripts/manage.py', '.github/workflows/deploy.yml', '.env.example', 'docs/build.py', 'scripts/login.py'}
     for pattern in ('README*', '*CHANGELOG*', '*CHANGES*', '*HISTORY*',
                     f'{PLUGIN}/**/*', 'docs/pages/**/*', 'src/**/*.rs',
                     '.claude-plugin/*.json', '.agents/plugins/*.json', '.mcp.json'):
@@ -404,7 +414,8 @@ def main():
     except CatalogError as error:
         print(f'Catalog validation failed: {error}', file=sys.stderr)
         return 1
-    except (OSError, UnicodeError, ValueError, TypeError, KeyError, AttributeError, jsonschema.SchemaError):
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError, AttributeError,
+            RecursionError, jsonschema.SchemaError):
         # Parser errors can include source excerpts or absolute filenames.
         print('Catalog validation failed: invalid source structure or unreadable input', file=sys.stderr)
         return 1

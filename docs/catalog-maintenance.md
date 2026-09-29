@@ -45,7 +45,7 @@ root README files, changelogs, native compatibility manifests, runtime dependenc
 manifests and lockfiles, catalog parser requirements, the validator, the embedded OpenAPI
 contract, and the compiled API operation catalog. The Worker configuration
 template, `.env.example` prerequisite template, configuration script, and deployment
-workflow and public documentation builder are also fingerprinted. Changelog selectors must target a discovered
+workflow, standalone login client, and public documentation builder are also fingerprinted. Changelog selectors must target a discovered
 changelog file; selectors pointing to unrelated documentation are rejected.
 Changelog discovery searches all project directories recursively, excluding
 conventional dependency, cache, and build trees such as `node_modules`, `target`,
@@ -53,7 +53,8 @@ and `.venv`. It recognizes prefixed and suffixed names such as
 `project-changelog.md` and `CHANGELOG-2026.md`, plus extensionless `CHANGELOG`,
 `CHANGES`, and `HISTORY` files. Conventional `RELEASE_NOTES`, `release-notes`,
 `ReleaseNotes`, and `NEWS` names are also recognized in filenames and directory
-components, including `docs/changelog/2026.md`. Detection excludes known code, data, and binary file extensions;
+components, including `docs/changelog/2026.md` and plural `docs/changelogs/2026.md`.
+Extensionless programs identified by executable permissions or a shebang are excluded. Detection excludes known code, data, and binary file extensions;
 `CHANGELOG.txt` and `HISTORY.rst` also require review. Additions, removals, and content
 changes require review.
 This conservative scope can require reviewing metadata even when its text stays
