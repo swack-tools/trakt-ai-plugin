@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
 import sys
@@ -243,11 +244,14 @@ def native_inventory(root):
 
 
 def changelog_files(root):
-    # Search the project's documentation and package recursively, without
-    # treating installed dependencies or build output as upstream changelogs.
-    candidates = list(root.glob('*'))
-    for base in (root / 'docs', root / PLUGIN):
-        candidates.extend(base.rglob('*'))
+    # Search every project directory, pruning conventional dependency, cache,
+    # and build trees. Never follow directory symlinks outside the snapshot.
+    excluded = {'.git', 'node_modules', 'target', 'dist', 'build', 'worker',
+                '.wrangler', '.vale', '.ruff_cache', '.venv', 'venv', '__pycache__', '.firecrawl'}
+    candidates = []
+    for directory, subdirs, files in os.walk(root, followlinks=False):
+        subdirs[:] = [name for name in subdirs if name not in excluded]
+        candidates.extend(Path(directory) / name for name in files)
     return {p.relative_to(root).as_posix() for p in candidates
             if p.is_file() and p.suffix.lower() in {'.md', '.html'}
             and re.search(r'(?:^|[-_. ])(?:changelog|changes|history)(?:$|[-_. ])', p.stem, re.I)}
@@ -342,7 +346,8 @@ def validate(root=ROOT, *, check_review=True, refresh_review=False):
         require(nonempty(note.get('description')), 'Missing hook description')
         evidence(note.get('sources'))
     require(noted_hooks == hook_targets, 'A native hook lacks a targeted catalog note')
-    if data.get('changelog') is not None:
+    require('changelog' in data, 'Metadata must declare a changelog selector or explicit null')
+    if data['changelog'] is not None:
         resolve(data['changelog'])
     else:
         require(not changelog_files(root), 'A changelog exists; review the null changelog selector')

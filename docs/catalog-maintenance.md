@@ -44,8 +44,9 @@ the sidecar, selected sources, canonical package, source code, public pages,
 root README files, changelogs, native compatibility manifests, runtime dependency
 manifests, catalog parser requirements, the validator, the embedded OpenAPI
 contract, and the compiled API operation catalog.
-Changelog discovery also searches the documentation and canonical package
-directories recursively. It recognizes prefixed and suffixed names such as
+Changelog discovery searches all project directories recursively, excluding
+conventional dependency, cache, and build trees such as `node_modules`, `target`,
+and `.venv`. It recognizes prefixed and suffixed names such as
 `project-changelog.md` and `CHANGELOG-2026.md`. Additions, removals, and content
 changes require review.
 This conservative scope can require reviewing metadata even when its text stays
@@ -54,7 +55,8 @@ accurate. The receipt contains no local paths, environment values, or timestamps
 1. Review affected overview, examples, support claims, prerequisites, and source
    selectors against current files. Keep descriptions in skill frontmatter.
 2. Update curated text only where the source evidence warrants it. Keep safety
-   limits and uncertainty. Leave `changelog` null when no changelog exists.
+   limits and uncertainty. Set `changelog` to explicit null when no changelog
+   exists; omitting the field fails validation.
 3. Resolve schema, selector, or native reference errors. Missing capabilities
    need an accurate example or removal of a stale reference. If native manifest
    routing or Rust tool declaration syntax changes, update the static adapter

@@ -233,6 +233,29 @@ class CatalogMetadataTests(unittest.TestCase):
                 self.validate(refresh_review=True)
             path.unlink()
 
+    def test_changelog_discovery_covers_other_project_directories(self):
+        import check_catalog
+        self.validate(refresh_review=True)
+        for name in ('api/trakt/CHANGELOG.md', 'scripts/releases/changes.md',
+                     'other/project-changelog.html'):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('Project release notes.\n')
+            with self.subTest(name=name), self.assertRaises(check_catalog.CatalogError):
+                self.validate(refresh_review=True)
+            path.unlink()
+        for name in ('target/dependency/CHANGELOG.md', 'node_modules/library/CHANGELOG.md',
+                     '.venv/lib/CHANGELOG.md'):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('Dependency release notes.\n')
+        self.validate()
+
+    def test_missing_changelog_field_is_not_the_explicit_fallback(self):
+        data = deepcopy(self.data)
+        del data['changelog']
+        self.rejected(data)
+
     def test_source_changes_additions_and_metadata_edits_require_review(self):
         import check_catalog
         self.validate(refresh_review=True)
