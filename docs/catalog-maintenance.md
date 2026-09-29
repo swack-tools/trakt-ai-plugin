@@ -44,7 +44,9 @@ the sidecar, selected sources, canonical package, source code, public pages,
 root README files, changelogs, native compatibility manifests, runtime dependency
 manifests and lockfiles, catalog parser requirements, the validator, the embedded OpenAPI
 contract, and the compiled API operation catalog. The Worker configuration
-template, configuration script, and deployment workflow are also fingerprinted.
+template, `.env.example` prerequisite template, configuration script, and deployment
+workflow are also fingerprinted. Changelog selectors must target a discovered
+changelog file; selectors pointing to unrelated documentation are rejected.
 Changelog discovery searches all project directories recursively, excluding
 conventional dependency, cache, and build trees such as `node_modules`, `target`,
 and `.venv`. It recognizes prefixed and suffixed names such as

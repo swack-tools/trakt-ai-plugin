@@ -269,7 +269,7 @@ def reviewed_files(root, selected):
         'catalog-info.json', SCHEMA, 'Cargo.toml', 'package.json', 'requirements-catalog.txt',
         'api/trakt/catalog.json', 'openapi.json', 'scripts/check_catalog.py',
         'Cargo.lock', 'package-lock.json', 'wrangler.toml.example',
-        'scripts/manage.py', '.github/workflows/deploy.yml'}
+        'scripts/manage.py', '.github/workflows/deploy.yml', '.env.example'}
     for pattern in ('README*', '*CHANGELOG*', '*CHANGES*', '*HISTORY*',
                     f'{PLUGIN}/**/*', 'docs/pages/**/*', 'src/**/*.rs',
                     '.claude-plugin/*.json', '.agents/plugins/*.json', '.mcp.json'):
@@ -359,6 +359,8 @@ def validate(root=ROOT, *, check_review=True, refresh_review=False):
     require('changelog' in data, 'Metadata must declare a changelog selector or explicit null')
     if data['changelog'] is not None:
         resolve(data['changelog'])
+        require(data['changelog']['path'] in changelog_files(root),
+                'Changelog selector must target a discovered changelog file')
     else:
         require(not changelog_files(root), 'A changelog exists; review the null changelog selector')
     # The marketplace schema permits extension fields inside examples and notes.

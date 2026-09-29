@@ -24,7 +24,7 @@ class CatalogMetadataTests(unittest.TestCase):
         for name in ('plugins', 'docs/pages', 'src', 'schemas', '.claude-plugin', '.agents', 'api', '.github'):
             shutil.copytree(ROOT / name, self.root / name)
         for name in ('README.md', 'catalog-info.json', 'Cargo.toml', 'package.json', '.mcp.json',
-                     'requirements-catalog.txt', 'openapi.json', 'Cargo.lock', 'package-lock.json', 'wrangler.toml.example'):
+                     'requirements-catalog.txt', 'openapi.json', 'Cargo.lock', 'package-lock.json', 'wrangler.toml.example', '.env.example'):
             shutil.copyfile(ROOT / name, self.root / name)
         (self.root / 'scripts').mkdir()
         for name in ('check_catalog.py', 'manage.py'):
@@ -270,7 +270,7 @@ class CatalogMetadataTests(unittest.TestCase):
     def test_worker_configuration_changes_require_review(self):
         import check_catalog
         self.validate(refresh_review=True)
-        for name in ('wrangler.toml.example', 'scripts/manage.py', '.github/workflows/deploy.yml'):
+        for name in ('.env.example', 'wrangler.toml.example', 'scripts/manage.py', '.github/workflows/deploy.yml'):
             path = self.root / name
             original = path.read_bytes()
             path.write_bytes(original + b'\n# Runtime configuration changed\n')
@@ -280,6 +280,20 @@ class CatalogMetadataTests(unittest.TestCase):
             self.validate()
             path.write_bytes(original)
             self.validate(refresh_review=True)
+
+    def test_changelog_selector_must_target_discovered_history(self):
+        import check_catalog
+        data = deepcopy(self.data)
+        data['changelog'] = deepcopy(data['overview'])
+        with self.assertRaises(check_catalog.CatalogError):
+            self.validate(data, refresh_review=True)
+        (self.root / 'NEWS.md').write_text('# Releases\nRelease history.\n')
+        with self.assertRaises(check_catalog.CatalogError):
+            self.validate(data, refresh_review=True)
+        data['changelog'] = {'path': 'NEWS.md', 'format': 'markdown',
+                             'mode': 'section', 'heading_path': ['Releases']}
+        self.validate(data, refresh_review=True)
+        self.validate(data)
 
     def test_missing_changelog_field_is_not_the_explicit_fallback(self):
         data = deepcopy(self.data)
