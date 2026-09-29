@@ -38,7 +38,7 @@ class ReleasePackageTests(unittest.TestCase):
                     names = set(zipped.namelist())
                     self.assertIn(f'trakt-mcp/{manifest_path}', names)
                     self.assertIn(f'trakt-mcp/{mcp_path}', names)
-                    self.assertTrue(expected_skills <= names)
+                    self.assertLessEqual(expected_skills, names)
                     self.assertEqual(client == 'claude',
                                      'trakt-mcp/.claude-plugin/plugin.json' in names)
                     self.assertNotIn('trakt-mcp/.codex-plugin/plugin.json', names)
