@@ -363,7 +363,8 @@ class CatalogMetadataTests(unittest.TestCase):
 
     def test_code_and_data_named_history_are_not_changelogs(self):
         for name in ('src/trakt/history.rs', 'tests/changes.py', 'api/history.json',
-                     'scripts/changes.sh', 'assets/history.png', 'config/changes.yaml'):
+                     'scripts/changes.sh', 'assets/history.png', 'config/changes.yaml', 'releases/plugin.tgz', 'releases/package.tar',
+                     'releases/app.whl', 'releases/app.exe', 'releases/package.deb'):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('Not a changelog.\n')

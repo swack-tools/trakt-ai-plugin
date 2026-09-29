@@ -254,7 +254,10 @@ def changelog_files(root):
         '.c', '.cpp', '.h', '.hpp', '.cs', '.java', '.go', '.rb', '.php',
         '.sh', '.bash', '.zsh', '.sql', '.json', '.jsonc', '.yaml', '.yml',
         '.toml', '.lock', '.xml', '.csv', '.tsv', '.wasm', '.png', '.jpg',
-        '.jpeg', '.gif', '.webp', '.svg', '.ico', '.pdf', '.zip', '.gz', '.bin'}
+        '.jpeg', '.gif', '.webp', '.svg', '.ico', '.pdf', '.zip', '.gz', '.bin',
+        '.tar', '.tgz', '.whl', '.bz2', '.xz', '.zst', '.7z', '.rar', '.jar',
+        '.war', '.exe', '.dll', '.so', '.dylib', '.deb', '.rpm', '.dmg', '.pkg',
+        '.msi', '.apk', '.aab', '.ipa', '.iso', '.img', '.nupkg', '.gem'}
     candidates = []
     for directory, subdirs, files in os.walk(root, followlinks=False):
         subdirs[:] = [name for name in subdirs if name not in excluded]
