@@ -1,0 +1,8 @@
+# Match the marketplace parser versions; validation uses only local files.
+jsonschema==4.26.0
+PyYAML==6.0.3
+beautifulsoup4==4.15.0
+soupsieve==2.10
+markdown-it-py==4.2.0
+mdurl==0.1.2
+typing-extensions==4.16.0
