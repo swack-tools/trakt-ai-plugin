@@ -45,7 +45,8 @@ root README files, changelogs, native compatibility manifests, runtime dependenc
 manifests and lockfiles, catalog parser requirements, the validator, the embedded OpenAPI
 contract, and the compiled API operation catalog. The Worker configuration
 template, `.env.example` prerequisite template, configuration script, and deployment
-workflow, standalone login client, packaging entry points, and public documentation
+workflow, documentation deployment workflow, standalone login client, packaging
+entry points, and public documentation
 builder and deployed documentation assets are also fingerprinted. The review receipt cannot serve as source evidence. Changelog selectors must target a discovered
 changelog file; selectors pointing to unrelated documentation are rejected.
 Changelog discovery searches all project directories recursively, excluding

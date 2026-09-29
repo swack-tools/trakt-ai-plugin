@@ -284,7 +284,7 @@ def reviewed_files(root, selected):
         'api/trakt/catalog.json', 'openapi.json', 'scripts/check_catalog.py',
         'Cargo.lock', 'package-lock.json', 'wrangler.toml.example',
         'scripts/manage.py', '.github/workflows/deploy.yml', '.env.example', 'docs/build.py', 'scripts/login.py',
-        'scripts/package_plugin.py', 'scripts/package_release.py'}
+        'scripts/package_plugin.py', 'scripts/package_release.py', '.github/workflows/docs.yml'}
     for pattern in ('README*', '*CHANGELOG*', '*CHANGES*', '*HISTORY*',
                     f'{PLUGIN}/**/*', 'docs/pages/**/*', 'docs/assets/**/*', 'src/**/*.rs',
                     '.claude-plugin/*.json', '.agents/plugins/*.json', '.mcp.json'):

@@ -394,7 +394,7 @@ class CatalogMetadataTests(unittest.TestCase):
         paths = ['README.md', 'plugins/trakt-mcp/skills/what-to-watch/SKILL.md',
                  'src/mcp/handlers.rs', 'docs/pages/new-guide.html', 'CHANGELOG.md',
                  'requirements-catalog.txt', 'api/trakt/catalog.json',
-                 'openapi.json', 'scripts/check_catalog.py', 'docs/build.py', 'docs/assets/style.css', 'scripts/login.py', 'scripts/package_plugin.py', 'scripts/package_release.py', 'Cargo.lock', 'package-lock.json']
+                 'openapi.json', 'scripts/check_catalog.py', 'docs/build.py', 'docs/assets/style.css', 'scripts/login.py', 'scripts/package_plugin.py', 'scripts/package_release.py', '.github/workflows/docs.yml', 'Cargo.lock', 'package-lock.json']
         for name in paths:
             path = self.root / name
             original = path.read_bytes() if path.exists() else None
