@@ -40,9 +40,11 @@ Reviewers must compare the claims with the selected sources.
 The review receipt, `catalog-sources.lock.json`, records SHA-256 fingerprints of
 the sidecar, selected sources, canonical package, source code, public pages,
 root README files, changelogs, native compatibility manifests, runtime dependency
-manifests, and catalog parser requirements. Changelog discovery also searches
-the documentation and canonical package directories recursively. Additions,
-removals, and content changes require review.
+manifests, catalog parser requirements, and the compiled API operation catalog.
+Changelog discovery also searches the documentation and canonical package
+directories recursively. It recognizes prefixed and suffixed names such as
+`project-changelog.md` and `CHANGELOG-2026.md`. Additions, removals, and content
+changes require review.
 This conservative scope can require reviewing metadata even when its text stays
 accurate. The receipt contains no local paths, environment values, or timestamps.
 

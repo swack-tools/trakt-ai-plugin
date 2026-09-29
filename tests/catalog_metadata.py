@@ -20,7 +20,7 @@ class CatalogMetadataTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        for name in ('plugins', 'docs/pages', 'src', 'schemas', '.claude-plugin', '.agents'):
+        for name in ('plugins', 'docs/pages', 'src', 'schemas', '.claude-plugin', '.agents', 'api'):
             shutil.copytree(ROOT / name, self.root / name)
         for name in ('README.md', 'catalog-info.json', 'Cargo.toml', 'package.json', '.mcp.json',
                      'requirements-catalog.txt'):
@@ -179,12 +179,26 @@ class CatalogMetadataTests(unittest.TestCase):
         with self.assertRaises(check_catalog.CatalogError):
             self.validate(refresh_review=True)
 
+    def test_nested_changelog_name_variants_require_review(self):
+        import check_catalog
+        self.validate(refresh_review=True)
+        for filename in ('CHANGELOG-2026.md', 'project-changelog.md', 'changes_2026.html',
+                         'project-HISTORY.md'):
+            path = self.root / 'docs/releases' / filename
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('# Release notes\nChanged behavior.\n')
+            with self.subTest(filename=filename), self.assertRaises(check_catalog.CatalogError):
+                self.validate()
+            with self.assertRaises(check_catalog.CatalogError):
+                self.validate(refresh_review=True)
+            path.unlink()
+
     def test_source_changes_additions_and_metadata_edits_require_review(self):
         import check_catalog
         self.validate(refresh_review=True)
         paths = ['README.md', 'plugins/trakt-mcp/skills/what-to-watch/SKILL.md',
                  'src/mcp/handlers.rs', 'docs/pages/new-guide.html', 'CHANGELOG.md',
-                 'requirements-catalog.txt']
+                 'requirements-catalog.txt', 'api/trakt/catalog.json']
         for name in paths:
             path = self.root / name
             original = path.read_bytes() if path.exists() else None
