@@ -28,7 +28,7 @@ class CatalogMetadataTests(unittest.TestCase):
             shutil.copyfile(ROOT / name, self.root / name)
         shutil.copyfile(ROOT / 'docs/build.py', self.root / 'docs/build.py')
         (self.root / 'scripts').mkdir()
-        for name in ('check_catalog.py', 'manage.py', 'login.py'):
+        for name in ('check_catalog.py', 'manage.py', 'login.py', 'package_plugin.py', 'package_release.py'):
             shutil.copyfile(ROOT / 'scripts' / name, self.root / 'scripts' / name)
         self.data = json.loads((self.root / 'catalog-info.json').read_text())
 
@@ -300,7 +300,7 @@ class CatalogMetadataTests(unittest.TestCase):
         import check_catalog
         self.validate(refresh_review=True)
         for name in ('docs/changelog/2026.md', 'docs/release-notes/v2.md',
-                     'other/NEWS/2026.txt', 'docs/changelogs/2026.md'):
+                     'other/NEWS/2026.txt', 'docs/changelogs/2026.md', 'docs/releases/2026.md'):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('# Releases\nRelease history.\n')
@@ -342,6 +342,20 @@ class CatalogMetadataTests(unittest.TestCase):
             self.assertNotIn(str(self.root), result.stderr)
             path.write_bytes(original)
 
+    def test_receipt_cannot_be_source_evidence(self):
+        import check_catalog
+        self.validate(refresh_review=True)
+        receipt = (self.root / 'catalog-sources.lock.json').read_bytes()
+        for extension in (False, True):
+            data = deepcopy(self.data)
+            if extension:
+                data['examples'][0]['extra_evidence'] = {'path': 'catalog-sources.lock.json'}
+            else:
+                data['examples'][0]['sources'] = [{'path': 'catalog-sources.lock.json'}]
+            with self.assertRaises(check_catalog.CatalogError):
+                self.validate(data, refresh_review=True)
+            self.assertEqual(receipt, (self.root / 'catalog-sources.lock.json').read_bytes())
+
     def test_missing_changelog_field_is_not_the_explicit_fallback(self):
         data = deepcopy(self.data)
         del data['changelog']
@@ -380,7 +394,7 @@ class CatalogMetadataTests(unittest.TestCase):
         paths = ['README.md', 'plugins/trakt-mcp/skills/what-to-watch/SKILL.md',
                  'src/mcp/handlers.rs', 'docs/pages/new-guide.html', 'CHANGELOG.md',
                  'requirements-catalog.txt', 'api/trakt/catalog.json',
-                 'openapi.json', 'scripts/check_catalog.py', 'docs/build.py', 'scripts/login.py', 'Cargo.lock', 'package-lock.json']
+                 'openapi.json', 'scripts/check_catalog.py', 'docs/build.py', 'scripts/login.py', 'scripts/package_plugin.py', 'scripts/package_release.py', 'Cargo.lock', 'package-lock.json']
         for name in paths:
             path = self.root / name
             original = path.read_bytes() if path.exists() else None

@@ -66,6 +66,7 @@ def resolve_source(root, source, *, allow_file=False):
     require(set(source) <= {'path', 'format', 'mode', 'selector', 'heading_path'},
             'Unsupported source selector field')
     path = source_path(root, source.get('path'))
+    require(path != (root / RECEIPT).resolve(), 'Review receipt cannot be source evidence')
     text = path.read_text(encoding='utf-8')
     if allow_file and set(source) == {'path'}:
         require(bool(text.strip()), 'Source file has no evidence')
@@ -269,8 +270,10 @@ def changelog_files(root):
 
     return {p.relative_to(root).as_posix() for p in candidates
             if p.is_file() and p.suffix.lower() not in non_document_extensions
-            and any(re.search(r'(?:^|[-_. ])(?:changelogs?|changes|history|histories|release[-_ .]?notes|news)(?:$|[-_. ])',
-                              component, re.I) for component in p.relative_to(root).parts)
+            and (any(component.lower() in {'release', 'releases'}
+                     for component in p.relative_to(root).parts[:-1])
+                 or any(re.search(r'(?:^|[-_. ])(?:changelogs?|changes|history|histories|release[-_ .]?notes|news)(?:$|[-_. ])',
+                              component, re.I) for component in p.relative_to(root).parts))
             and not extensionless_program(p)}
 
 
@@ -280,7 +283,8 @@ def reviewed_files(root, selected):
         'catalog-info.json', SCHEMA, 'Cargo.toml', 'package.json', 'requirements-catalog.txt',
         'api/trakt/catalog.json', 'openapi.json', 'scripts/check_catalog.py',
         'Cargo.lock', 'package-lock.json', 'wrangler.toml.example',
-        'scripts/manage.py', '.github/workflows/deploy.yml', '.env.example', 'docs/build.py', 'scripts/login.py'}
+        'scripts/manage.py', '.github/workflows/deploy.yml', '.env.example', 'docs/build.py', 'scripts/login.py',
+        'scripts/package_plugin.py', 'scripts/package_release.py'}
     for pattern in ('README*', '*CHANGELOG*', '*CHANGES*', '*HISTORY*',
                     f'{PLUGIN}/**/*', 'docs/pages/**/*', 'src/**/*.rs',
                     '.claude-plugin/*.json', '.agents/plugins/*.json', '.mcp.json'):
