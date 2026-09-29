@@ -39,8 +39,10 @@ Reviewers must compare the claims with the selected sources.
 
 The review receipt, `catalog-sources.lock.json`, records SHA-256 fingerprints of
 the sidecar, selected sources, canonical package, source code, public pages,
-root README and changelog files, native compatibility manifests, and runtime
-dependency manifests. Additions, removals, and content changes require review.
+root README files, changelogs, native compatibility manifests, runtime dependency
+manifests, and catalog parser requirements. Changelog discovery also searches
+the documentation and canonical package directories recursively. Additions,
+removals, and content changes require review.
 This conservative scope can require reviewing metadata even when its text stays
 accurate. The receipt contains no local paths, environment values, or timestamps.
 
@@ -51,7 +53,9 @@ accurate. The receipt contains no local paths, environment values, or timestamps
 3. Resolve schema, selector, or native reference errors. Missing capabilities
    need an accurate example or removal of a stale reference. If native manifest
    routing or Rust tool declaration syntax changes, update the static adapter
-   and its tests; do not execute the plugin to discover its inventory.
+   and its tests; do not execute the plugin to discover its inventory. The tool
+   function must return a literal array of `tool(...)` declarations. Other
+   helpers, direct objects, and alternate return construction require review.
 4. Run `python3 scripts/check_catalog.py --refresh-reviewed-sources` only after
    review. It checks metadata before writing fingerprints and never edits prose.
 5. Review the diff and run the validator and relevant repository checks. Include

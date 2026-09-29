@@ -115,6 +115,60 @@ def resolve_source(root, source, *, allow_file=False):
     return source['path']
 
 
+def literal_tools(text):
+    """Accept only the reviewed function's literal helper-call return array."""
+    tokens = re.findall(r'"(?:[^"\\]|\\.)*"|[A-Za-z_][A-Za-z0-9_]*|[^\s]', text)
+    signature = ['pub', 'fn', 'tools', '(', ')', '-', '>', 'Value', '{']
+    starts = [i for i in range(len(tokens)) if tokens[i:i + len(signature)] == signature]
+    require(len(starts) == 1, 'Tool function signature requires adapter review')
+
+    def closing(sequence, start):
+        pairs = {'(': ')', '[': ']', '{': '}'}
+        stack = []
+        for i in range(start, len(sequence)):
+            token = sequence[i]
+            if token in pairs:
+                stack.append(pairs[token])
+            elif token in pairs.values():
+                require(stack and stack.pop() == token, 'Unbalanced tool declaration')
+                if not stack:
+                    return i
+        raise CatalogError('Unclosed tool declaration')
+
+    opening = starts[0] + len(signature) - 1
+    body = tokens[opening + 1:closing(tokens, opening)]
+    require('return' not in body and '?' not in body, 'Alternate tool return requires adapter review')
+    # Skip complete statements, including their nested delimiters, to locate
+    # the tail expression. Do not search for an array anywhere in the function.
+    tail, i = 0, 0
+    while i < len(body):
+        if body[i] in ('(', '[', '{'):
+            i = closing(body, i)
+        elif body[i] == ';':
+            tail = i + 1
+        i += 1
+    expression = body[tail:]
+    require(expression[:7] == ['json', '!', '(', '{', '"tools"', ':', '[']
+            and expression[-3:] == [']', '}', ')'],
+            'Tool return must be a literal tools array; review the adapter')
+    entries = expression[7:-3]
+    names, i = [], 0
+    while i < len(entries):
+        require(entries[i:i + 2] == ['tool', '('], 'Non-helper tool entry requires adapter review')
+        end = closing(entries, i + 1)
+        args = entries[i + 2:end]
+        require(len(args) >= 6 and all(args[n] == ',' for n in (1, 3, 5))
+                and all(re.fullmatch(r'"(?:[^"\\]|\\.)*"', args[n]) for n in (0, 2, 4)),
+                'Tool declaration adapter requires literal name, title, and description')
+        names.append(json.loads(args[0]))
+        i = end + 1
+        if i < len(entries):
+            require(entries[i] == ',', 'Tool array construction requires adapter review')
+            i += 1
+    require(names, 'Native tool array is empty')
+    return names
+
+
 def native_inventory(root):
     """Read canonical defaults only; fail closed when manifest routing changes."""
     capabilities, hook_targets = set(), set()
@@ -181,21 +235,27 @@ def native_inventory(root):
             return ' '
         return value
     text = re.sub(lexeme, without_comment, text, flags=re.S)
-    literal = r'("(?:[^"\\]|\\.)*")'
-    declarations = re.findall(r'\btool\s*\(\s*' + literal + r'\s*,\s*' + literal
-                              + r'\s*,\s*' + literal + r'\s*,', text)
-    require(declarations and len(declarations) == len(re.findall(r'\btool\s*\(', text)),
-            'Tool declaration adapter drifted')
-    tools = [json.loads(declaration[0]) for declaration in declarations]
+    tools = literal_tools(text)
     require(len(tools) == len(set(tools)), 'Duplicate native tool name')
     require('trakt' in servers[0], 'Native tools require their declared Trakt server')
     capabilities.update(f'mcp_tool:{name}' for name in tools)
     return capabilities, hook_targets
 
 
+def changelog_files(root):
+    # Search the project's documentation and package recursively, without
+    # treating installed dependencies or build output as upstream changelogs.
+    candidates = list(root.glob('*'))
+    for base in (root / 'docs', root / PLUGIN):
+        candidates.extend(base.rglob('*'))
+    return {p.relative_to(root).as_posix() for p in candidates
+            if p.is_file() and re.fullmatch(r'(changelog|changes|history)\.(md|html)', p.name, re.I)}
+
+
 def reviewed_files(root, selected):
     """Conservative review scope: additions and removals change this mapping too."""
-    paths = set(selected) | {'catalog-info.json', SCHEMA, 'Cargo.toml', 'package.json'}
+    paths = set(selected) | changelog_files(root) | {
+        'catalog-info.json', SCHEMA, 'Cargo.toml', 'package.json', 'requirements-catalog.txt'}
     for pattern in ('README*', '*CHANGELOG*', '*CHANGES*', '*HISTORY*',
                     f'{PLUGIN}/**/*', 'docs/pages/**/*', 'src/**/*.rs',
                     '.claude-plugin/*.json', '.agents/plugins/*.json', '.mcp.json'):
@@ -278,9 +338,7 @@ def validate(root=ROOT, *, check_review=True, refresh_review=False):
     if data.get('changelog') is not None:
         resolve(data['changelog'])
     else:
-        changelogs = [p for base in (root, root / 'docs', root / PLUGIN) for p in base.glob('*')
-                     if p.is_file() and re.fullmatch(r'(changelog|changes|history)\.(md|html)', p.name, re.I)]
-        require(not changelogs, 'A changelog exists; review the null changelog selector')
+        require(not changelog_files(root), 'A changelog exists; review the null changelog selector')
     current = reviewed_files(root, selected)
     if refresh_review:
         # Only fingerprints change. Curated text and metadata are never rewritten.

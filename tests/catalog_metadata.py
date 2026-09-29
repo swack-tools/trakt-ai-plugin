@@ -22,7 +22,8 @@ class CatalogMetadataTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         for name in ('plugins', 'docs/pages', 'src', 'schemas', '.claude-plugin', '.agents'):
             shutil.copytree(ROOT / name, self.root / name)
-        for name in ('README.md', 'catalog-info.json', 'Cargo.toml', 'package.json', '.mcp.json'):
+        for name in ('README.md', 'catalog-info.json', 'Cargo.toml', 'package.json', '.mcp.json',
+                     'requirements-catalog.txt'):
             shutil.copyfile(ROOT / name, self.root / name)
         self.data = json.loads((self.root / 'catalog-info.json').read_text())
 
@@ -136,11 +137,54 @@ class CatalogMetadataTests(unittest.TestCase):
         data['examples'][0]['capability_refs'] = ['mcp_tool:invented']
         self.rejected(data)
 
+    def test_non_helper_tools_and_alternate_return_construction_fail_closed(self):
+        import check_catalog
+        path = self.root / 'src/mcp/protocol.rs'
+        text = path.read_text()
+        for replacement in (
+            'json!({"tools":[json!({"name":"hidden_tool"}),',
+            'json!({"tools":[other_helper(),',
+            'json!({"tools":vec![',
+        ):
+            path.write_text(text.replace('json!({"tools":[', replacement))
+            with self.subTest(replacement=replacement), self.assertRaises(check_catalog.CatalogError):
+                self.validate(refresh_review=True)
+        for changed in (
+            text.replace('    json!({"tools":[', '    return json!({"tools":[]});\n    json!({"tools":['),
+            text.replace('    json!({"tools":[', '    let mut result = json!({"tools":[')
+                .replace('    ]})\n}', '    ]});\n    result["tools"].as_array_mut().unwrap().push(other_helper());\n    result\n}'),
+        ):
+            path.write_text(changed)
+            with self.subTest(changed=changed[-150:]), self.assertRaises(check_catalog.CatalogError):
+                self.validate(refresh_review=True)
+
+    def test_nested_changelogs_require_selector_and_stay_fingerprinted(self):
+        import check_catalog
+        self.validate(refresh_review=True)
+        path = self.root / 'docs/releases/CHANGELOG.md'
+        path.parent.mkdir(parents=True)
+        path.write_text('# Changes\nReviewed release notes.\n')
+        with self.assertRaises(check_catalog.CatalogError):
+            self.validate(refresh_review=True)
+        self.data['changelog'] = {'path': 'docs/releases/CHANGELOG.md', 'format': 'markdown',
+                                  'mode': 'section', 'heading_path': ['Changes']}
+        self.validate(refresh_review=True)
+        path.write_text('# Changes\nUpdated release notes.\n')
+        with self.assertRaises(check_catalog.CatalogError):
+            self.validate()
+        other = self.root / 'plugins/trakt-mcp/releases/history.md'
+        other.parent.mkdir(parents=True)
+        other.write_text('# History\nMore notes.\n')
+        self.data['changelog'] = None
+        with self.assertRaises(check_catalog.CatalogError):
+            self.validate(refresh_review=True)
+
     def test_source_changes_additions_and_metadata_edits_require_review(self):
         import check_catalog
         self.validate(refresh_review=True)
         paths = ['README.md', 'plugins/trakt-mcp/skills/what-to-watch/SKILL.md',
-                 'src/mcp/handlers.rs', 'docs/pages/new-guide.html', 'CHANGELOG.md']
+                 'src/mcp/handlers.rs', 'docs/pages/new-guide.html', 'CHANGELOG.md',
+                 'requirements-catalog.txt']
         for name in paths:
             path = self.root / name
             original = path.read_bytes() if path.exists() else None
