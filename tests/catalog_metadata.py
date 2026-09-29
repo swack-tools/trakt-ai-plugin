@@ -26,6 +26,7 @@ class CatalogMetadataTests(unittest.TestCase):
         for name in ('README.md', 'catalog-info.json', 'Cargo.toml', 'package.json', '.mcp.json',
                      'requirements-catalog.txt', 'openapi.json', 'Cargo.lock', 'package-lock.json', 'wrangler.toml.example', '.env.example'):
             shutil.copyfile(ROOT / name, self.root / name)
+        shutil.copyfile(ROOT / 'docs/build.py', self.root / 'docs/build.py')
         (self.root / 'scripts').mkdir()
         for name in ('check_catalog.py', 'manage.py'):
             shutil.copyfile(ROOT / 'scripts' / name, self.root / 'scripts' / name)
@@ -295,6 +296,27 @@ class CatalogMetadataTests(unittest.TestCase):
         self.validate(data, refresh_review=True)
         self.validate(data)
 
+    def test_changelog_directory_components_require_review(self):
+        import check_catalog
+        self.validate(refresh_review=True)
+        for name in ('docs/changelog/2026.md', 'docs/release-notes/v2.md',
+                     'other/NEWS/2026.txt'):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('# Releases\nRelease history.\n')
+            with self.subTest(name=name), self.assertRaises(check_catalog.CatalogError):
+                self.validate(refresh_review=True)
+            data = deepcopy(self.data)
+            data['changelog'] = {'path': name, 'format': 'markdown',
+                                 'mode': 'section', 'heading_path': ['Releases']}
+            self.validate(data, refresh_review=True)
+            self.validate(data)
+            path.unlink()
+        path = self.root / 'src/history/helper.rs'
+        path.parent.mkdir(parents=True)
+        path.write_text('// Not a changelog\n')
+        self.validate(refresh_review=True)
+
     def test_missing_changelog_field_is_not_the_explicit_fallback(self):
         data = deepcopy(self.data)
         del data['changelog']
@@ -333,7 +355,7 @@ class CatalogMetadataTests(unittest.TestCase):
         paths = ['README.md', 'plugins/trakt-mcp/skills/what-to-watch/SKILL.md',
                  'src/mcp/handlers.rs', 'docs/pages/new-guide.html', 'CHANGELOG.md',
                  'requirements-catalog.txt', 'api/trakt/catalog.json',
-                 'openapi.json', 'scripts/check_catalog.py', 'Cargo.lock', 'package-lock.json']
+                 'openapi.json', 'scripts/check_catalog.py', 'docs/build.py', 'Cargo.lock', 'package-lock.json']
         for name in paths:
             path = self.root / name
             original = path.read_bytes() if path.exists() else None
