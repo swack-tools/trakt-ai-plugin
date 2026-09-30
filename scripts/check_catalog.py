@@ -258,7 +258,7 @@ def changelog_files(root):
         '.tar', '.tgz', '.whl', '.bz2', '.xz', '.zst', '.7z', '.rar', '.jar',
         '.war', '.exe', '.dll', '.so', '.dylib', '.deb', '.rpm', '.dmg', '.pkg',
         '.msi', '.apk', '.aab', '.ipa', '.iso', '.img', '.nupkg', '.gem',
-        '.sha256', '.sha512', '.sha1', '.md5', '.sig', '.asc', '.sign', '.signature', '.checksum'}
+        '.sha224', '.sha256', '.sha384', '.sha512', '.sha1', '.md5', '.sig', '.asc', '.sign', '.signature', '.checksum'}
     candidates = []
     for directory, subdirs, files in os.walk(root, followlinks=False):
         subdirs[:] = [name for name in subdirs if name not in excluded]

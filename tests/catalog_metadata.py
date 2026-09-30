@@ -376,6 +376,7 @@ class CatalogMetadataTests(unittest.TestCase):
         for name in ('src/trakt/history.rs', 'tests/changes.py', 'api/history.json',
                      'scripts/changes.sh', 'assets/history.png', 'config/changes.yaml', 'releases/plugin.tgz', 'releases/package.tar',
                      'releases/app.whl', 'releases/app.exe', 'releases/package.deb',
+                     'releases/plugin.tgz.sha224', 'releases/plugin.tgz.sha384',
                      'releases/plugin.tgz.sha256', 'releases/plugin.tgz.sig',
                      'releases/plugin.tgz.asc', 'releases/SHA256SUMS'):
             path = self.root / name
