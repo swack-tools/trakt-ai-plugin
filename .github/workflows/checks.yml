@@ -65,6 +65,8 @@ jobs:
         with:
           python-version: '3.12.14'
       - run: python3 -m pip install -r requirements-ci.txt
+      - name: Validate reviewed catalog metadata offline
+        run: python3 scripts/check_catalog.py
       - name: Lint Python
         run: python3 -m ruff check scripts tests docs
       - name: Test configuration, package boundaries, and CI policy
