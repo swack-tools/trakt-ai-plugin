@@ -38,6 +38,12 @@ Rust builds and tests use the committed lockfile with `--locked`. GitHub Actions
 
 Dependabot checks GitHub Actions, Cargo, npm, and Python weekly and opens update pull requests. These update checks are dependency maintenance, not scheduled test workflows. Updates must pass the same PR checks and review requirements. Dependabot alerts and security updates are enabled in repository settings. No automatic merge bypass is configured.
 
+## Release notifications
+
+Version tag pushes publish plugin archives with the repository's scoped GitHub token. After publication succeeds, a separate job requests the marketplace build. That job has no GitHub token permissions and checks out no source. Its single dispatch step uses `MARKETPLACE_DISPATCH_TOKEN` with Actions write access to `swack-tools/ai-plugin-marketplace`.
+
+The workflow policy permits this secret only in that step. It requires the `release` dependency and fixes the dispatch destination to `pages.yml` on the marketplace's `main` branch. Policy tests reject extra steps, other credentials, broader permissions, and different destinations. PR jobs remain credential-free. See [marketplace refresh setup](.github/MARKETPLACE_REFRESH.md).
+
 ## Scope and remaining limits
 
 The owner selected public advisory scanners instead of Endor Labs. Endor authentication, namespace access, malware intelligence, and proprietary dependency risk evidence remain unverified. The public scan results do not substitute for those signals.
