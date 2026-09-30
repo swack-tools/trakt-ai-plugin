@@ -356,6 +356,17 @@ class CatalogMetadataTests(unittest.TestCase):
                 self.validate(data, refresh_review=True)
             self.assertEqual(receipt, (self.root / 'catalog-sources.lock.json').read_bytes())
 
+    def test_all_native_servers_require_catalog_notes(self):
+        import check_catalog
+        for remove_property in (True, False):
+            data = deepcopy(self.data)
+            if remove_property:
+                del data['mcpServers']
+            else:
+                data['mcpServers'].pop(next(iter(data['mcpServers'])))
+            with self.assertRaises(check_catalog.CatalogError):
+                self.validate(data, refresh_review=True)
+
     def test_missing_changelog_field_is_not_the_explicit_fallback(self):
         data = deepcopy(self.data)
         del data['changelog']
@@ -364,7 +375,9 @@ class CatalogMetadataTests(unittest.TestCase):
     def test_code_and_data_named_history_are_not_changelogs(self):
         for name in ('src/trakt/history.rs', 'tests/changes.py', 'api/history.json',
                      'scripts/changes.sh', 'assets/history.png', 'config/changes.yaml', 'releases/plugin.tgz', 'releases/package.tar',
-                     'releases/app.whl', 'releases/app.exe', 'releases/package.deb'):
+                     'releases/app.whl', 'releases/app.exe', 'releases/package.deb',
+                     'releases/plugin.tgz.sha256', 'releases/plugin.tgz.sig',
+                     'releases/plugin.tgz.asc', 'releases/SHA256SUMS'):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('Not a changelog.\n')

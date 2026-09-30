@@ -257,7 +257,8 @@ def changelog_files(root):
         '.jpeg', '.gif', '.webp', '.svg', '.ico', '.pdf', '.zip', '.gz', '.bin',
         '.tar', '.tgz', '.whl', '.bz2', '.xz', '.zst', '.7z', '.rar', '.jar',
         '.war', '.exe', '.dll', '.so', '.dylib', '.deb', '.rpm', '.dmg', '.pkg',
-        '.msi', '.apk', '.aab', '.ipa', '.iso', '.img', '.nupkg', '.gem'}
+        '.msi', '.apk', '.aab', '.ipa', '.iso', '.img', '.nupkg', '.gem',
+        '.sha256', '.sha512', '.sha1', '.md5', '.sig', '.asc', '.sign', '.signature', '.checksum'}
     candidates = []
     for directory, subdirs, files in os.walk(root, followlinks=False):
         subdirs[:] = [name for name in subdirs if name not in excluded]
@@ -273,6 +274,7 @@ def changelog_files(root):
 
     return {p.relative_to(root).as_posix() for p in candidates
             if p.is_file() and p.suffix.lower() not in non_document_extensions
+            and not re.fullmatch(r'(?:sha(?:1|224|256|384|512)|md5)sums?(?:\..*)?|checksums?(?:\..*)?', p.name, re.I)
             and (p.stem.lower() in {'release', 'releases'}
                  or any(component.lower() in {'release', 'releases'}
                      for component in p.relative_to(root).parts[:-1])
@@ -358,7 +360,12 @@ def validate(root=ROOT, *, check_review=True, refresh_review=False):
         else:
             for source in platform.get('sources', []):
                 resolve(source)
-    for name, note in data.get('mcpServers', {}).items():
+    server_notes = data.get('mcpServers', {})
+    expected_servers = {ref.removeprefix('mcp_server:') for ref in capabilities
+                        if ref.startswith('mcp_server:')}
+    require(isinstance(server_notes, dict) and set(server_notes) == expected_servers,
+            'Catalog MCP server notes must match native servers')
+    for name, note in server_notes.items():
         require(f'mcp_server:{name}' in capabilities, 'Metadata names an unknown MCP server')
         require(isinstance(note, dict) and nonempty(note.get('description')), 'Missing MCP server description')
         evidence(note.get('sources'))
