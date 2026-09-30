@@ -49,3 +49,25 @@ jobs:
             "$RUNNER_TEMP/release/trakt-mcp-codex.zip" \
             "$RUNNER_TEMP/release/SHA256SUMS" \
             --verify-tag --generate-notes
+
+  notify-marketplace:
+    name: Request marketplace refresh
+    needs: release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Dispatch marketplace build
+        env:
+          GH_TOKEN: ${{ secrets.MARKETPLACE_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Configure MARKETPLACE_DISPATCH_TOKEN with Actions write access to swack-tools/ai-plugin-marketplace."
+            exit 1
+          fi
+          gh workflow run pages.yml \
+            --repo swack-tools/ai-plugin-marketplace \
+            --ref main \
+            -f plugin_repository="$GITHUB_REPOSITORY" \
+            -f plugin_tag="$GITHUB_REF_NAME"
+          echo "Requested marketplace refresh for $GITHUB_REPOSITORY at $GITHUB_REF_NAME." >> "$GITHUB_STEP_SUMMARY"
