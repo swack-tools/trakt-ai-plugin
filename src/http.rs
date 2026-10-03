@@ -51,16 +51,52 @@ async fn registration(env: &Env, id: &str) -> Result<Value> {
     }
     call_json(env, &format!("client:{id}"), "/_client", json!({})).await
 }
+/// Fetch a Client ID Metadata Document: no redirects, a short timeout, and a 5 KiB
+/// cap, as the draft recommends against server-side request abuse.
+async fn client_metadata(client_id: &str) -> Result<Value> {
+    let invalid = || ApiError::new(400, "invalid_client_metadata");
+    oauth::check_metadata_url(client_id)?;
+    let headers = Headers::new();
+    headers.set("Accept", "application/json")?;
+    let mut init = RequestInit::new();
+    init.with_method(Method::Get)
+        .with_headers(headers)
+        .with_redirect(RequestRedirect::Manual);
+    let req = Request::new_with_init(client_id, &init)?;
+    let mut res = Fetch::Request(req)
+        .send_with_signal(&AbortSignal::from(
+            worker::worker_sys::web_sys::AbortSignal::timeout_with_u32(5000),
+        ))
+        .await
+        .map_err(|_| invalid())?;
+    if res.status_code() != 200 {
+        return Err(invalid());
+    }
+    let mut bytes = Vec::new();
+    let mut stream = res.stream().map_err(|_| invalid())?;
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|_| invalid())?;
+        if bytes.len() + chunk.len() > 5 * 1024 {
+            return Err(invalid());
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    let document: Value = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+    Ok(serde_json::to_value(oauth::metadata_registration(
+        client_id, &document,
+    )?)?)
+}
 async fn rate(env: &Env, req: &Request) -> Result<()> {
     let ip = req
         .headers()
         .get("CF-Connecting-IP")?
         .unwrap_or("local".into());
+    let (bucket, limit) = security::rate_bucket(&ip);
     let r = call(
         env,
-        &format!("rate:{}", security::hash(&ip)),
+        &format!("rate:{bucket}"),
         "/_rate",
-        json!({}),
+        json!({"limit": limit}),
     )
     .await?;
     if r.status_code() != 200 {
@@ -88,7 +124,7 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
         match path.as_str() {
             "/" => {
                 return Ok(Response::from_html(format!(
-                    "<!doctype html><title>Trakt MCP</title><h1>Trakt MCP</h1><p>Connect your own Trakt account through your MCP client at <code>{}/mcp</code>.</p><p><a href='/openapi.json'>HTTP API schema</a> · <a href='/privacy'>Privacy</a></p>",
+                    "<!doctype html><title>Trakt MCP</title><h1>Trakt MCP</h1><p>Connect your own Trakt account through your MCP client at <code>{}/mcp</code>.</p><p><a href='/openapi.json'>HTTP API schema</a> · <a href='/data-privacy'>Privacy</a></p>",
                     security::escape(&base)
                 ))?);
             }
@@ -98,9 +134,11 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
                 )?);
             }
             "/privacy" => {
-                return Ok(Response::ok(
-                    "Trakt MCP stores your Trakt access and refresh tokens in Cloudflare Durable Objects and a Workers KV cache to provide the requested API tools. Read-only connections cannot use write tools. Newly authorized read-and-write connections can make explicitly requested changes, including lists, ratings, history, collection, comments, and other supported Trakt account actions. Each connection has isolated credentials. Data tools forward your requests to Trakt. Tokens are never returned to other users. Disconnect by revoking the application in Trakt settings; local data deletion is available via DELETE /auth/session with your plugin bearer token. See the deployment documentation for support. Durable Object records are not automatically deleted when credentials expire. The KV token copy has a 30-day expiry from its last write. Local deletion does not revoke the upstream Trakt grant; revoke it separately in Trakt settings. Application code does not store viewing history, but requested results pass through this service and the connected AI client. Cloudflare handles infrastructure telemetry under its own policies. Request/response bodies and authorization credentials are not logged by application code.",
-                )?);
+                // The maintained policy is a documentation page; keep the old URL working.
+                let mut r = Response::empty()?.with_status(308);
+                r.headers_mut()
+                    .set("Location", &format!("{base}/data-privacy"))?;
+                return Ok(r);
             }
             "/openapi.json" => {
                 let mut spec: Value = serde_json::from_str(include_str!("../openapi.json"))?;
@@ -131,7 +169,7 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
                     .filter(|v| !v.is_empty())
                     .ok_or(ApiError::new(404, "legacy_manifest_not_configured"))?;
                 return Ok(Response::from_json(
-                    &json!({"schema_version":"v1","name_for_human":"Trakt","name_for_model":"trakt","description_for_human":"Your Trakt history, recommendations and search.","description_for_model":"Read your own Trakt watched history, personalized recommendations, and movie/show search.","auth":{"type":"oauth","client_url":format!("{}/oauth/authorize",base),"scope":"trakt:read","authorization_url":format!("{}/oauth/token",base),"authorization_content_type":"application/x-www-form-urlencoded","verification_tokens":{}},"api":{"type":"openapi","url":format!("{}/openapi.json",base)},"logo_url":format!("{}/logo.svg",base),"contact_email":contact,"legal_info_url":format!("{}/privacy",base)}),
+                    &json!({"schema_version":"v1","name_for_human":"Trakt","name_for_model":"trakt","description_for_human":"Your Trakt history, recommendations and search.","description_for_model":"Read your own Trakt watched history, personalized recommendations, and movie/show search.","auth":{"type":"oauth","client_url":format!("{}/oauth/authorize",base),"scope":"trakt:read","authorization_url":format!("{}/oauth/token",base),"authorization_content_type":"application/x-www-form-urlencoded","verification_tokens":{}},"api":{"type":"openapi","url":format!("{}/openapi.json",base)},"logo_url":format!("{}/logo.svg",base),"contact_email":contact,"legal_info_url":format!("{}/data-privacy",base)}),
                 )?);
             }
             "/logo.svg" => {
@@ -149,7 +187,9 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
             "/.well-known/oauth-protected-resource"
             | "/.well-known/oauth-protected-resource/mcp"
             | "/.well-known/oauth-protected-resource/sse" => {
-                return Ok(Response::from_json(&oauth::resource_metadata(&base))?);
+                return Ok(Response::from_json(&oauth::resource_metadata(
+                    &base, &path,
+                ))?);
             }
             "/login.js" => {
                 let mut r = Response::ok(oauth::LOGIN_JS)?;
@@ -167,7 +207,11 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
                 let client_id = q["client_id"]
                     .as_str()
                     .ok_or(ApiError::new(400, "invalid_client"))?;
-                let r = registration(&env, client_id).await?;
+                let r = if oauth::is_metadata_client_id(client_id) {
+                    client_metadata(client_id).await?
+                } else {
+                    registration(&env, client_id).await?
+                };
                 let id = uuid::Uuid::new_v4().simple().to_string();
                 let out = call_json(
                     &env,
@@ -218,6 +262,11 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
                 .ok_or(ApiError::new(400, "invalid_grant"))?;
                 let id = security::token_id(token)?.to_string();
                 let r = match q["client_id"].as_str() {
+                    // A metadata-document client is public: the session already binds
+                    // its URL, and PKCE proves possession, so nothing is fetched here.
+                    Some(id) if oauth::is_metadata_client_id(id) => json!({
+                        "client_id":id,"client_name":"","redirect_uris":[],
+                        "secret_hash":null,"token_endpoint_auth_method":"none"}),
                     Some(id) if !id.is_empty() => registration(&env, id).await?,
                     _ => Value::Null,
                 };

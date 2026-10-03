@@ -247,8 +247,10 @@ def native_inventory(root):
 def changelog_files(root):
     # Search every project directory, pruning conventional dependency, cache,
     # and build trees. Never follow directory symlinks outside the snapshot.
+    # Eval fixtures are named after tools and graders, such as watched history.
     excluded = {'.git', 'node_modules', 'vendor', 'target', 'dist', 'build', 'worker',
-                '.wrangler', '.vale', '.ruff_cache', '.venv', 'venv', '__pycache__', '.firecrawl'}
+                '.wrangler', '.vale', '.ruff_cache', '.venv', 'venv', '__pycache__', '.firecrawl',
+                'evals'}
     non_document_extensions = {
         '.rs', '.py', '.pyc', '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
         '.c', '.cpp', '.h', '.hpp', '.cs', '.java', '.go', '.rb', '.php',

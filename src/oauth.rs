@@ -76,11 +76,93 @@ pub async fn require_write(storage: &mut Storage) -> Result<()> {
     Ok(())
 }
 pub fn metadata(base: &str) -> Value {
-    json!({"issuer":base,"authorization_endpoint":format!("{base}/oauth/authorize"),"token_endpoint":format!("{base}/oauth/token"),"registration_endpoint":format!("{base}/oauth/register"),"response_types_supported":["code"],"grant_types_supported":["authorization_code","refresh_token"],"token_endpoint_auth_methods_supported":["none","client_secret_post"],"code_challenge_methods_supported":["S256"],"scopes_supported":["trakt:read","trakt:write"]})
+    json!({"issuer":base,"authorization_endpoint":format!("{base}/oauth/authorize"),"token_endpoint":format!("{base}/oauth/token"),"registration_endpoint":format!("{base}/oauth/register"),"response_types_supported":["code"],"grant_types_supported":["authorization_code","refresh_token"],"token_endpoint_auth_methods_supported":["none","client_secret_post"],"code_challenge_methods_supported":["S256"],"scopes_supported":["trakt:read","trakt:write"],"client_id_metadata_document_supported":true})
 }
-pub fn resource_metadata(base: &str) -> Value {
-    let resource = format!("{base}/");
+/// A Client ID Metadata Document client identifies itself with an HTTPS URL
+/// (draft-ietf-oauth-client-id-metadata-document); registered clients use hex IDs.
+pub fn is_metadata_client_id(client_id: &str) -> bool {
+    client_id.starts_with("https://")
+}
+/// Turn a fetched Client ID Metadata Document into a public registration. Only the
+/// host that served the document is trusted for display, since its contents are
+/// self-asserted.
+/// A metadata URL must be a canonical HTTPS URL on a public host name with a path.
+/// It is checked before anything is fetched from it.
+pub fn check_metadata_url(url: &str) -> Result<String> {
+    let invalid = || ApiError::new(400, "invalid_client_metadata");
+    let parsed = worker::Url::parse(url).map_err(|_| invalid())?;
+    let host = parsed.host_str().unwrap_or("");
+    if url.len() > 2048
+        || parsed.as_str() != url
+        || parsed.scheme() != "https"
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.fragment().is_some()
+        || parsed.path() == "/"
+        || !host.contains('.')
+        || host.ends_with(".localhost")
+        || host.starts_with('[')
+        || host.parse::<std::net::Ipv4Addr>().is_ok()
+    {
+        return Err(invalid());
+    }
+    Ok(host.into())
+}
+pub fn metadata_registration(url: &str, document: &Value) -> Result<Registration> {
+    let invalid = || ApiError::new(400, "invalid_client_metadata");
+    let host = check_metadata_url(url)?;
+    let doc = document.as_object().ok_or_else(invalid)?;
+    let redirects = doc
+        .get("redirect_uris")
+        .and_then(Value::as_array)
+        .ok_or_else(invalid)?;
+    if doc.get("client_id").and_then(Value::as_str) != Some(url)
+        || doc.contains_key("client_secret")
+        || doc.contains_key("client_secret_expires_at")
+        || doc
+            .get("token_endpoint_auth_method")
+            .is_some_and(|m| m != "none")
+        || redirects.is_empty()
+        || redirects.len() > 10
+        || redirects
+            .iter()
+            .any(|u| !u.as_str().is_some_and(security::valid_redirect))
+    {
+        return Err(invalid());
+    }
+    Ok(Registration {
+        client_id: url.into(),
+        client_name: host,
+        redirect_uris: redirects
+            .iter()
+            .filter_map(Value::as_str)
+            .map(String::from)
+            .collect(),
+        secret_hash: None,
+        token_endpoint_auth_method: "none".into(),
+    })
+}
+/// Each transport's metadata names the exact URL a user enters. The origin document
+/// keeps the shared `{base}/` resource that earlier clients negotiated.
+pub fn resource_metadata(base: &str, path: &str) -> Value {
+    let resource = match path.rsplit_once('/') {
+        Some((_, transport @ ("mcp" | "sse"))) => format!("{base}/{transport}"),
+        _ => format!("{base}/"),
+    };
     json!({"resource":resource,"authorization_servers":[base],"scopes_supported":["trakt:read","trakt:write"],"bearer_methods_supported":["header"]})
+}
+pub fn resource_metadata_url(base: &str, request_path: &str) -> String {
+    let suffix = match request_path {
+        "/mcp" => "/mcp",
+        "/sse" | "/messages" => "/sse",
+        _ => "",
+    };
+    format!("{base}/.well-known/oauth-protected-resource{suffix}")
+}
+pub fn accepted_resource(base: &str, resource: &str) -> bool {
+    ["/", "/mcp", "/sse"]
+        .iter()
+        .any(|path| resource.strip_prefix(base) == Some(path))
 }
 pub async fn register(storage: &mut Storage, v: Value) -> Result<Value> {
     let redirects = v["redirect_uris"]
@@ -182,11 +264,16 @@ pub async fn issue(storage: &mut Storage) -> Result<Value> {
     )
 }
 pub async fn begin(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> {
-    let resource = config::resource(env)?;
+    let base = config::base(env)?;
     let r: Registration = serde_json::from_value(v["registration"].clone())?;
     let q = &v["params"];
     let get = |key: &str| q[key].as_str().unwrap_or("");
-    if get("response_type") != "code" || !r.redirect_uris.iter().any(|s| s == get("redirect_uri")) {
+    if get("response_type") != "code"
+        || !r
+            .redirect_uris
+            .iter()
+            .any(|s| security::redirect_matches(s, get("redirect_uri")))
+    {
         return Err(ApiError::new(400, "invalid_authorization_request"));
     }
     let challenge = if get("code_challenge").is_empty() {
@@ -205,9 +292,11 @@ pub async fn begin(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> 
         }
         Some(get("code_challenge").into())
     };
-    if !get("resource").is_empty() && get("resource") != resource {
-        return Err(ApiError::new(400, "invalid_target"));
-    }
+    let resource = match get("resource") {
+        "" => config::resource(env)?,
+        requested if accepted_resource(&base, requested) => requested.into(),
+        _ => return Err(ApiError::new(400, "invalid_target")),
+    };
     let scope = requested_scope(q["scope"].as_str())?;
     let id = v["_id"].as_str().ok_or(ApiError::new(500, "missing_id"))?;
     let ticket = security::random();
@@ -301,7 +390,11 @@ pub async fn exchange(env: &Env, storage: &mut Storage, v: Value) -> Result<Valu
     } else if q["client_id"].as_str().is_some_and(|s| !s.is_empty()) {
         return Err(ApiError::new(401, "invalid_client"));
     }
-    if q["resource"].as_str().is_some_and(|r| r != s.resource) {
+    let base = config::base(env)?;
+    if q["resource"]
+        .as_str()
+        .is_some_and(|r| !accepted_resource(&base, r))
+    {
         return Err(ApiError::new(400, "invalid_target"));
     }
     match q["grant_type"].as_str() {
@@ -377,11 +470,20 @@ pub fn login_page(v: &Value) -> String {
     } else {
         "read your Trakt data without making account changes"
     };
+    // A local redirect can be claimed by any process on the device (MCP spec).
+    let local = worker::Url::parse(v["redirect_uri"].as_str().unwrap_or("")).is_ok_and(|u| {
+        u.scheme() == "http" && matches!(u.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"))
+    });
     format!(
-        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Connect Trakt</title><link rel="stylesheet" href="/login.css"><main><p>TRAKT MCP</p><h1>Connect your Trakt account</h1><p><strong>{}</strong> is requesting permission to {}. Your credentials stay on this server.</p><p>After authorization you will return to <code>{}</code>.</p><form id="connect" data-session="{}" data-ticket="{}"><button type="submit">Connect Trakt</button></form><section id="status" aria-live="polite"></section><p>You can close this page to cancel.</p></main><script src="/login.js" defer></script></html>"#,
+        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Connect Trakt</title><link rel="stylesheet" href="/login.css"><main><p>TRAKT MCP</p><h1>Connect your Trakt account</h1><p><strong>{}</strong> is requesting permission to {}. Your credentials stay on this server.</p><p>After authorization you will return to <code>{}</code>.</p>{}<form id="connect" data-session="{}" data-ticket="{}"><button type="submit">Connect Trakt</button></form><section id="status" aria-live="polite"></section><p>You can close this page to cancel.</p></main><script src="/login.js" defer></script></html>"#,
         field("client_name"),
         permissions,
         field("redirect_uri"),
+        if local {
+            "<p><strong>This app receives the authorization on this device.</strong> Continue only if you started this connection from an app on this computer.</p>"
+        } else {
+            ""
+        },
         field("session_id"),
         field("ticket")
     )
@@ -419,5 +521,147 @@ mod scope_tests {
         let read_page = login_page(&json!({"scope":"trakt:read"}));
         assert!(read_page.contains("without making account changes"));
         assert!(!read_page.contains("make changes you request"));
+    }
+
+    #[test]
+    fn transport_metadata_names_the_exact_url_users_enter() {
+        let base = "https://plugin.example.test";
+        let resource = |path| resource_metadata(base, path)["resource"].clone();
+        assert_eq!(
+            resource("/.well-known/oauth-protected-resource/mcp"),
+            json!("https://plugin.example.test/mcp")
+        );
+        assert_eq!(
+            resource("/.well-known/oauth-protected-resource/sse"),
+            json!("https://plugin.example.test/sse")
+        );
+        // The origin document predates per-transport metadata and still covers both.
+        assert_eq!(
+            resource("/.well-known/oauth-protected-resource"),
+            json!("https://plugin.example.test/")
+        );
+        assert_eq!(
+            resource_metadata_url(base, "/mcp"),
+            "https://plugin.example.test/.well-known/oauth-protected-resource/mcp"
+        );
+        for path in ["/sse", "/messages"] {
+            assert_eq!(
+                resource_metadata_url(base, path),
+                "https://plugin.example.test/.well-known/oauth-protected-resource/sse"
+            );
+        }
+        assert_eq!(
+            resource_metadata_url(base, "/sync/watched"),
+            "https://plugin.example.test/.well-known/oauth-protected-resource"
+        );
+    }
+
+    fn claude_code_document() -> Value {
+        // Published at https://claude.ai/oauth/claude-code-client-metadata.
+        json!({"client_id":"https://claude.ai/oauth/claude-code-client-metadata","client_name":"Claude Code","client_uri":"https://claude.ai","redirect_uris":["http://localhost/callback","http://127.0.0.1/callback"],"grant_types":["authorization_code","refresh_token"],"response_types":["code"],"token_endpoint_auth_method":"none"})
+    }
+
+    #[test]
+    fn metadata_advertises_client_id_metadata_documents_for_public_clients() {
+        let m = metadata("https://plugin.example.test");
+        assert_eq!(m["client_id_metadata_document_supported"], true);
+        assert!(
+            m["token_endpoint_auth_methods_supported"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("none"))
+        );
+    }
+
+    #[test]
+    fn a_client_id_metadata_document_becomes_a_public_registration() {
+        let url = "https://claude.ai/oauth/claude-code-client-metadata";
+        assert!(is_metadata_client_id(url));
+        assert!(check_metadata_url(url).is_ok());
+        assert!(!is_metadata_client_id(&"a".repeat(32)));
+        let r = metadata_registration(url, &claude_code_document()).unwrap();
+        assert_eq!(r.client_id, url);
+        // The document is self-asserted, so consent names the host that serves it.
+        assert_eq!(r.client_name, "claude.ai");
+        assert_eq!(
+            r.redirect_uris,
+            ["http://localhost/callback", "http://127.0.0.1/callback"]
+        );
+        assert!(r.secret_hash.is_none());
+        assert_eq!(r.token_endpoint_auth_method, "none");
+    }
+
+    #[test]
+    fn client_id_metadata_documents_are_validated_before_use() {
+        let url = "https://claude.ai/oauth/claude-code-client-metadata";
+        let with = |key: &str, value: Value| {
+            let mut d = claude_code_document();
+            d[key] = value;
+            d
+        };
+        for doc in [
+            with("client_id", json!("https://claude.ai/oauth/other")),
+            with("token_endpoint_auth_method", json!("client_secret_post")),
+            with("token_endpoint_auth_method", json!("private_key_jwt")),
+            with("client_secret", json!("leaked")),
+            with("redirect_uris", json!([])),
+            with("redirect_uris", json!(["javascript:alert(1)"])),
+            with("redirect_uris", json!(vec!["https://claude.ai/cb"; 11])),
+            json!([]),
+        ] {
+            assert_eq!(
+                metadata_registration(url, &doc).err().unwrap().code,
+                "invalid_client_metadata",
+                "{doc}"
+            );
+        }
+        for bad in [
+            "http://claude.ai/oauth/metadata",
+            "https://claude.ai",
+            "https://claude.ai/",
+            "https://claude.ai/oauth/metadata#x",
+            "https://user:pass@claude.ai/oauth/metadata",
+            "https://203.0.113.9/metadata",
+            "https://localhost/metadata",
+            "https://claude.ai/oauth/../metadata",
+        ] {
+            // URLs are refused before anything is fetched from them.
+            assert!(check_metadata_url(bad).is_err(), "{bad}");
+            let mut doc = claude_code_document();
+            doc["client_id"] = json!(bad);
+            assert!(metadata_registration(bad, &doc).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn consent_warns_when_the_redirect_stays_on_this_device() {
+        let local = login_page(
+            &json!({"client_name":"claude.ai","redirect_uri":"http://localhost:3118/callback"}),
+        );
+        assert!(local.contains("on this device"));
+        let hosted = login_page(
+            &json!({"client_name":"claude.ai","redirect_uri":"https://claude.ai/api/mcp/auth_callback"}),
+        );
+        assert!(!hosted.contains("on this device"));
+    }
+
+    #[test]
+    fn every_advertised_resource_is_accepted_and_others_are_not() {
+        let base = "https://plugin.example.test";
+        for r in [
+            "https://plugin.example.test/",
+            "https://plugin.example.test/mcp",
+            "https://plugin.example.test/sse",
+        ] {
+            assert!(accepted_resource(base, r), "{r}");
+        }
+        for r in [
+            "https://plugin.example.test",
+            "https://plugin.example.test/mcp/",
+            "https://other.test/mcp",
+            "https://plugin.example.test/messages",
+        ] {
+            assert!(!accepted_resource(base, r), "{r}");
+        }
     }
 }
