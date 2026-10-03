@@ -124,6 +124,9 @@ after(async()=>{
 test('discovery, origin, auth, and bounded input',async()=>{
  assert.equal((await api('/')).status,200);assert.equal((await api('/health')).status,200);assert.equal((await api('/sync/watched')).status,401);
  assert.equal((await api('/sync/watched')).headers.get('www-authenticate'),'Bearer resource_metadata="https://plugin.example.test/.well-known/oauth-protected-resource"');
+ for(const [path,method,metadata] of [['/mcp','POST','/mcp'],['/sse','GET','/sse'],['/messages','POST','/sse']])assert.equal((await api(path,{method})).headers.get('www-authenticate'),`Bearer resource_metadata="https://plugin.example.test/.well-known/oauth-protected-resource${metadata}"`,path);
+ {const u=await connect();const ping={jsonrpc:'2.0',id:1,method:'ping'};assert.equal((await api('/mcp',{method:'POST',token:u.access_token,body:ping,headers:{'MCP-Protocol-Version':'2099-01-01'}})).status,400);assert.equal((await api('/mcp',{method:'POST',token:u.access_token,body:ping,headers:{'MCP-Protocol-Version':'2025-06-18'}})).status,200);}
+ const privacy=await fetch(base+'/privacy',{redirect:'manual',signal:AbortSignal.timeout(15000)});assert.equal(privacy.status,308);assert.equal(privacy.headers.get('location'),'https://plugin.example.test/data-privacy');
  assert.equal((await api('/health',{headers:{Origin:'https://plugin.example.test'}})).headers.get('access-control-allow-origin'),'https://plugin.example.test');
  const schema=(await api('/openapi.json')).data;assert.equal(schema.servers[0].url,'https://plugin.example.test');assert.equal(schema.components.securitySchemes.oauth.flows.authorizationCode.authorizationUrl,'https://plugin.example.test/oauth/authorize');
  assert.equal((await api('/.well-known/ai-plugin.json')).status,404,'legacy metadata must not invent a support address');
@@ -271,14 +274,12 @@ test('real MCP SDK initializes and calls both transports',async()=>{
  }
  assert.equal(watchedRequests(start).length,2);
  if(kind==='sse'){
-  // The escaped legacy text alone fits the former 1 MiB event cap.
-  // A structured copy must not make this previously valid response fail.
+  // Results beyond what Claude accepts fail explicitly instead of arriving truncated.
   const overview='x'.repeat(700*1024);
   fixtureFor(u,{movies:[{plays:1,movie:{title:'Large fixture',ids:{trakt:42},overview}}]});
   const large=await client.callTool({name:'trakt_get_watched_history',arguments:{media_type:'movie',detail:'full',limit:1}});
-  assert.equal(large.isError,false);
-  assert.equal(JSON.parse(large.content[0].text).data[0].movie.overview,overview);
-  assert.equal(large.structuredContent.result.data[0].movie.overview,overview);
+  assert.equal(large.isError,true);assert.equal(large.structuredContent,undefined);
+  assert.equal(JSON.parse(large.content[0].text).error,'tool_result_too_large');assert.ok(!large.content[0].text.includes('xxxx'));
  }
  }finally{await client.close();}}
  const notify=await api('/mcp',{method:'POST',token:u.access_token,body:{jsonrpc:'2.0',method:'notifications/initialized'}});assert.equal(notify.status,202);assert.equal(notify.data,'');
@@ -295,10 +296,17 @@ test('single-use Trakt refresh is serialized and plugin refresh rotates',async()
  const fresh=await connect();assert.equal((await api('/auth/session',{method:'DELETE',token:fresh.access_token})).status,204);assert.equal((await api('/search?query=x',{token:fresh.access_token})).status,401);assert.equal((await api('/oauth/token',{method:'POST',body:{grant_type:'refresh_token',refresh_token:fresh.refresh_token}})).status,400);
  assert.equal((await api('/search?query=x',{token:next.data.access_token})).status,401);
 });
+test('client ID metadata documents are advertised and unusable documents are refused',async()=>{
+ const metadata=(await api('/.well-known/oauth-authorization-server')).data;assert.equal(metadata.client_id_metadata_document_supported,true);assert.ok(metadata.token_endpoint_auth_methods_supported.includes('none'));
+ const params=new URLSearchParams({client_id:'https://unreachable.invalid/oauth/client.json',redirect_uri:'http://127.0.0.1:9999/callback',response_type:'code',state:'s',code_challenge:'c'.repeat(43),code_challenge_method:'S256'});
+ const refused=await api('/oauth/authorize?'+params,{headers:{'CF-Connecting-IP':'198.51.100.8'}});assert.equal(refused.status,400);assert.equal(refused.data.error,'invalid_client_metadata');
+ for(const client_id of ['http://insecure.invalid/client.json','https://203.0.113.9/client.json']){params.set('client_id',client_id);const r=await api('/oauth/authorize?'+params,{headers:{'CF-Connecting-IP':'198.51.100.8'}});assert.equal(r.status,400,client_id);}
+});
 test('OAuth registration, browser consent, PKCE, redirect binding and code replay',async()=>{
  const registration=await api('/oauth/register',{method:'POST',body:{client_name:'SDK test',redirect_uris:['http://127.0.0.1:9999/callback'],token_endpoint_auth_method:'none'}});assert.equal(registration.status,201,JSON.stringify(registration.data));const client_id=registration.data.client_id;
  const {selectResourceURL}=await import('@modelcontextprotocol/sdk/client/auth.js');const resource=(await selectResourceURL(new URL('https://plugin.example.test/sse'),{},(await api('/.well-known/oauth-protected-resource')).data)).href;
  const verifier='v'.repeat(64),challenge=createHash('sha256').update(verifier).digest('base64url');const params=new URLSearchParams({client_id,redirect_uri:'http://127.0.0.1:9999/callback',response_type:'code',state:'state-123',code_challenge:challenge,code_challenge_method:'S256',resource});
+ for(const [redirect_uri,status] of [['http://127.0.0.1:41234/callback',200],['http://localhost:9999/callback',400],['http://127.0.0.1:9999/other',400]]){const probe=new URLSearchParams(params);probe.set('redirect_uri',redirect_uri);assert.equal((await api('/oauth/authorize?'+probe,{headers:{'CF-Connecting-IP':'198.51.100.7'}})).status,status,redirect_uri);}
  const page=await api('/oauth/authorize?'+params);assert.equal(page.status,200,JSON.stringify(page.data));assert.match(page.data,/make changes you request/);const session_id=page.data.match(/data-session="([^"]+)"/)[1],ticket=page.data.match(/data-ticket="([^"]+)"/)[1];
  assert.equal((await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'unknown'}})).status,400);
  const d=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'start'}});assert.equal(d.status,200);users.get(d.data.device_code).authorized=true;await pause(1100);
@@ -312,7 +320,12 @@ test('OAuth registration, browser consent, PKCE, redirect binding and code repla
 test('both transports negotiate the advertised OAuth resource using the SDK',async()=>{
  const {selectResourceURL}=await import('@modelcontextprotocol/sdk/client/auth.js');
  const metadata=(await api('/.well-known/oauth-protected-resource')).data;
- for(const path of ['/mcp','/sse'])assert.equal(String(await selectResourceURL(new URL('https://plugin.example.test'+path),{},metadata)),'https://plugin.example.test/');
+ for(const path of ['/mcp','/sse']){
+  assert.equal(String(await selectResourceURL(new URL('https://plugin.example.test'+path),{},metadata)),'https://plugin.example.test/');
+  // Per-transport metadata names the exact URL a user enters, as directory review requires.
+  const exact=(await api('/.well-known/oauth-protected-resource'+path)).data;assert.equal(exact.resource,'https://plugin.example.test'+path);
+  assert.equal(String(await selectResourceURL(new URL('https://plugin.example.test'+path),{},exact)),'https://plugin.example.test'+path);
+ }
 });
 
 test('temporary tokens cannot search and stale SSE channels cause no side effects',async()=>{
@@ -347,8 +360,9 @@ let browserRegistration;
 async function browserConnect(scope){
  browserRegistration??=(await api('/oauth/register',{method:'POST',body:{client_name:'Write consent fixture',redirect_uris:['http://127.0.0.1:9998/callback'],token_endpoint_auth_method:'none'}})).data;
  assert.ok(browserRegistration.client_id,JSON.stringify(browserRegistration));
- const verifier='w'.repeat(64),resource='https://plugin.example.test/',redirect_uri='http://127.0.0.1:9998/callback';
+ const verifier='w'.repeat(64),resource='https://plugin.example.test/mcp',redirect_uri='http://127.0.0.1:9998/callback';
  const params=new URLSearchParams({client_id:browserRegistration.client_id,redirect_uri,response_type:'code',state:'write-fixture',code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256',resource,...(scope?{scope}:{})});
+ for(const [redirect_uri,status] of [['http://127.0.0.1:41234/callback',200],['http://localhost:9999/callback',400],['http://127.0.0.1:9999/other',400]]){const probe=new URLSearchParams(params);probe.set('redirect_uri',redirect_uri);assert.equal((await api('/oauth/authorize?'+probe,{headers:{'CF-Connecting-IP':'198.51.100.7'}})).status,status,redirect_uri);}
  const page=await api('/oauth/authorize?'+params);assert.equal(page.status,200,JSON.stringify(page.data));
  assert.match(page.data,scope==='trakt:read'?/without making account changes/:/make changes you request/);
  const session_id=page.data.match(/data-session="([^"]+)"/)[1],ticket=page.data.match(/data-ticket="([^"]+)"/)[1];

@@ -1,9 +1,20 @@
 use crate::error::ApiError;
 use serde_json::{Value, json};
 
-/// Keep text results usable by existing clients while exposing typed data.
+/// Largest JSON text a result may carry. With the structured copy the result stays
+/// under claude.ai's ~150,000-character limit, and the text alone stays under Claude
+/// Code's default 25,000-token limit.
+pub const MAX_TEXT_CHARS: usize = 60_000;
+
+/// Keep text results usable by existing clients while exposing typed data. A result
+/// over the limit fails explicitly instead of being cut, so partial data can never
+/// look like a complete page.
 pub fn success(tool: &str, data: Value) -> Value {
-    json!({"content":[{"type":"text","text":data.to_string()}],"structuredContent":{
+    let text = data.to_string();
+    if text.len() > MAX_TEXT_CHARS {
+        return failure(&ApiError::new(413, "tool_result_too_large"));
+    }
+    json!({"content":[{"type":"text","text":text}],"structuredContent":{
         "schema_version":"1","tool":tool,"result":data},"isError":false})
 }
 
