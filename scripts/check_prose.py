@@ -8,8 +8,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
+    # Eval prompts, graders, and mocks are machine-read fixtures, not documentation.
     tracked = subprocess.check_output(
-        ['git', 'ls-files', '-z', '--', '*.md', '*.html'], cwd=ROOT
+        ['git', 'ls-files', '-z', '--', '*.md', '*.html', ':(exclude,glob)evals/*/**'],
+        cwd=ROOT,
     ).decode().split('\0')
     paths = [str(ROOT / name) for name in tracked if name and (ROOT / name).is_file()]
     if not paths:
