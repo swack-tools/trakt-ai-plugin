@@ -21,5 +21,10 @@
     "collection"
   ],
   "mcpServers": "./.mcp.json",
-  "displayName": "Trakt MCP \u2014 Community"
+  "displayName": "Trakt MCP \u2014 Community",
+  "icon": "./assets/icon.png",
+  "documentationUrl": "https://trakt.swacktech.com/reference.html",
+  "supportUrl": "https://trakt.swacktech.com/support",
+  "privacyPolicyUrl": "https://trakt.swacktech.com/data-privacy",
+  "termsOfServiceUrl": "https://trakt.swacktech.com/terms"
 }
