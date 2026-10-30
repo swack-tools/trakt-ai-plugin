@@ -1,10 +1,37 @@
 use crate::error::ApiError;
 use serde_json::{Value, json};
 
-/// Keep text results usable by existing clients while exposing typed data.
+/// Largest JSON text a result may carry. With the structured copy the result stays
+/// under claude.ai's ~150,000-character limit, and the text alone stays under Claude
+/// Code's default 25,000-token limit.
+pub const MAX_TEXT_CHARS: usize = 60_000;
+
+/// Keep text results usable by existing clients while exposing typed data. A result
+/// over the limit fails explicitly instead of being cut, so partial data can never
+/// look like a complete page. A write has already reached Trakt by this point, so its
+/// error says not to repeat it.
 pub fn success(tool: &str, data: Value) -> Value {
-    json!({"content":[{"type":"text","text":data.to_string()}],"structuredContent":{
+    let text = data.to_string();
+    if text.len() > MAX_TEXT_CHARS {
+        let code = if changes_data(tool) {
+            "write_result_too_large"
+        } else {
+            "tool_result_too_large"
+        };
+        return failure(&ApiError::new(413, code));
+    }
+    json!({"content":[{"type":"text","text":text}],"structuredContent":{
         "schema_version":"1","tool":tool,"result":data},"isError":false})
+}
+
+fn changes_data(tool: &str) -> bool {
+    matches!(
+        tool,
+        "trakt_api_write"
+            | "trakt_create_list"
+            | "trakt_add_list_items"
+            | "trakt_remove_list_items"
+    )
 }
 
 pub fn failure(error: &ApiError) -> Value {

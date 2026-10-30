@@ -1,0 +1,1 @@
+{"device_code":"fixture-device-code-4f1c9a7e","user_code":"8F2K-QX7M","verification_url":"https://trakt.tv/activate","expires_in":600,"interval":5,"instructions":"Visit https://trakt.tv/activate and enter code 8F2K-QX7M. Then return here to finish connecting."}

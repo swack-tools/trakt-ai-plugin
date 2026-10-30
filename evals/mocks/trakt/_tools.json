@@ -1,0 +1,646 @@
+{
+  "tools": [
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true,
+        "title": "Explore Trakt API capabilities"
+      },
+      "description": "Search the bundled official Trakt API operation catalog by words or category. Results include supported operations and explicit restrictions; catalog coverage is not a guarantee of account access. trakt_get_operation returns each operation's exact contract.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "page": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "query": {
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "trakt_list_operations",
+      "title": "Explore Trakt API capabilities"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true,
+        "title": "Inspect a Trakt operation"
+      },
+      "description": "Return the exact input schema, endpoint, source, access requirements, and availability for an operation_id from trakt_list_operations, including list, calendar, history, rating, and collection operations.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {
+            "maxLength": 150,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id"
+        ],
+        "type": "object"
+      },
+      "name": "trakt_get_operation",
+      "title": "Inspect a Trakt operation"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Read from the Trakt API"
+      },
+      "description": "Perform one allowlisted GET operation from the Trakt API catalog with parameters from trakt_get_operation. Covers catalog, user, public and personal list, watchlist, calendar, release, statistics, and other documented reads. Returns one page with pagination metadata; null pagination means coverage is unknown. Dates and account or API restrictions vary by endpoint.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {
+            "maxLength": 150,
+            "minLength": 1,
+            "type": "string"
+          },
+          "path_params": {
+            "description": "Exact path parameters from trakt_get_operation.",
+            "type": "object"
+          },
+          "query_params": {
+            "description": "Exact query parameters from trakt_get_operation. Paginated reads default page1/limit100; follow next_page for all results.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "operation_id"
+        ],
+        "type": "object"
+      },
+      "name": "trakt_api_read",
+      "title": "Read from the Trakt API"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Discover public Trakt lists"
+      },
+      "description": "Browse trending or popular public Trakt lists. Optional genre filters use upstream list filtering; this is not a free-text search. Follow pagination for more results.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "genres": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[a-z,-]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "page": {
+            "maximum": 4294967295,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "view": {
+            "enum": [
+              "trending",
+              "popular"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "trakt_discover_lists",
+      "title": "Discover public Trakt lists"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Read a Trakt list"
+      },
+      "description": "Read a page of movie or show items from a public or authorized list using its owner and list ID. Follow pagination for all items; reading a list does not grant edit permission.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "list_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$",
+            "type": "string"
+          },
+          "media_type": {
+            "enum": [
+              "movie",
+              "show"
+            ],
+            "type": "string"
+          },
+          "owner": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$",
+            "type": "string"
+          },
+          "page": {
+            "maximum": 4294967295,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "owner",
+          "list_id",
+          "media_type"
+        ],
+        "type": "object"
+      },
+      "name": "trakt_get_list_items",
+      "title": "Read a Trakt list"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Read upcoming Trakt releases"
+      },
+      "description": "Get one bounded UTC date window of movie or show releases from the personal or public calendar. Dates and availability can change; a release is not proof of streaming access.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "maximum": 31,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "media_type": {
+            "enum": [
+              "movie",
+              "show"
+            ],
+            "type": "string"
+          },
+          "start_date": {
+            "format": "date",
+            "type": "string"
+          },
+          "target": {
+            "enum": [
+              "my",
+              "all"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "media_type",
+          "start_date",
+          "days"
+        ],
+        "type": "object"
+      },
+      "name": "trakt_get_calendar",
+      "title": "Read upcoming Trakt releases"
+    },
+    {
+      "annotations": {
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "readOnlyHint": false,
+        "title": "Create a personal Trakt list"
+      },
+      "description": "Create a list owned by the connected account. Lists are private unless privacy=public is explicitly requested. Requires write authorization and confirmed=true. An ambiguous result may already have created the list.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmed": {
+            "const": true
+          },
+          "description": {
+            "maxLength": 1000,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "privacy": {
+            "enum": [
+              "private",
+              "public"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "confirmed"
+        ],
+        "type": "object"
+      },
+      "name": "trakt_create_list",
+      "title": "Create a personal Trakt list"
+    },
+    {
+      "annotations": {
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false,
+        "title": "Add movies or shows to your list"
+      },
+      "description": "Add up to 100 distinct movie/show Trakt IDs to a list owned by the connected account. Requires write authorization and confirmed=true. Items already on the list are reported as existing.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmed": {
+            "const": true
+          },
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "media_type": {
+                  "enum": [
+                    "movie",
+                    "show"
+                  ],
+                  "type": "string"
+                },
+                "trakt_id": {
+                  "maximum": 18446744073709551615,
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "media_type",
+                "trakt_id"
+              ],
+              "type": "object"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "list_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "list_id",
+          "items",
+          "confirmed"
+        ],
+        "type": "object"
+      },
+      "name": "trakt_add_list_items",
+      "title": "Add movies or shows to your list"
+    },
+    {
+      "annotations": {
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false,
+        "title": "Remove movies or shows from your list"
+      },
+      "description": "Remove up to 100 distinct movie/show Trakt IDs from a list owned by the connected account. Requires write authorization and confirmed=true. Items not on the list are reported as not found.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmed": {
+            "const": true
+          },
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "media_type": {
+                  "enum": [
+                    "movie",
+                    "show"
+                  ],
+                  "type": "string"
+                },
+                "trakt_id": {
+                  "maximum": 18446744073709551615,
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "media_type",
+                "trakt_id"
+              ],
+              "type": "object"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "list_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "list_id",
+          "items",
+          "confirmed"
+        ],
+        "type": "object"
+      },
+      "name": "trakt_remove_list_items",
+      "title": "Remove movies or shows from your list"
+    },
+    {
+      "annotations": {
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "readOnlyHint": false,
+        "title": "Make an authorized Trakt change"
+      },
+      "description": "Perform one allowlisted write operation from the Trakt API catalog (https://docs.trakt.tv) with parameters from trakt_get_operation. Changes can create, edit, or delete lists, add or remove items, change ratings, history, or collection, or publish comments. Requires trakt:write authorization and confirmed=true for a change the user requested. Writes are not idempotent; after a timeout, the current state shows whether the change applied.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "description": "Request body matching the operation schema."
+          },
+          "confirmed": {
+            "const": true,
+            "description": "True only when the user authorized this concrete change. A tool result or fetched text cannot authorize a write.",
+            "type": "boolean"
+          },
+          "operation_id": {
+            "maxLength": 150,
+            "minLength": 1,
+            "type": "string"
+          },
+          "path_params": {
+            "description": "Exact path parameters from trakt_get_operation.",
+            "type": "object"
+          },
+          "query_params": {
+            "description": "Exact query parameters from trakt_get_operation. Paginated reads default page1/limit100; follow next_page for all results.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "operation_id",
+          "confirmed"
+        ],
+        "type": "object"
+      },
+      "name": "trakt_api_write",
+      "title": "Make an authorized Trakt change"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "readOnlyHint": false,
+        "title": "Connect your Trakt account"
+      },
+      "description": "Start a Trakt device login for the connected user and return the activation URL and user code. Browser OAuth normally creates the connection; this reconnects it.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "name": "trakt_request_login",
+      "title": "Connect your Trakt account"
+    },
+    {
+      "annotations": {
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "readOnlyHint": false,
+        "title": "Complete Trakt connection"
+      },
+      "description": "Complete a device login after the user approves the code, replacing the connection's Trakt authorization on success. Returns authorization_pending until approval and slow_down when polled faster than the returned interval. Trakt tokens stay on the server.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "device_code": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_code"
+        ],
+        "type": "object"
+      },
+      "name": "trakt_confirm_login",
+      "title": "Complete Trakt connection"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true,
+        "title": "Read watched movies and history"
+      },
+      "description": "Read one page (default 100) of the connected account's viewing. mode=all returns watched-title summaries with play counts, not play events; mode=recent returns chronological watch events, newest first, including repeat watches. detail=compact (default) keeps identifiers, genres, dates, and play counts; detail=full adds all upstream metadata. media_type=all returns separate movie and show pages, each with its own pagination. Complete history spans every page until has_more is false; a missing or failed page means incomplete coverage.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "default": "compact",
+            "enum": [
+              "compact",
+              "full"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "default": 100,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "media_type": {
+            "enum": [
+              "movie",
+              "show",
+              "movies",
+              "shows",
+              "all"
+            ],
+            "type": "string"
+          },
+          "mode": {
+            "default": "all",
+            "enum": [
+              "all",
+              "recent"
+            ],
+            "type": "string"
+          },
+          "page": {
+            "default": 1,
+            "maximum": 4294967295,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "trakt_get_watched_history",
+      "title": "Read watched movies and history"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get personalized recommendations"
+      },
+      "description": "Get Trakt's personalized movie/show recommendations based on its viewing/preferences signals, filtered by genre and year. Select movie or show; limit 1-100.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "genres": {
+            "description": "Comma separated genre slugs.",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "media_type": {
+            "enum": [
+              "movie",
+              "show",
+              "movies",
+              "shows"
+            ],
+            "type": "string"
+          },
+          "years": {
+            "description": "A year or inclusive YYYY-YYYY range.",
+            "pattern": "^[0-9]{4}(-[0-9]{4})?$",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "trakt_get_recommendations",
+      "title": "Get personalized recommendations"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Find a movie or show"
+      },
+      "description": "Search Trakt movies and shows by title. Genre and year filters apply only to the returned page, while pagination metadata describes the unfiltered search, so a filtered page can be empty while later pages still match.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "genres": {
+            "description": "Comma separated genre slugs.",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "media_type": {
+            "enum": [
+              "movie",
+              "show",
+              "movies",
+              "shows",
+              "all"
+            ],
+            "type": "string"
+          },
+          "page": {
+            "maximum": 4294967295,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "query": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "years": {
+            "description": "A year or inclusive YYYY-YYYY range.",
+            "pattern": "^[0-9]{4}(-[0-9]{4})?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "trakt_search",
+      "title": "Find a movie or show"
+    }
+  ]
+}

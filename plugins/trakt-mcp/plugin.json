@@ -26,7 +26,7 @@
       "interface": {
         "displayName": "Trakt MCP \u2014 Community",
         "shortDescription": "Discover and manage your Trakt viewing.",
-        "longDescription": "An independent community integration with seven guided workflows and nine MCP tools. Discover recommendations, viewing history, titles, lists, and release calendars. Inspect the documented API catalog and make requested list, history, rating, and collection changes with write permission. Restricted operations remain unavailable. Not endorsed by Trakt, Anthropic, or OpenAI.",
+        "longDescription": "An independent community integration with seven guided workflows and fifteen MCP tools. Discover recommendations, viewing history, titles, lists, and release calendars. Inspect the documented API catalog and make requested list, history, rating, and collection changes with write permission. Restricted operations remain unavailable. Not endorsed by Trakt, Anthropic, or OpenAI.",
         "developerName": "SwackTech LLC",
         "category": "Productivity",
         "capabilities": [
@@ -34,7 +34,9 @@
           "Write"
         ],
         "websiteURL": "https://trakt.swacktech.com/",
-        "privacyPolicyURL": "https://trakt.swacktech.com/privacy",
+        "supportURL": "https://trakt.swacktech.com/support",
+        "privacyPolicyURL": "https://trakt.swacktech.com/data-privacy",
+        "termsOfServiceURL": "https://trakt.swacktech.com/terms",
         "defaultPrompt": [
           "Find three movies from my Trakt recommendations.",
           "Show my upcoming episodes for the next seven days.",

@@ -25,6 +25,7 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         return crate::error::ApiError::new(403, "origin_not_allowed").response();
     }
     let method = req.method();
+    let path = req.path();
     let mut res = if method == Method::Options {
         Response::empty()?.with_status(204)
     } else {
@@ -46,7 +47,10 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     if unauthorized {
         h.set(
             "WWW-Authenticate",
-            &format!("Bearer resource_metadata=\"{base}/.well-known/oauth-protected-resource\""),
+            &format!(
+                "Bearer resource_metadata=\"{}\"",
+                oauth::resource_metadata_url(&base, &path)
+            ),
         )?;
     }
     h.set("Cache-Control", "no-store")?;

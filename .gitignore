@@ -30,3 +30,6 @@ __pycache__/
 TODO.md
 /todo/
 /plans/
+
+# Plugin eval run output
+/evals/results/

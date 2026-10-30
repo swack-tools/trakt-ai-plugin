@@ -43,6 +43,8 @@ impl TraktCoordinator {
         let mut storage = self.state.storage();
         match path.as_str() {
             "/_rate" => {
+                let v: Value = req.json().await?;
+                let limit = v["limit"].as_u64().unwrap_or(20).min(1000) as u32;
                 let mut rate = get_optional::<(u64, u32)>(&mut storage, "rate")
                     .await?
                     .unwrap_or((now(), 0));
@@ -51,7 +53,7 @@ impl TraktCoordinator {
                 }
                 rate.1 += 1;
                 storage.put("rate", rate).await?;
-                if rate.1 > 20 {
+                if rate.1 > limit {
                     return Err(ApiError::new(429, "rate_limited"));
                 }
                 return Ok(Response::empty()?);
@@ -150,6 +152,13 @@ impl TraktCoordinator {
             return Ok(r);
         }
         if matches!(path.as_str(), "/mcp" | "/messages") {
+            if path == "/mcp"
+                && !mcp::protocol::supported_version_header(
+                    req.headers().get("MCP-Protocol-Version")?.as_deref(),
+                )
+            {
+                return Err(ApiError::new(400, "unsupported_protocol_version"));
+            }
             let channel = if path == "/messages" {
                 let id = req
                     .url()?
