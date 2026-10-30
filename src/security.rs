@@ -71,3 +71,36 @@ pub fn valid_redirect(s: &str) -> bool {
                     && matches!(u.host_str(), Some("127.0.0.1" | "localhost" | "[::1]")))
     })
 }
+/// Loopback redirects match on any port (RFC 8252 section 7.3); all others match exactly.
+pub fn redirect_matches(registered: &str, requested: &str) -> bool {
+    if registered == requested {
+        return true;
+    }
+    let (Ok(a), Ok(b)) = (
+        worker::Url::parse(registered),
+        worker::Url::parse(requested),
+    ) else {
+        return false;
+    };
+    let loopback = |u: &worker::Url| {
+        u.scheme() == "http" && matches!(u.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"))
+    };
+    loopback(&a)
+        && loopback(&b)
+        && a.host_str() == b.host_str()
+        && a.path() == b.path()
+        && a.query() == b.query()
+        && b.fragment().is_none()
+}
+/// Hosted Claude registers every user's client from Anthropic's published egress
+/// range, so that range shares one larger bucket instead of the per-IP limit.
+pub fn rate_bucket(ip: &str) -> (String, u32) {
+    let anthropic = ip.parse::<std::net::Ipv4Addr>().is_ok_and(|a| {
+        u32::from(a) >> 11 == u32::from(std::net::Ipv4Addr::new(160, 79, 104, 0)) >> 11
+    });
+    if anthropic {
+        ("anthropic".into(), 600)
+    } else {
+        (format!("ip:{}", hash(ip)), 20)
+    }
+}
