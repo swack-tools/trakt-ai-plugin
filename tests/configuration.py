@@ -41,6 +41,7 @@ class ConfigurationTests(unittest.TestCase):
             self.assertFalse(deleted & bound)
             self.assertFalse(deleted and migration.get('new_sqlite_classes'))
         self.assertEqual(last['tag'], f"v{len(config['migrations'])}")
+        self.assertEqual(last['deleted_classes'], ['TraktCoordinator'])
 
     def test_rejects_unsafe_public_origins(self):
         for value in ['http://example.org', 'https://user@example.org', 'https://example.org/path',

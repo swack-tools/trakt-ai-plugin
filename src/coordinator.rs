@@ -12,21 +12,6 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use worker::*;
 type SseStreams = HashMap<String, mpsc::Sender<std::result::Result<Vec<u8>, worker::Error>>>;
 
-/// Retired class. Cloudflare requires its export until a later migration deletes it
-/// and its stored data. Nothing binds it, so it cannot be reached.
-#[durable_object]
-pub struct TraktCoordinator {
-    _state: State,
-}
-impl DurableObject for TraktCoordinator {
-    fn new(state: State, _env: Env) -> Self {
-        Self { _state: state }
-    }
-    async fn fetch(&self, _req: Request) -> worker::Result<Response> {
-        Ok(Response::empty()?.with_status(410))
-    }
-}
-
 #[durable_object]
 pub struct TraktStore {
     state: State,
