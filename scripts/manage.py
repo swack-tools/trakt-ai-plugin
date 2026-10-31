@@ -48,6 +48,10 @@ def main():
         for name, source in mapping.items():
             subprocess.run(['gh', 'secret', 'set', name], input=v[source], text=True, cwd=ROOT, check=True)
             print('Synced ' + name)
+        for name in ('OPENAI_APPS_CHALLENGE', 'SUPPORT_EMAIL'):
+            if v.get(name):
+                subprocess.run(['gh', 'secret', 'set', name], input=v[name], text=True, cwd=ROOT, check=True)
+                print('Synced ' + name)
     elif sys.argv[1] == 'deploy':
         e = os.environ | {'CLOUDFLARE_API_TOKEN': v['CLOUDFLARE_WORKER_API_TOKEN'], 'CLOUDFLARE_ACCOUNT_ID': v['CLOUDFLARE_ACCOUNT_ID']}
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json') as f:

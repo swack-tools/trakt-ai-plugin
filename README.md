@@ -8,7 +8,7 @@ Connect your own [Trakt](https://trakt.tv/) account to Claude or Codex for recom
 
 1. Open **Customize → Plugins → Add → Add marketplace → Add from a repository**.
 2. Enter `swack-tools/trakt-ai-plugin` and add the marketplace.
-3. Install **Trakt MCP**, then start a new chat and follow the connection prompt.
+3. Install **Trakt MCP**, open the plugin's **Connectors** tab, add the Trakt connector if needed, and choose **Connect**. Then start a new chat.
 
 ### Codex
 

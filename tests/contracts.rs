@@ -377,6 +377,17 @@ fn compact_watched_rows_preserve_identity_genres_and_watch_events() {
 }
 
 #[test]
+fn compact_show_rows_keep_episode_progress_without_per_episode_data() {
+    let mut row = json!({"plays":3,"show":{"title":"Fixture","ids":{"trakt":5},"aired_episodes":10},
+        "seasons":[{"number":1,"episodes":[{"number":1,"plays":2},{"number":2,"plays":1}]},
+        {"number":2,"episodes":[{"number":1,"plays":1}]}]});
+    trakt_mcp::trakt::sync::compact(&mut row);
+    assert_eq!(row["episodes_watched"], 3);
+    assert_eq!(row["show"]["aired_episodes"], 10);
+    assert!(row.get("seasons").is_none());
+}
+
+#[test]
 fn pagination_never_reports_completion_for_contradictory_or_truncated_totals() {
     use trakt_mcp::trakt::client::pagination;
     // A single advertised page cannot contain 250 items at a limit of 100.
