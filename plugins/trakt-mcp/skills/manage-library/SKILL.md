@@ -26,6 +26,7 @@ Process only the requested batch. The service sends one upstream request per wri
 
 - Inspect the write result's `status` and `data`. Data may be an object, array, or empty result. Check supported added, updated, deleted, existing, missing, and per-item failure fields; a transport success alone does not prove every item changed.
 - Discover and inspect the corresponding read operation, then read back the target state. For a rating, compare the supplied rating. For collection, verify the intended item. For history, verify the event ID/timestamp where available; a title-level watched summary alone cannot distinguish a new repeat watch from an older one.
+- `write_result_too_large` means Trakt accepted the write but its result was too large to return. Do not repeat it. Read back the target state and report what you find.
 - Never retry a write automatically after a timeout, disconnection, or ambiguous upstream failure. The server might have applied it. Read current state first. If the result remains uncertain, report that uncertainty and obtain fresh direction before replaying a mutation that could duplicate or remove records.
 - For a batch with partial results, distinguish successes from unresolved items. Do not replay the whole batch or invent a rollback. A later targeted correction requires the user's requested scope to remain clear.
 

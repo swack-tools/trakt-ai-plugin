@@ -59,6 +59,7 @@ before(async()=>{
   const list=mockLists.get(u.pathname.split('/')[4]);
   if(!list){status=404;data={};}else if(list.owner!==req.headers.authorization){status=403;data={};}else{
    list.items.push(...(body.movies||[]).map(movie=>({type:'movie',movie})));status=201;data={added:{movies:(body.movies||[]).length}};
+   if(body.movies?.[0]?.ids?.trakt===777)data.fixture_padding='x'.repeat(70000);
   }
  }
  else if(/^\/users\/me\/lists\/\d+\/items\/remove$/.test(u.pathname)&&req.method==='POST'){
@@ -420,6 +421,11 @@ test('focused actions browse lists and releases and edit only an owned list',asy
  assert.equal(created.data.privacy,'private');const id=String(created.data.ids.trakt);
  const added=await callSuccess(user.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:123}],confirmed:true});
  assert.equal(added.data.added.movies,1);
+ // An oversized write result reports the completed write instead of a retriable size error.
+ const outcome=await callFailure(user.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:777}],confirmed:true},'write_result_too_large');
+ assert.equal(outcome.status,201);assert.equal(outcome.operation_id,'postUsersListsListAdd');assert.match(outcome.error_description,/Do not repeat/);assert.equal(outcome.data,undefined);
+ assert.ok(mockLists.get(id).items.some(item=>item.movie.ids.trakt===777));
+ mockLists.get(id).items=mockLists.get(id).items.filter(item=>item.movie.ids.trakt!==777);
  const items=await callSuccess(user.access_token,'trakt_get_list_items',{owner:'me',list_id:id,media_type:'movie'});
  assert.equal(items.data[0].movie.ids.trakt,123);
  const removed=await callSuccess(user.access_token,'trakt_remove_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:123}],confirmed:true});

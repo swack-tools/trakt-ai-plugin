@@ -252,11 +252,16 @@ fn tool_results_fit_claude_result_limits() {
         "trakt_add_list_items",
         "trakt_remove_list_items",
     ] {
-        let write = output::success(tool, serde_json::json!({"data":vec![row.clone(); 70]}));
+        let write = output::success(
+            tool,
+            serde_json::json!({"operation_id":"postSyncHistoryAdd","status":201,"data":vec![row.clone(); 70]}),
+        );
         assert_eq!(write["isError"], true, "{tool}");
         let error: Value =
             serde_json::from_str(write["content"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(error["error"], "write_result_too_large", "{tool}");
+        assert_eq!(error["operation_id"], "postSyncHistoryAdd", "{tool}");
+        assert_eq!(error["status"], 201, "{tool}");
         assert!(
             error["error_description"]
                 .as_str()
