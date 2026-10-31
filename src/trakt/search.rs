@@ -1,7 +1,7 @@
 use super::client::{Client, Query};
 use crate::error::{ApiError, Result};
 use serde_json::Value;
-pub async fn search_media(c: &Client<'_>, q: &Query) -> Result<Value> {
+pub async fn search_media(c: &Client<'_>, token: &str, q: &Query) -> Result<Value> {
     if q.query.is_none() {
         return Err(ApiError::new(400, "query_required"));
     }
@@ -20,7 +20,10 @@ pub async fn search_media(c: &Client<'_>, q: &Query) -> Result<Value> {
     };
     let mut pairs = q.pairs();
     pairs.retain(|(k, _)| !matches!(*k, "years" | "genres"));
-    let mut result = c.get(&format!("/search/{media}"), &pairs, None).await?;
+    // A token counts this read against the user's limit, not one shared by every user.
+    let mut result = c
+        .get(&format!("/search/{media}"), &pairs, Some(token))
+        .await?;
     // Current search schema does not advertise genre/year filters. Filter this page explicitly.
     if let Some(rows) = result["data"].as_array_mut() {
         rows.retain(|r| q.matches(&r[r["type"].as_str().unwrap_or("movie")]));

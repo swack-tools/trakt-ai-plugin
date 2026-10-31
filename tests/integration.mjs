@@ -153,7 +153,7 @@ test('device pending, interval and cross-user isolation',async()=>{
 });
 test('search encoding, filters, pagination, recommendations',async()=>{
  const u=await connect();const r=await api('/search?query=A%20%26%20B&genres=drama&years=2020&limit=5',{token:u.access_token});assert.equal(r.data.data.length,1);assert.equal(r.data.pagination.page_count,3);assert.equal(r.data.filters_applied_to_page,true);
- assert.equal(requests.at(-1).query.get('query'),'A & B');assert.equal(requests.at(-1).headers.authorization,undefined);
+ assert.equal(requests.at(-1).query.get('query'),'A & B');assert.match(requests.at(-1).headers.authorization,/^Bearer trakt-/);
  assert.equal((await api('/recommendations?media_type=show&genres=drama&years=2020&limit=3',{token:u.access_token})).status,200);assert.equal(requests.at(-1).path,'/recommendations/shows');assert.equal(requests.at(-1).query.get('genres'),'drama');
  assert.equal((await api('/search?query=test&limit=101',{token:u.access_token})).status,400);
 });

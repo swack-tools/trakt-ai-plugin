@@ -59,7 +59,10 @@ pub async fn operation(
                 .ok_or(ApiError::new(400, "device_code_required"))?;
             auth::poll_device_token(&c, storage, id, code).await
         }
-        "trakt_search" => trakt::search::search_media(&c, &Query::parse(args)?).await,
+        "trakt_search" => {
+            let token = auth::access_token(&c, storage, id).await?;
+            trakt::search::search_media(&c, &token, &Query::parse(args)?).await
+        }
         "trakt_get_watched_history" | "trakt_get_recommendations" => {
             let q = Query::parse(args)?;
             if name == "trakt_get_watched_history"
