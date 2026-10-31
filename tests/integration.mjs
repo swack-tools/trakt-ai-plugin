@@ -940,6 +940,17 @@ test('Codex regressions: login sources, the key step, and connection lists',asyn
  assert.equal((await search(linked.access_token)).status,401,'sign-out reached the linked client');
 });
 
+test('sign-out from an old grant leaves a connection that moved to another account',async()=>{
+ const a=await browserConnect(),moved=await linkClient(a.connection_key);
+ const request=await callSuccess(moved.access_token,'trakt_request_login',{});
+ Object.assign(users.get(request.device_code),{id:9200,authorized:true});await pause(1100);
+ await callSuccess(moved.access_token,'trakt_confirm_login',{device_code:request.device_code});
+ assert.equal((await search(moved.access_token)).status,200);assert.equal(requests.at(-1).headers.authorization,'Bearer trakt-9200');
+ assert.equal((await api('/auth/session',{method:'DELETE',token:a.access_token})).status,204);
+ assert.equal((await search(moved.access_token)).status,200,'the moved connection survives');
+ assert.equal(requests.at(-1).headers.authorization,'Bearer trakt-9200');
+});
+
 // Runs last so it covers every upstream request the suite made.
 test('every Trakt data request carries the user token',()=>{
  const anonymous=requests.filter(r=>!r.path.startsWith('/oauth/')&&!r.headers.authorization).map(r=>`${r.method} ${r.path}`);

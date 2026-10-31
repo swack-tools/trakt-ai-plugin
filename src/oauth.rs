@@ -282,6 +282,10 @@ pub async fn issue(
         json!({"access_token":access,"token_type":"Bearer","expires_in":3600,"refresh_token":refresh,"scope":s.scope}),
     )
 }
+/// Sign-out from one grant must not delete a connection that has since moved to another.
+pub fn purge_applies(session: Option<&Session>, grant: &str) -> bool {
+    session.is_none_or(|session| session.grant.as_deref() == Some(grant))
+}
 async fn set_session_grant(env: &Env, storage: &mut Storage, grant_id: &str) -> Result<()> {
     let mut s: Session = storage
         .get("session")
@@ -778,6 +782,24 @@ pub const LOGIN_CSS: &str = "body{font:18px/1.6 system-ui;background:#101419;col
 mod scope_tests {
     use super::*;
     use serde_json::json;
+    #[test]
+    fn sign_out_purges_only_connections_still_on_that_grant() {
+        let session = |grant: Option<&str>| Session {
+            id: "fixture".into(),
+            access_hash: String::new(),
+            access_expires: 0,
+            refresh_hash: None,
+            refresh_expires: 0,
+            client_id: None,
+            resource: String::new(),
+            scope: read_scope(),
+            grant: grant.map(String::from),
+        };
+        assert!(purge_applies(Some(&session(Some("a"))), "a"));
+        assert!(!purge_applies(Some(&session(Some("b"))), "a"));
+        assert!(!purge_applies(Some(&session(None)), "a"));
+        assert!(purge_applies(None, "a"));
+    }
     #[test]
     fn old_sessions_are_read_only_and_consent_scopes_are_explicit() {
         let legacy: Session = serde_json::from_value(json!({

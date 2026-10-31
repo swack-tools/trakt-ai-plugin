@@ -61,8 +61,12 @@ impl TraktStore {
         }
         match path.as_str() {
             "/_purge" => {
-                self.streams.borrow_mut().clear();
-                storage.delete_all().await?;
+                let v: Value = req.json().await?;
+                let current = get_optional::<oauth::Session>(&mut storage, "session").await?;
+                if oauth::purge_applies(current.as_ref(), v["grant"].as_str().unwrap_or("")) {
+                    self.streams.borrow_mut().clear();
+                    storage.delete_all().await?;
+                }
                 return Ok(Response::empty()?);
             }
             "/_rate" => {
@@ -303,7 +307,9 @@ impl TraktStore {
             .await?;
             for other in out["connections"].as_array().into_iter().flatten() {
                 if let Some(other) = other.as_str().filter(|other| *other != conn.id) {
-                    let _ = crate::http::call(&self.env, other, "/_purge", json!({})).await;
+                    let _ =
+                        crate::http::call(&self.env, other, "/_purge", json!({"grant":grant_id}))
+                            .await;
                 }
             }
             if out["revoked"] == false {
