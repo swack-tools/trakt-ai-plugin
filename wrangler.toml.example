@@ -89,10 +89,14 @@ tag = "v1"
 new_sqlite_classes = ["TraktCoordinator"]
 
 # Cloudflare refuses to delete a class while the live Worker still binds it, so
-# the old class is deleted by the next migration, once this one has deployed.
+# the binding moved in v2, and v3 deleted the old class and its stored data.
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["TraktStore"]
+
+[[migrations]]
+tag = "v3"
+deleted_classes = ["TraktCoordinator"]
 
 [observability]
 enabled = true
