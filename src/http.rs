@@ -42,8 +42,12 @@ async fn call_json(env: &Env, id: &str, path: &str, value: Value) -> Result<Valu
     }
     Ok(r.json().await?)
 }
-const FLOW_COOKIE: &str = "__Host-trakt_flow";
-fn flow_cookie(req: &Request) -> Result<String> {
+/// One cookie per flow, so logins in separate tabs do not replace each other's binding.
+fn flow_cookie_name(id: &str) -> String {
+    format!("__Host-trakt_flow_{id}")
+}
+fn flow_cookie(req: &Request, id: &str) -> Result<String> {
+    let name = flow_cookie_name(id);
     Ok(req
         .headers()
         .get("Cookie")?
@@ -51,7 +55,7 @@ fn flow_cookie(req: &Request) -> Result<String> {
         .split(';')
         .find_map(|pair| {
             pair.trim()
-                .strip_prefix(FLOW_COOKIE)?
+                .strip_prefix(&name)?
                 .strip_prefix('=')
                 .map(String::from)
         })
@@ -208,7 +212,7 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
                     .filter(|id| valid_id(id))
                     .ok_or(ApiError::new(400, "invalid_flow"))?;
                 v["session_id"] = json!(id);
-                v["browser"] = json!(flow_cookie(&req)?);
+                v["browser"] = json!(flow_cookie(&req, &id)?);
                 let mut r = call(&env, &id, "/_trakt_callback", v).await?;
                 let status = r.status_code();
                 let out: Value = r.json().await?;
@@ -283,7 +287,8 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
                     r.headers_mut().set(
                         "Set-Cookie",
                         &format!(
-                            "{FLOW_COOKIE}={browser}; Path=/; Max-Age=900; Secure; HttpOnly; SameSite=Lax"
+                            "{}={browser}; Path=/; Max-Age=900; Secure; HttpOnly; SameSite=Lax",
+                            flow_cookie_name(&id)
                         ),
                     )?;
                 }

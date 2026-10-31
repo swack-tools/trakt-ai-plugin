@@ -311,7 +311,7 @@ test('login page sends the browser to Trakt',async()=>{
  await submit({preventDefault(){}});
  assert.equal(button.disabled,true);assert.deepEqual(visited,['https://auth.trakt.example/oauth/authorize']);
 });
-const flowCookie=response=>{const cookie=response.headers.get('set-cookie');assert.match(cookie,/^__Host-trakt_flow=[^;]+; Path=\/; Max-Age=900; Secure; HttpOnly; SameSite=Lax$/);return cookie.split(';')[0];};
+const flowCookie=response=>{const cookie=response.headers.get('set-cookie');assert.match(cookie,/^__Host-trakt_flow_[0-9a-f]{32}=[^;]+; Path=\/; Max-Age=900; Secure; HttpOnly; SameSite=Lax$/);return cookie.split(';')[0];};
 // Stands in for the user approving on Trakt, then Trakt redirecting back.
 async function approveAtTrakt(session_id,ticket){
  const started=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'start'}});assert.equal(started.status,200,JSON.stringify(started.data));
@@ -330,10 +330,12 @@ test('Trakt callback rejects bad state, reports denial, and retries after a rate
  const {session_id,ticket}=await open();
  const started=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'start'}});const state=new URL(started.data.authorize_url).searchParams.get('state'),cookie=flowCookie(started);
  assert.equal((await callback({code:'x',state:`${session_id}.${'0'.repeat(64)}`},cookie)).status,400);assert.equal((await callback({code:'x',state:'not-a-session'},cookie)).status,400);
- assert.equal((await callback({code:'x',state})).status,400,'another browser cannot finish the flow');assert.equal((await callback({code:'x',state},'__Host-trakt_flow=wrong')).status,400);
+ assert.equal((await callback({code:'x',state})).status,400,'another browser cannot finish the flow');assert.equal((await callback({code:'x',state},`__Host-trakt_flow_${session_id}=wrong`)).status,400);
+ // A second login in another tab keeps its own cookie, so this flow can still finish.
+ const other=await open();const otherStart=await api('/oauth/complete',{method:'POST',body:{session_id:other.session_id,ticket:other.ticket,action:'start'}});assert.notEqual(flowCookie(otherStart).split('=')[0],cookie.split('=')[0]);
  const code=`auth-${++next}`;users.set(code,{id:next,authorized:true,challenge:new URL(started.data.authorize_url).searchParams.get('code_challenge')});
  upstreamFailures.set('POST /oauth/token',{status:429});
- const limited=await callback({code,state},cookie);upstreamFailures.delete('POST /oauth/token');
+ const limited=await callback({code,state},`${flowCookie(otherStart)}; ${cookie}`);upstreamFailures.delete('POST /oauth/token');
  assert.equal(limited.status,429);assert.match(limited.data,/Reload this page in 13 seconds/);
  const retried=await callback({code,state},cookie);assert.equal(retried.status,200,String(retried.data));assert.match(retried.data,/Trakt connected/);
  assert.equal((await callback({code,state},cookie)).status,400,'a finished flow cannot be replayed');

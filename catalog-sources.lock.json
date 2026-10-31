@@ -61,7 +61,7 @@
   "src/config.rs": "74327e5f2eabea060d8953e84d339cc60c8b9f415426305565467379bafe127b",
   "src/coordinator.rs": "d1a51ea7f43da759a9fea1b58bec7b1ef2a87c1bbb14729bcbce41f98ceff379",
   "src/error.rs": "4c2d06fc84505b82330e4efc7d8d5d07454a34f116c49494ee5ba0d30ca70c50",
-  "src/http.rs": "1bd0207f9ba14a31ee638f3e277174699137fb437140205aad0e231ead495918",
+  "src/http.rs": "955a34e208cc83c79b22fce8fcf52645dd0224da661e5f1fc44cf380acff46c2",
   "src/lib.rs": "22110002ac2e088df113b06822c31a0063c5fecfbeaed47be3879d67f061b68d",
   "src/mcp/focused.rs": "09acbfd63a7f6327790149fb5cc0c59fbfaaa54b0a98c44453d80a222f1abb7b",
   "src/mcp/handlers.rs": "fe4bafda85b8ce8b5aafff1bfbb9d4b2df6f73484ba6c1b3c8b2987aa9ae1ce9",
