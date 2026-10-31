@@ -86,6 +86,16 @@ impl TraktCoordinator {
                     &oauth::browser_step(&self.env, &mut storage, &id, v).await?,
                 )?);
             }
+            "/_trakt_callback" => {
+                let v: Value = req.json().await?;
+                let id = v["session_id"]
+                    .as_str()
+                    .ok_or(ApiError::new(400, "invalid_flow"))?
+                    .to_string();
+                return Ok(Response::from_json(
+                    &oauth::trakt_callback(&self.env, &mut storage, &id, v).await?,
+                )?);
+            }
             "/_exchange" => {
                 let v = req.json().await?;
                 return Ok(Response::from_json(

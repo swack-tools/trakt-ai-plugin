@@ -915,7 +915,7 @@
     "/oauth/complete": {
       "post": {
         "operationId": "completeBrowserLogin",
-        "description": "Browser-internal device authorization. Requires a short-lived ticket from the consent page.",
+        "description": "Browser-internal start of Trakt sign-in. Requires a short-lived ticket from the consent page and returns the Trakt authorization URL.",
         "responses": {
           "200": {
             "description": "Success",

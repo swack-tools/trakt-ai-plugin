@@ -26,7 +26,7 @@ codex plugin add trakt-mcp@trakt-mcp
 
 In the desktop app, open the Plugins directory, select the repository marketplace, and check the installed plugin's connection. Restart the app or open a new chat after updating installed files. Client commands and UI availability depend on version and workspace policy; use your client's MCP login control if the plugin prompts for authorization. A local marketplace install is separate from a ChatGPT workspace or public directory publication.
 
-During browser authorization, approve the service connection, open the displayed Trakt activation page, enter the device code, and return to finish. Each person authorizes their own Trakt account. You do not need the operator's API key or Cloudflare credentials. Do not paste access tokens, passwords, or the private device code into chat or a support issue.
+During browser authorization, approve the service connection, sign in and approve at Trakt, then choose **Return to your app**. Each person authorizes their own Trakt account. You do not need the operator's API key or Cloudflare credentials. Do not paste access tokens, passwords, or the private device code into chat or a support issue.
 
 ## Use the seven skills
 

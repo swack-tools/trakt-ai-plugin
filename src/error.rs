@@ -204,6 +204,9 @@ pub fn describe(code: &str) -> &'static str {
         "too_many_streams" => {
             "This connection has too many open streams. Close one before opening another."
         }
+        "trakt_authorization_failed" => {
+            "Trakt did not accept this sign-in. Reconnect from your app to try again."
+        }
         "trakt_conflict" => {
             "Trakt reported a conflict with existing data. Read the current state before deciding on another change."
         }

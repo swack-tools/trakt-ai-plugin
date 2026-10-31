@@ -38,7 +38,12 @@ pub struct Flow {
     pub challenge: Option<String>,
     pub ticket_hash: String,
     pub expires: u64,
-    pub device_code: Option<String>,
+    #[serde(default)]
+    pub trakt_verifier: Option<String>,
+    #[serde(default)]
+    pub trakt_state_hash: Option<String>,
+    #[serde(default)]
+    pub browser_hash: Option<String>,
     pub code_hash: Option<String>,
     pub resource: String,
 }
@@ -314,7 +319,9 @@ pub async fn begin(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> 
         challenge,
         ticket_hash: security::hash(&ticket),
         expires: now() + 900,
-        device_code: None,
+        trakt_verifier: None,
+        trakt_state_hash: None,
+        browser_hash: None,
         code_hash: None,
         resource: resource.clone(),
     };
@@ -335,38 +342,101 @@ pub async fn browser_step(env: &Env, storage: &mut Storage, id: &str, v: Value) 
     {
         return Err(ApiError::new(400, "invalid_flow"));
     }
-    if !matches!(v["action"].as_str(), Some("start" | "poll")) {
+    if v["action"].as_str() != Some("start") {
         return Err(ApiError::new(400, "invalid_action"));
-    }
-    let c = Client { env };
-    if v["action"] == "start" {
-        if f.device_code.is_some() {
-            return Err(ApiError::new(409, "login_already_pending"));
-        }
-        let d = auth::request_device_code(&c, storage).await?;
-        f.device_code = d["device_code"].as_str().map(String::from);
-        storage.put("flow", &f).await?;
-        return Ok(d);
     }
     if f.code_hash.is_some() {
         return Err(ApiError::new(409, "flow_already_completed"));
     }
-    let code = f
-        .device_code
+    // A new start replaces any earlier attempt, so going back and retrying still works.
+    let verifier = security::random();
+    let state = format!("{id}.{}", security::random());
+    let mut authorize = worker::Url::parse(&format!(
+        "{}/oauth/authorize",
+        env.var("TRAKT_AUTHORIZE_URL")?
+            .to_string()
+            .trim_end_matches('/')
+    ))
+    .map_err(|_| ApiError::new(500, "invalid_upstream_configuration"))?;
+    authorize
+        .query_pairs_mut()
+        .append_pair("response_type", "code")
+        .append_pair("client_id", &env.secret("TRAKT_CLIENT_ID")?.to_string())
+        .append_pair("redirect_uri", &trakt_callback_url(&config::base(env)?))
+        .append_pair("state", &state)
+        .append_pair("code_challenge", &security::pkce(&verifier))
+        .append_pair("code_challenge_method", "S256");
+    f.trakt_verifier = Some(verifier);
+    f.trakt_state_hash = Some(security::hash(&state));
+    f.browser_hash = v["browser"].as_str().map(security::hash);
+    storage.put("flow", &f).await?;
+    Ok(json!({"authorize_url":authorize.as_str()}))
+}
+pub fn trakt_callback_url(base: &str) -> String {
+    format!("{base}/oauth/trakt/callback")
+}
+/// Finish the browser flow when Trakt redirects back. A failed exchange leaves the
+/// flow in place, because reloading can retry until the Trakt code expires.
+pub async fn trakt_callback(env: &Env, storage: &mut Storage, id: &str, v: Value) -> Result<Value> {
+    let mut f = get_optional::<Flow>(storage, "flow")
+        .await?
+        .ok_or(ApiError::new(400, "invalid_flow"))?;
+    let expected = f
+        .trakt_state_hash
         .as_deref()
-        .ok_or(ApiError::new(400, "login_not_started"))?;
-    auth::poll_device_token(&c, storage, id, code).await?;
+        .ok_or(ApiError::new(400, "invalid_flow"))?;
+    // Only the browser that started the flow can finish it. Otherwise someone could
+    // send a victim a Trakt link and collect the grant in their own flow.
+    let browser = f
+        .browser_hash
+        .as_deref()
+        .ok_or(ApiError::new(400, "invalid_flow"))?;
+    if f.expires <= now()
+        || f.code_hash.is_some()
+        || !security::equal(
+            browser,
+            &security::hash(v["browser"].as_str().unwrap_or("")),
+        )
+        || !security::equal(expected, &security::hash(v["state"].as_str().unwrap_or("")))
+    {
+        return Err(ApiError::new(400, "invalid_flow"));
+    }
+    let mut redirect = worker::Url::parse(&f.redirect_uri)
+        .map_err(|_| ApiError::new(500, "invalid_redirect_uri"))?;
+    if v["error"].is_string() {
+        let code = if v["error"] == "access_denied" {
+            "access_denied"
+        } else {
+            "server_error"
+        };
+        redirect
+            .query_pairs_mut()
+            .append_pair("error", code)
+            .append_pair("state", &f.state);
+        storage.delete("flow").await?;
+        return Ok(json!({"redirect":redirect.as_str(),"connected":false}));
+    }
+    let code = v["code"]
+        .as_str()
+        .filter(|code| !code.is_empty())
+        .ok_or(ApiError::new(400, "invalid_flow"))?;
+    let verifier = f
+        .trakt_verifier
+        .as_deref()
+        .ok_or(ApiError::new(400, "invalid_flow"))?;
+    let c = Client { env };
+    let redirect_uri = trakt_callback_url(&config::base(env)?);
+    auth::exchange_code(&c, storage, id, code, verifier, &redirect_uri).await?;
     let code = format!("{id}.{}", security::random());
     f.code_hash = Some(security::hash(&code));
     f.expires = now() + 120;
-    let mut redirect = worker::Url::parse(&f.redirect_uri)
-        .map_err(|_| ApiError::new(500, "invalid_redirect_uri"))?;
+    f.trakt_verifier = None;
     redirect
         .query_pairs_mut()
         .append_pair("code", &code)
         .append_pair("state", &f.state);
     storage.put("flow", &f).await?;
-    Ok(json!({"redirect":redirect.as_str()}))
+    Ok(json!({"redirect":redirect.as_str(),"connected":true}))
 }
 pub async fn exchange(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> {
     let q = &v["params"];
@@ -488,11 +558,38 @@ pub fn login_page(v: &Value) -> String {
         field("ticket")
     )
 }
-pub const LOGIN_JS: &str = r#"const form=document.querySelector('#connect'), status=document.querySelector('#status'),button=form.querySelector('button');let interval=5,expires=0;
-function waitToRetry(seconds){if(seconds>0){status.textContent=`Trakt is busy. Try again in ${seconds} second${seconds===1?"":"s"}.`;setTimeout(()=>waitToRetry(seconds-1),1000);return;}status.textContent='Trakt should be ready. Try again.';button.disabled=false;}
-async function step(action){const response=await fetch('/oauth/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:form.dataset.session,ticket:form.dataset.ticket,action})});return [response,await response.json()];}
-async function poll(){if(Date.now()>expires){status.append(document.createTextNode(' Code expired. Close this page and reconnect.'));return;}try{const [r,d]=await step('poll');if(d.redirect){location.assign(d.redirect);return;}if(d.error==='authorization_pending'||d.error==='slow_down'){setTimeout(poll,(d.retry_after||interval)*1000);return;}status.append(document.createTextNode(' '+(d.error||'Connection failed.')));}catch{status.append(document.createTextNode(' Network error. Reconnect to retry.'));}}
-form.addEventListener('submit',async e=>{e.preventDefault();button.disabled=true;try{const [r,d]=await step('start');if(!r.ok){if(d.retry_after)waitToRetry(d.retry_after);else status.textContent=d.error;return;}interval=d.interval;expires=Date.now()+d.expires_in*1000;const p=document.createElement('p');p.textContent='Enter this code: ';const code=document.createElement('strong');code.textContent=d.user_code;p.append(code);const a=document.createElement('a');a.href='https://trakt.tv/activate';a.target='_blank';a.rel='noopener noreferrer';a.textContent='Open Trakt activation';status.replaceChildren(p,a);setTimeout(poll,interval*1000);}catch{status.textContent='Network error. Reconnect to retry.'}});"#;
+pub const LOGIN_JS: &str = r#"const form=document.querySelector('#connect'), status=document.querySelector('#status'),button=form.querySelector('button');
+form.addEventListener('submit',async e=>{e.preventDefault();button.disabled=true;try{const response=await fetch('/oauth/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:form.dataset.session,ticket:form.dataset.ticket,action:'start'})});const d=await response.json();if(!response.ok||!d.authorize_url){status.textContent=d.error||'Connection failed.';return;}location.assign(d.authorize_url);}catch{status.textContent='Network error. Reconnect to retry.';}});"#;
+/// Shown after Trakt redirects back: the link returns the user to their client.
+pub fn connected_page(redirect: &str, connected: bool) -> String {
+    let (title, text, action) = if connected {
+        (
+            "Trakt connected",
+            "Your Trakt account is connected.",
+            "Return to your app",
+        )
+    } else {
+        (
+            "Trakt not connected",
+            "Trakt did not connect your account.",
+            "Return to your app",
+        )
+    };
+    format!(
+        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>{title}</title><link rel="stylesheet" href="/login.css"><main><p>TRAKT MCP</p><h1>{title}</h1><p>{text}</p><p><a href="{}">{action}</a></p></main></html>"#,
+        security::escape(redirect)
+    )
+}
+/// A failed exchange keeps the flow, so a reload retries it while the code is valid.
+pub fn callback_error_page(error: &str, retry_after: Option<u64>) -> String {
+    let retry = retry_after.map_or(String::new(), |seconds| {
+        format!("<p>Trakt is busy. Reload this page in {seconds} seconds to try again.</p>")
+    });
+    format!(
+        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Trakt not connected</title><link rel="stylesheet" href="/login.css"><main><p>TRAKT MCP</p><h1>Trakt not connected</h1>{retry}<p>{}</p><p>You can close this page and reconnect from your app.</p></main></html>"#,
+        security::escape(crate::error::describe(error))
+    )
+}
 pub const LOGIN_CSS: &str = "body{font:18px/1.6 system-ui;background:#101419;color:#ecf1f5;margin:0;padding:8vh 24px}main{max-width:640px;margin:auto}h1{line-height:1.15;font-size:40px}button,a{display:inline-block;background:#2f5d8a;color:white;border:0;border-radius:8px;padding:12px 20px;font:inherit;cursor:pointer}code{overflow-wrap:anywhere;font-size:14px}strong{color:#fff}#status strong{font-size:32px;letter-spacing:4px}button:disabled{opacity:.5}";
 
 #[cfg(test)]

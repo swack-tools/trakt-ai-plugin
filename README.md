@@ -46,9 +46,9 @@ Follow the connection prompt when you first use Trakt.
 
 Each person signs in with their own Trakt account:
 
-1. On the authorization page, choose **Connect Trakt** to display a device code.
-2. Open [trakt.tv/activate](https://trakt.tv/activate), sign in, enter the code, and approve access.
-3. Return to the authorization page; it finishes connecting automatically. Then return to your chat.
+1. On the authorization page, choose **Connect Trakt**.
+2. Sign in to Trakt and approve access.
+3. Choose **Return to your app**, then return to your chat.
 
 ## Seven bundled workflows
 
