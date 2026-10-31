@@ -153,7 +153,7 @@ test('device pending, interval and cross-user isolation',async()=>{
 });
 test('search encoding, filters, pagination, recommendations',async()=>{
  const u=await connect();const r=await api('/search?query=A%20%26%20B&genres=drama&years=2020&limit=5',{token:u.access_token});assert.equal(r.data.data.length,1);assert.equal(r.data.pagination.page_count,3);assert.equal(r.data.filters_applied_to_page,true);
- assert.equal(requests.at(-1).query.get('query'),'A & B');assert.equal(requests.at(-1).headers.authorization,undefined);
+ assert.equal(requests.at(-1).query.get('query'),'A & B');assert.match(requests.at(-1).headers.authorization,/^Bearer trakt-/);
  assert.equal((await api('/recommendations?media_type=show&genres=drama&years=2020&limit=3',{token:u.access_token})).status,200);assert.equal(requests.at(-1).path,'/recommendations/shows');assert.equal(requests.at(-1).query.get('genres'),'drama');
  assert.equal((await api('/search?query=test&limit=101',{token:u.access_token})).status,400);
 });
@@ -635,4 +635,9 @@ test('optional-body comment likes send no JSON payload and GET rejects explicit 
   await callFailure(user.access_token,'trakt_api_read',{operation_id:'getCalendarsMovies',path_params:{target:'my',start_date:'2026-09-27',days:7},body},'invalid_api_parameters');
  }
  assert.equal(requests.length,start+1,'GET bodies must be rejected before an upstream call');
+});
+// Runs last so it covers every upstream request the suite made.
+test('every Trakt data request carries the user token',()=>{
+ const anonymous=requests.filter(r=>!r.path.startsWith('/oauth/')&&!r.headers.authorization).map(r=>`${r.method} ${r.path}`);
+ assert.ok(requests.length>100);assert.deepEqual([...new Set(anonymous)],[]);
 });

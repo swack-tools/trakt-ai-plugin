@@ -63,7 +63,7 @@
   "src/http.rs": "e1605bd802193ffc11f8a3f0683f09e950751c2bb2105e0e187a8daf39440a28",
   "src/lib.rs": "22110002ac2e088df113b06822c31a0063c5fecfbeaed47be3879d67f061b68d",
   "src/mcp/focused.rs": "0018d039ce1b454734224962bad9bc59ff9a521089b425ba058a00d9f334adee",
-  "src/mcp/handlers.rs": "60b4f2f018a01b615ac1b5c940c3ec38a72a6ac9b0a056e6946bdeda1d5f2daf",
+  "src/mcp/handlers.rs": "73cdc90663d1c4dffe598a6885e86b0469771dc613c8b98cc80a5d7d6867ad8e",
   "src/mcp/mod.rs": "b5b3cddd80429637c540ac7f761585a45d87cb25a198935a0ce9b66949fb528d",
   "src/mcp/output.rs": "e93a5db1e8848ac72ae436376c908a0afa8798ec815ec3e39bd110d55df7328b",
   "src/mcp/protocol.rs": "afb227c0d3f7b5d26e8f1e4b70ed69d6bdc1eb44cb1b9849f367fcb21ffc30bd",
@@ -75,7 +75,7 @@
   "src/trakt/client.rs": "65f38d1e8a9aea668e831de962bf7c4b3ff6390c45c9638f172d94b4dd6bd98c",
   "src/trakt/mod.rs": "71e6135b5f9a1aa6231467b2c79ed51e70771092d368c26c0a5fbd23d71e51e2",
   "src/trakt/recommendations.rs": "f4bda1e3554a566f992b972479c5c0b86dccd93387bda2806ae66e6a9462682c",
-  "src/trakt/search.rs": "ad565172a969a825c431e253b025ff42589d2a5ed11178771148cf1da2ad7869",
+  "src/trakt/search.rs": "925b1181614aa50d1c8c9999bee6f13c9a244618271007d5110be4d711c6b7eb",
   "src/trakt/sync.rs": "6b531e660fc0000cfac231a63b0a5082046518417fa59886ab7eed35db3b6562",
   "wrangler.toml.example": "5f670f5182288bdc853297ada0da77a0bf8593375ad82be62fb6a5c0cf80195e"
 }
