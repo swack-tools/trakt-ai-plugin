@@ -13,7 +13,6 @@ import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 const base='http://127.0.0.1:8787';
 const watchedFixtures=new Map();
 const mockLists=new Map(),upstreamFailures=new Map();let nextList=9000;
-const operationCatalog=JSON.parse(await readFile(new URL('../api/trakt/catalog.json',import.meta.url),'utf8'));
 const users=new Map();let next=0,refreshes=0,worker,mock;let logs='',stateDir; const requests=[];let deviceInterval=1;
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 async function api(path,{token,method='GET',body,headers={}}={}){const r=await fetch(base+path,{signal:AbortSignal.timeout(15000),method,headers:{...(token?{Authorization:`Bearer ${token}`} : {}),...(body?{'Content-Type':'application/json'}:{}),...headers},body:body?JSON.stringify(body):undefined});const text=await r.text();let data;try{data=JSON.parse(text);}catch{data=text;}return {status:r.status,data,headers:r.headers};}
@@ -32,7 +31,7 @@ function events(count){return Array.from({length:count},(_,i)=>({id:1000+i,watch
 function fixtureFor(user,fixture){watchedFixtures.set(users.get(user.device.device_code).id,fixture);}
 function watchedRequests(start=0){return requests.slice(start).filter(r=>/^\/sync\/(watched|history)\//.test(r.path));}
 before(async()=>{
- mock=http.createServer(async(req,res)=>{let raw='';for await(const chunk of req)raw+=chunk;const body=raw?JSON.parse(raw):{};const u=new URL(req.url,'http://mock');requests.push({method:req.method,path:u.pathname,query:u.searchParams,headers:req.headers,body,bodyPresent:raw.length>0});
+ mock=http.createServer(async(req,res)=>{let raw='';for await(const chunk of req)raw+=chunk;const body=raw?JSON.parse(raw):{};const u=new URL(req.url,'http://mock');requests.push({method:req.method,path:u.pathname,query:u.searchParams,headers:req.headers,body,bodyPresent:raw.length>0,at:Date.now()});
  assert.equal(req.headers['user-agent'],'trakt-mcp/1.0 (+https://plugin.example.test)');assert.equal(req.headers['trakt-api-key'],'test-client-id');assert.equal(req.headers['trakt-api-version'],'2');
  let status=200,data;
  if(u.pathname==='/oauth/device/code'){const code=`device-${++next}`;users.set(code,{id:next,authorized:false});data={device_code:code,user_code:`USER${next}`,verification_url:'https://trakt.tv/activate',expires_in:600,interval:deviceInterval};}
@@ -130,7 +129,8 @@ test('discovery, origin, auth, and bounded input',async()=>{
  const privacy=await fetch(base+'/privacy',{redirect:'manual',signal:AbortSignal.timeout(15000)});assert.equal(privacy.status,308);assert.equal(privacy.headers.get('location'),'https://plugin.example.test/data-privacy');
  assert.equal((await api('/health',{headers:{Origin:'https://plugin.example.test'}})).headers.get('access-control-allow-origin'),'https://plugin.example.test');
  const schema=(await api('/openapi.json')).data;assert.equal(schema.servers[0].url,'https://plugin.example.test');assert.equal(schema.components.securitySchemes.oauth.flows.authorizationCode.authorizationUrl,'https://plugin.example.test/oauth/authorize');
- assert.equal((await api('/.well-known/ai-plugin.json')).status,404,'legacy metadata must not invent a support address');
+ for(const path of ['/.well-known/ai-plugin.json','/logo.svg'])assert.equal((await api(path)).status,404,path);
+ assert.doesNotMatch((await api('/login.css')).data,/ef4444/i);
  const challenge=await api('/.well-known/openai-apps-challenge');assert.equal(challenge.data,'fixture-domain-challenge');assert.match(challenge.headers.get('content-type'),/^text\/plain/);
  assert.equal((await api('/mcp',{method:'POST',headers:{Origin:'https://evil.test'},body:{}})).status,403);
  assert.equal((await api('/mcp',{method:'POST',body:{x:'x'.repeat(70000)}})).status,413);
@@ -261,12 +261,9 @@ test('pagination inputs stay endpoint-specific and filtered empty search pages c
 });
 test('real MCP SDK initializes and calls both transports',async()=>{
  const u=await connect();fixtureFor(u,{movies:summaries('movies',251),recent:{movies:events(130)}});for(const kind of ['http','sse']){const client=new Client({name:'integration',version:'1.0.0'});const headers={Authorization:`Bearer ${u.access_token}`};const transport=kind==='http'?new StreamableHTTPClientTransport(new URL(base+'/mcp'),{requestInit:{headers}}):new SSEClientTransport(new URL(base+'/sse'),{requestInit:{headers},eventSourceInit:{fetch:(url,init)=>fetch(url,{...init,headers:{...init?.headers,...headers}})}});
- try{await client.connect(transport);assert.equal((await client.listTools()).tools.length,15);
- const discovered=await client.callTool({name:'trakt_list_operations',arguments:{query:'calendars',limit:10}});assert.equal(discovered.isError,false);assert.ok(JSON.parse(discovered.content[0].text).data.length>0);
- assert.deepEqual(discovered.structuredContent,{schema_version:'1',tool:'trakt_list_operations',result:JSON.parse(discovered.content[0].text)});
- const description=await client.callTool({name:'trakt_get_operation',arguments:{operation_id:'getCalendarsMovies'}});assert.equal(description.isError,false);
- const calendar=await client.callTool({name:'trakt_api_read',arguments:{operation_id:'getCalendarsMovies',path_params:{target:'all',start_date:'2026-09-27',days:7}}});assert.equal(calendar.isError,false,JSON.stringify(calendar));assert.equal(JSON.parse(calendar.content[0].text).data[0].movie.ids.trakt,123);
- assert.deepEqual(calendar.structuredContent,{schema_version:'1',tool:'trakt_api_read',result:JSON.parse(calendar.content[0].text)});
+ try{await client.connect(transport);assert.equal((await client.listTools()).tools.length,37);
+ const calendar=await client.callTool({name:'trakt_get_calendar',arguments:{kind:'movies',target:'all',start_date:'2026-09-27',days:7}});assert.equal(calendar.isError,false,JSON.stringify(calendar));assert.equal(JSON.parse(calendar.content[0].text).data[0].movie.ids.trakt,123);
+ assert.deepEqual(calendar.structuredContent,{schema_version:'1',tool:'trakt_get_calendar',result:JSON.parse(calendar.content[0].text)});
  const result=await client.callTool({name:'trakt_search',arguments:{query:'A & B'}});assert.equal(result.isError,false);
  const start=requests.length;
  for(const [mode,page,limit,expectedLength] of [['all',2,100,100],['recent',2,100,30]]){
@@ -390,44 +387,37 @@ async function browserConnect(scope){
 let writeAccount,readBrowserAccount;
 async function writer(){return writeAccount??=await browserConnect();}
 async function readBrowser(){return readBrowserAccount??=await browserConnect('trakt:read');}
-const createList=name=>({operation_id:'postUsersListsCreate',path_params:{id:'me'},body:{name,privacy:'private'},confirmed:true});
+const createList=name=>({name,privacy:'private',confirmed:true});
 
-test('catalog discovery exposes paginated capabilities and exact operation contracts',async()=>{
- const user=await paginationUser(),start=requests.length,ids=new Set();let page=1;
- for(;;){
-  const found=await callSuccess(user.access_token,'trakt_list_operations',{page,limit:100});
-  assert.equal(found.pagination.item_count,operationCatalog.operations.length);
-  for(const row of found.data){assert.equal(ids.has(row.operation_id),false);ids.add(row.operation_id);}
-  if(!found.pagination.has_more){assert.equal(found.pagination.next_page,null);break;}page=found.pagination.next_page;
- }
- assert.equal(ids.size,operationCatalog.operations.length);
- const selected=await callSuccess(user.access_token,'trakt_get_operation',{operation_id:'postUsersListsCreate'});
- assert.equal(selected.method,'POST');assert.equal(selected.tool,'trakt_api_write');assert.equal(selected.write_scope_required,true);
- assert.equal(selected.input_schema.properties.body.properties.name.type,'string');
- await callFailure(user.access_token,'trakt_get_operation',{operation_id:'not-real'},'unknown_operation');
- assert.equal(requests.length,start,'catalog discovery must not contact upstream');
-});
-
-test('generic reads discover public lists and personal/public release calendars',async()=>{
+test('list discovery and personal/public calendars each make one upstream call',async()=>{
  const user=await paginationUser(),start=requests.length;
  for(const page of [1,2]){
-  const found=await callSuccess(user.access_token,'trakt_api_read',{operation_id:'getListsPopular',query_params:{page,limit:1}});
+  const found=await callSuccess(user.access_token,'trakt_discover_lists',{view:'popular',page,limit:1});
   assert.equal(found.operation_id,'getListsPopular');assert.equal(found.status,200);assert.equal(found.data[0].list.privacy,'public');
   assert.equal(found.pagination.has_more,page===1);assert.equal(found.pagination.next_page,page===1?2:null);
  }
  for(const target of ['my','all']){
-  const calendar=await callSuccess(user.access_token,'trakt_api_read',{operation_id:'getCalendarsMovies',path_params:{target,start_date:'2026-09-27',days:7},query_params:{genres:'drama&token=injected'}});
+  const calendar=await callSuccess(user.access_token,'trakt_get_calendar',{kind:'movies',target,start_date:'2026-09-27',days:7,genres:'drama'});
   assert.equal(calendar.data[0].released,'2026-09-29');assert.equal(calendar.pagination,null,'unpaginated responses have no page contract');
-  assert.equal(requests.at(-1).path,`/calendars/${target}/movies/2026-09-27/7`);assert.equal(requests.at(-1).query.get('genres'),'drama&token=injected');assert.equal(requests.at(-1).query.has('token'),false);
+  assert.equal(requests.at(-1).path,`/calendars/${target}/movies/2026-09-27/7`);assert.equal(requests.at(-1).query.get('genres'),'drama');
  }
  assert.equal(requests.length,start+4,'each requested operation makes one upstream call');
+});
+
+test('the removed generic tools and catalog operations are not callable',async()=>{
+ const user=await writer(),start=requests.length;
+ for(const name of ['trakt_list_operations','trakt_get_operation','trakt_api_read','trakt_api_write']){
+  const response=await api('/mcp',{method:'POST',token:user.access_token,body:{jsonrpc:'2.0',id:9,method:'tools/call',params:{name,arguments:{operation_id:'getListsPopular',confirmed:true}}}});
+  assert.equal(response.data.error.code,-32602,name);
+ }
+ assert.equal(requests.length,start);
 });
 
 test('focused actions browse lists and releases and edit only an owned list',async()=>{
  const user=await writer();
  const discovered=await callSuccess(user.access_token,'trakt_discover_lists',{view:'popular',page:1});
  assert.equal(discovered.operation_id,'getListsPopular');assert.equal(discovered.pagination.next_page,2);
- const calendar=await callSuccess(user.access_token,'trakt_get_calendar',{target:'all',media_type:'movie',start_date:'2026-09-27',days:7});
+ const calendar=await callSuccess(user.access_token,'trakt_get_calendar',{kind:'movies',target:'all',start_date:'2026-09-27',days:7});
  assert.equal(calendar.data[0].released,'2026-09-29');
  const created=await callSuccess(user.access_token,'trakt_create_list',{name:'Focused fixture',confirmed:true});
  assert.equal(created.data.privacy,'private');const id=String(created.data.ids.trakt);
@@ -459,7 +449,7 @@ test('focused actions browse lists and releases and edit only an owned list',asy
   await callFailure(user.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:456}],confirmed:true},'list_ownership_unverified');
   assert.equal(requests.slice(beforeUnverified).filter(r=>r.method==='POST').length,0);
  }finally{upstreamFailures.delete('GET /users/settings');}
- await callSuccess(user.access_token,'trakt_api_write',{operation_id:'deleteUsersListsListDelete',path_params:{id:'me',list_id:id},confirmed:true});
+ await callSuccess(user.access_token,'trakt_delete_list',{list_id:id,confirmed:true});
 });
 
 test('focused item writes verify numeric owner IDs when the list slug is null',async()=>{
@@ -483,7 +473,7 @@ test('focused item writes verify numeric owner IDs when the list slug is null',a
   await callFailure(user.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:789}],confirmed:true},'list_not_owned');
   assert.equal(requests.slice(before).filter(r=>r.method==='POST').length,0,'mismatched numeric IDs override matching slugs');
  }finally{upstreamFailures.delete('GET /users/settings');}
- await callSuccess(user.access_token,'trakt_api_write',{operation_id:'deleteUsersListsListDelete',path_params:{id:'me',list_id:id},confirmed:true});
+ await callSuccess(user.access_token,'trakt_delete_list',{list_id:id,confirmed:true});
 });
 
 test('focused create followed by a failed add preserves the new list without retry',async()=>{
@@ -498,70 +488,120 @@ test('focused create followed by a failed add preserves the new list without ret
   assert.equal(mockLists.has(id),true,'failed add must not delete or recreate the list');
   assert.deepEqual((await callSuccess(user.access_token,'trakt_get_list_items',{owner:'me',list_id:id,media_type:'movie'})).data,[]);
  }finally{upstreamFailures.delete(`POST ${path}`);}
- await callSuccess(user.access_token,'trakt_api_write',{operation_id:'deleteUsersListsListDelete',path_params:{id:'me',list_id:id},confirmed:true});
+ await callSuccess(user.access_token,'trakt_delete_list',{list_id:id,confirmed:true});
 });
 
 test('browser-authorized account creates a private list, adds a movie, reads it back, and deletes it',async()=>{
- const user=await writer(),start=requests.length;
- const created=await callSuccess(user.access_token,'trakt_api_write',createList('Private fixture list'));
+ const user=await writer();
+ const created=await callSuccess(user.access_token,'trakt_create_list',createList('Private fixture list'));
  assert.equal(created.status,201);assert.equal(created.data.privacy,'private');const id=String(created.data.ids.trakt);
  assert.equal(requests.at(-1).headers.authorization,`Bearer trakt-${user.upstream_user_id}`);
- const added=await callSuccess(user.access_token,'trakt_api_write',{operation_id:'postUsersListsListAdd',path_params:{id:'me',list_id:id},body:{movies:[{ids:{trakt:123}}]},confirmed:true});
+ const added=await callSuccess(user.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:123}],confirmed:true});
  assert.equal(added.status,201);assert.equal(added.data.added.movies,1);
- const items=await callSuccess(user.access_token,'trakt_api_read',{operation_id:'getUsersListsListItemsAll',path_params:{id:'me',list_id:id}});
+ const items=await callSuccess(user.access_token,'trakt_get_list_items',{owner:'me',list_id:id,media_type:'all'});
  assert.equal(items.data.length,1);assert.equal(items.data[0].movie.ids.trakt,123);assert.equal(items.pagination.has_more,false);
- const deleted=await callSuccess(user.access_token,'trakt_api_write',{operation_id:'deleteUsersListsListDelete',path_params:{id:'me',list_id:id},confirmed:true});
+ const deleted=await callSuccess(user.access_token,'trakt_delete_list',{list_id:id,confirmed:true});
  assert.equal(deleted.status,204);assert.equal(deleted.data,null);assert.equal(mockLists.has(id),false);
- assert.deepEqual(requests.slice(start).map(r=>r.method),['POST','POST','GET','DELETE']);
 });
 
-test('write consent, method separation, and strict parameters fail before upstream effects',async()=>{
- const user=await writer(),legacy=await paginationUser(),start=requests.length,valid=createList('Do not create');
- for(const confirmed of [undefined,false]){const args={...valid,confirmed};if(confirmed===undefined)delete args.confirmed;await callFailure(user.access_token,'trakt_api_write',args,'confirmation_required');}
- await callFailure(legacy.access_token,'trakt_api_write',valid,'write_authorization_required');
- await callFailure(user.access_token,'trakt_api_read',valid,'operation_requires_write_tool');
- await callFailure(user.access_token,'trakt_api_write',{operation_id:'getCalendarsMovies',confirmed:true},'operation_requires_read_tool');
- for(const args of [
-  {...valid,url:'https://evil.test'}, {...valid,headers:{Authorization:'attacker'}}, {...valid,method:'GET'},
-  {...valid,body:{name:'Fixture',unknown:true}}, {...valid,body:{name:123}}, {...valid,path_params:{id:'me',unknown:'x'}},
-  {...valid,query_params:{access_token:'attacker'}}, ...['../oauth/token','%2e%2e%2fadmin','https://evil.test','me?x=1','me#fragment','me\nInjected: yes'].map(id=>({...valid,path_params:{id}}))
- ])await callFailure(user.access_token,'trakt_api_write',args,'invalid_api_parameters');
- for(const op of operationCatalog.operations.filter(op=>op.status!=='supported')){
-  await callFailure(user.access_token,op.method==='GET'?'trakt_api_read':'trakt_api_write',{operation_id:op.operation_id,confirmed:op.method==='GET'?undefined:true},'operation_unavailable');
+test('writes are paced across the ownership read, the write, and the read-back',async()=>{
+ const user=await writer();
+ const created=await callSuccess(user.access_token,'trakt_create_list',createList('Paced fixture'));
+ const id=String(created.data.ids.trakt),start=requests.length;
+ await callSuccess(user.access_token,'trakt_add_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:123}],confirmed:true});
+ await callSuccess(user.access_token,'trakt_get_list_items',{owner:'me',list_id:id,media_type:'movie'});
+ await callSuccess(user.access_token,'trakt_remove_list_items',{list_id:id,items:[{media_type:'movie',trakt_id:123}],confirmed:true});
+ const calls=requests.slice(start);
+ const writes=calls.filter(r=>r.method==='POST');assert.equal(writes.length,2);
+ assert.ok(writes[1].at-writes[0].at>=950,'two writes stay one second apart');
+ for(const [index,call] of calls.entries()){
+  if(call.method!=='POST')continue;
+  const previous=calls[index-1];
+  if(previous)assert.ok(call.at-previous.at>=950,'a write waits a second after the ownership read');
+  const following=calls[index+1];
+  if(following)assert.ok(following.at-call.at>=950,'the read-back waits a second after the write');
  }
+ await callSuccess(user.access_token,'trakt_delete_list',{list_id:id,confirmed:true});
+});
+
+test('library writes send the mapped sync body and a watch is never retried',async()=>{
+ const user=await writer();
+ for(const [name,args,path,body] of [
+  ['trakt_add_ratings',{items:[{media_type:'movie',trakt_id:106539,rating:8}]},'/sync/ratings',{movies:[{ids:{trakt:106539},rating:8}]}],
+  ['trakt_add_collection',{items:[{media_type:'show',trakt_id:700}]},'/sync/collection',{shows:[{ids:{trakt:700}}]}],
+  ['trakt_remove_watchlist',{items:[{media_type:'episode',trakt_id:7004}]},'/sync/watchlist/remove',{episodes:[{ids:{trakt:7004}}]}],
+  ['trakt_remove_history',{history_ids:[1234]},'/sync/history/remove',{ids:[1234]}],
+ ]){
+  upstreamFailures.set(`POST ${path}`,{status:200,raw:'{"added":{"movies":1}}'});
+  try{
+   await callSuccess(user.access_token,name,{...args,confirmed:true});
+   assert.equal(requests.at(-1).path,path);assert.deepEqual(requests.at(-1).body,body);
+  }finally{upstreamFailures.delete(`POST ${path}`);}
+ }
+ const start=requests.length;upstreamFailures.set('POST /sync/history',{status:503});
+ try{
+  await callFailure(user.access_token,'trakt_add_history',{items:[{media_type:'movie',trakt_id:106539}],confirmed:true},'trakt_upstream_error');
+  assert.equal(requests.length,start+1,'an uncertain write is attempted once');
+ }finally{upstreamFailures.delete('POST /sync/history');}
+ const readOnly=await paginationUser(),before=requests.length;
+ await callFailure(readOnly.access_token,'trakt_add_ratings',{items:[{media_type:'movie',trakt_id:1,rating:8}],confirmed:true},'write_authorization_required');
+ assert.equal(requests.length,before,'read-only connections fail before any upstream call');
+});
+
+test('list edits and deletes verify ownership before any change',async()=>{
+ const user=await writer(),other=await browserConnect();
+ const created=await callSuccess(user.access_token,'trakt_create_list',createList('Owned fixture'));
+ const id=String(created.data.ids.trakt),start=requests.length;
+ await callFailure(other.access_token,'trakt_update_list',{list_id:id,name:'Taken',confirmed:true},'list_not_owned');
+ await callFailure(other.access_token,'trakt_delete_list',{list_id:id,confirmed:true},'list_not_owned');
+ assert.equal(requests.slice(start).filter(r=>r.method!=='GET').length,0);
+ assert.equal(mockLists.has(id),true);
+ await callSuccess(user.access_token,'trakt_delete_list',{list_id:id,confirmed:true});
+});
+
+test('write consent and strict parameters fail before upstream effects',async()=>{
+ const user=await writer(),legacy=await paginationUser(),start=requests.length,valid=createList('Do not create');
+ for(const confirmed of [undefined,false]){const args={...valid,confirmed};if(confirmed===undefined)delete args.confirmed;await callFailure(user.access_token,'trakt_create_list',args,'confirmation_required');}
+ await callFailure(legacy.access_token,'trakt_create_list',valid,'write_authorization_required');
+ for(const args of [
+  {...valid,url:'https://evil.test'},{...valid,headers:{Authorization:'attacker'}},{...valid,method:'GET'},
+  {...valid,unknown:true},{...valid,name:123},{...valid,operation_id:'postSyncHistoryAdd'},{...valid,privacy:'friends'},
+ ])await callFailure(user.access_token,'trakt_create_list',args,'invalid_parameters');
+ for(const args of [{media_type:'movie',id:'../oauth/token'},{media_type:'movie',id:'%2e%2e%2fadmin'},{media_type:'movie',id:'me?x=1'},{media_type:'movie',id:'me\nInjected: yes'}])
+  await callFailure(user.access_token,'trakt_get_title',args,'invalid_parameters');
  assert.equal(requests.length,start,'rejected input must not touch Trakt');
 });
 
 test('explicit read consent survives refresh and cannot be elevated',async()=>{
  const user=await readBrowser(),start=requests.length;
- await callFailure(user.access_token,'trakt_api_write',createList('Forbidden'),'write_authorization_required');
+ await callFailure(user.access_token,'trakt_create_list',createList('Forbidden'),'write_authorization_required');
  const elevated=await api('/oauth/token',{method:'POST',body:{grant_type:'refresh_token',refresh_token:user.refresh_token,client_id:user.client_id,resource:user.resource,scope:'trakt:read trakt:write'}});
  assert.equal(elevated.status,400);assert.equal(elevated.data.error,'invalid_scope');
  const refreshed=await api('/oauth/token',{method:'POST',body:{grant_type:'refresh_token',refresh_token:user.refresh_token,client_id:user.client_id,resource:user.resource}});
  assert.equal(refreshed.status,200,JSON.stringify(refreshed.data));assert.equal(refreshed.data.scope,'trakt:read');
- await callFailure(refreshed.data.access_token,'trakt_api_write',createList('Still forbidden'),'write_authorization_required');
+ await callFailure(refreshed.data.access_token,'trakt_create_list',createList('Still forbidden'),'write_authorization_required');
  assert.equal(requests.length,start,'scope rejection and plugin refresh must not call upstream');
 });
 
-test('generic API failures preserve safe errors and never retry ambiguous writes',async()=>{
+test('tool failures preserve safe errors and never retry ambiguous writes',async()=>{
  const user=await writer();
  for(const [status,error,retry] of [[400,'trakt_validation_failed',null],[404,'trakt_not_found',null],[429,'trakt_rate_limited',13],[503,'trakt_upstream_error',null],[200,'invalid_trakt_response',null]]){
   const key='GET /lists/popular';upstreamFailures.set(key,{status,...(status===200?{raw:'<html>private_upstream_detail</html>'}:{})});const start=requests.length;
   try{
-   const failed=await callFailure(user.access_token,'trakt_api_read',{operation_id:'getListsPopular'},error);
+   const failed=await callFailure(user.access_token,'trakt_discover_lists',{view:'popular'},error);
    assert.equal(failed.retry_after,retry);assert.equal(JSON.stringify(failed).includes('private_upstream_detail'),false);
    assert.equal(requests.length,start+1,'upstream errors are never retried');
   }finally{upstreamFailures.delete(key);}
  }
  const key='POST /users/me/lists',before=mockLists.size,start=requests.length;upstreamFailures.set(key,{status:503,commit:true});
  try{
-  await callFailure(user.access_token,'trakt_api_write',createList('Ambiguous fixture'),'trakt_upstream_error');
+  await callFailure(user.access_token,'trakt_create_list',createList('Ambiguous fixture'),'trakt_upstream_error');
   assert.equal(requests.length,start+1);assert.equal(mockLists.size,before+1,'fixture committed exactly once before its response failed');
  }finally{upstreamFailures.delete(key);}
  const id=String(nextList);
- const readback=await callSuccess(user.access_token,'trakt_api_read',{operation_id:'getUsersListsListItemsAll',path_params:{id:'me',list_id:id}});
+ const readback=await callSuccess(user.access_token,'trakt_get_list_items',{owner:'me',list_id:id,media_type:'all'});
  assert.equal(readback.status,200);assert.deepEqual(readback.data,[]);
- await callSuccess(user.access_token,'trakt_api_write',{operation_id:'deleteUsersListsListDelete',path_params:{id:'me',list_id:id},confirmed:true});
+ await callSuccess(user.access_token,'trakt_delete_list',{list_id:id,confirmed:true});
  assert.equal(mockLists.size,before);
 });
 
@@ -588,13 +628,13 @@ test('contradictory page counts and truncated final pages cannot claim complete 
 });
 
 
-test('generic API reads reject contradictory completion metadata too',async()=>{
+test('list discovery rejects contradictory completion metadata too',async()=>{
  const user=await paginationUser(),key='GET /lists/popular';
  for(const [page,page_count,length] of [[1,1,100],[3,3,20],[1,3,20],[2,3,20]]){
   upstreamFailures.set(key,{status:200,data:Array.from({length},(_,id)=>({list:{ids:{trakt:id}}})),pagination:{page,page_count,limit:100,item_count:250}});
   const start=requests.length;
   try{
-   const error=await callFailure(user.access_token,'trakt_api_read',{operation_id:'getListsPopular',query_params:{page,limit:100}},'invalid_trakt_pagination');
+   const error=await callFailure(user.access_token,'trakt_discover_lists',{view:'popular',page,limit:100},'invalid_trakt_pagination');
    assert.equal(error.pagination,undefined);assert.equal(requests.length,start+1);
   }finally{upstreamFailures.delete(key);}
  }
@@ -623,18 +663,13 @@ test('short first or intermediate pages stop traversal before any false complete
 });
 
 
-test('optional-body comment likes send no JSON payload and GET rejects explicit null bodies',async()=>{
- const user=await writer(),start=requests.length;
- const description=await callSuccess(user.access_token,'trakt_get_operation',{operation_id:'postCommentsLike'});
- assert.equal(description.input_schema.required.includes('body'),false);
- const liked=await callSuccess(user.access_token,'trakt_api_write',{operation_id:'postCommentsLike',path_params:{id:'123'},confirmed:true});
- assert.equal(liked.status,204);assert.equal(liked.data,null);assert.equal(requests.length,start+1);
- assert.equal(requests.at(-1).method,'POST');assert.equal(requests.at(-1).path,'/comments/123/like');
- assert.equal(requests.at(-1).bodyPresent,false,'optional omission must send zero payload bytes, not {} or null');
- for(const body of [null,{},'unexpected']){
-  await callFailure(user.access_token,'trakt_api_read',{operation_id:'getCalendarsMovies',path_params:{target:'my',start_date:'2026-09-27',days:7},body},'invalid_api_parameters');
- }
- assert.equal(requests.length,start+1,'GET bodies must be rejected before an upstream call');
+test('deleting a list sends no JSON payload',async()=>{
+ const user=await writer();
+ const created=await callSuccess(user.access_token,'trakt_create_list',createList('Empty body fixture'));
+ const id=String(created.data.ids.trakt);
+ const deleted=await callSuccess(user.access_token,'trakt_delete_list',{list_id:id,confirmed:true});
+ assert.equal(deleted.status,204);assert.equal(requests.at(-1).method,'DELETE');
+ assert.equal(requests.at(-1).bodyPresent,false,'an omitted body must send zero payload bytes');
 });
 // Runs last so it covers every upstream request the suite made.
 test('every Trakt data request carries the user token',()=>{

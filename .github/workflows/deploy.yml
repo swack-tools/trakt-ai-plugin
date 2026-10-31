@@ -43,7 +43,6 @@ jobs:
           CLOUDFLARE_PLUGIN_DNS: ${{ vars.CLOUDFLARE_PLUGIN_DNS }}
           CLOUDFLARE_ZONE_NAME: ${{ vars.CLOUDFLARE_ZONE_NAME }}
           OPENAI_APPS_CHALLENGE: ${{ secrets.OPENAI_APPS_CHALLENGE }}
-          SUPPORT_EMAIL: ${{ secrets.SUPPORT_EMAIL }}
           TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
           TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
         run: |
@@ -51,7 +50,7 @@ jobs:
           python3 - <<'PY'
           import json, os, subprocess, tempfile
           with tempfile.NamedTemporaryFile(mode='w', suffix='.json') as f:
-              json.dump({k: os.environ[k] for k in ('TRAKT_CLIENT_ID', 'TRAKT_CLIENT_SECRET', 'OPENAI_APPS_CHALLENGE', 'SUPPORT_EMAIL') if os.environ.get(k)}, f)
+              json.dump({k: os.environ[k] for k in ('TRAKT_CLIENT_ID', 'TRAKT_CLIENT_SECRET', 'OPENAI_APPS_CHALLENGE') if os.environ.get(k)}, f)
               f.flush()
               subprocess.run(['npx', 'wrangler', 'deploy', '--secrets-file', f.name], check=True)
           PY

@@ -20,7 +20,7 @@ fn focused_reads_use_supported_catalog_paths_and_reject_invalid_inputs() {
         ),
         (
             "trakt_get_calendar",
-            json!({"target":"my","media_type":"show","start_date":"2026-09-27","days":7}),
+            json!({"kind":"shows","target":"my","start_date":"2026-09-27","days":7}),
             "getCalendarsShows",
             "/calendars/my/shows/2026-09-27/7",
         ),
@@ -44,11 +44,11 @@ fn focused_reads_use_supported_catalog_paths_and_reject_invalid_inputs() {
         ),
         (
             "trakt_get_calendar",
-            json!({"target":"my","media_type":"movie","start_date":"2026-02-30","days":7}),
+            json!({"kind":"movies","target":"my","start_date":"2026-02-30","days":7}),
         ),
         (
             "trakt_get_calendar",
-            json!({"target":"all","media_type":"show","start_date":"2026-09-27","days":32}),
+            json!({"kind":"shows","target":"all","start_date":"2026-09-27","days":32}),
         ),
     ] {
         assert!(focused::prepare(name, args).is_err(), "{name}");
@@ -223,37 +223,6 @@ fn bundled_operation_ids_paths_and_schemas_are_consistent() {
         jsonschema::validator_for(&catalog::input_schema(op))
             .unwrap_or_else(|e| panic!("{id}: {e}"));
     }
-}
-
-#[test]
-fn discovery_pages_cover_every_operation_without_duplicates() {
-    let mut ids = HashSet::new();
-    let mut page = 1;
-    loop {
-        let found = catalog::discover(json!({"page":page,"limit":17})).unwrap();
-        assert_eq!(
-            found["pagination"]["item_count"],
-            catalog::operations().len()
-        );
-        for row in found["data"].as_array().unwrap() {
-            assert!(ids.insert(row["operation_id"].as_str().unwrap().to_owned()));
-        }
-        if found["pagination"]["has_more"] == false {
-            assert!(found["pagination"]["next_page"].is_null());
-            break;
-        }
-        page = found["pagination"]["next_page"].as_u64().unwrap();
-    }
-    assert_eq!(ids.len(), catalog::operations().len());
-    for invalid in [
-        json!({"page":0}),
-        json!({"limit":101}),
-        json!({"url":"https://evil.test"}),
-    ] {
-        assert!(catalog::discover(invalid).is_err());
-    }
-    assert!(catalog::find("not-an-operation").is_err());
-    assert!(catalog::describe(json!({"operation_id":"not-an-operation"})).is_err());
 }
 
 #[test]
@@ -524,7 +493,7 @@ fn get_operations_reject_any_body_including_explicit_json_null() {
         assert!(input.body.is_some());
         assert_eq!(
             catalog::prepare(op, &input, false).err().unwrap().code,
-            "invalid_api_parameters"
+            "invalid_parameters"
         );
     }
 }

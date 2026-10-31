@@ -161,24 +161,6 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
                     .set("Content-Type", "text/plain; charset=utf-8")?;
                 return Ok(response);
             }
-            "/.well-known/ai-plugin.json" => {
-                let contact = env
-                    .var("SUPPORT_EMAIL")
-                    .ok()
-                    .map(|v| v.to_string())
-                    .filter(|v| !v.is_empty())
-                    .ok_or(ApiError::new(404, "legacy_manifest_not_configured"))?;
-                return Ok(Response::from_json(
-                    &json!({"schema_version":"v1","name_for_human":"Trakt","name_for_model":"trakt","description_for_human":"Your Trakt history, recommendations and search.","description_for_model":"Read your own Trakt watched history, personalized recommendations, and movie/show search.","auth":{"type":"oauth","client_url":format!("{}/oauth/authorize",base),"scope":"trakt:read","authorization_url":format!("{}/oauth/token",base),"authorization_content_type":"application/x-www-form-urlencoded","verification_tokens":{}},"api":{"type":"openapi","url":format!("{}/openapi.json",base)},"logo_url":format!("{}/logo.svg",base),"contact_email":contact,"legal_info_url":format!("{}/data-privacy",base)}),
-                )?);
-            }
-            "/logo.svg" => {
-                let mut r = Response::ok(
-                    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='#ef4444'/><path d='M18 16h28v8H36v26h-8V24H18z' fill='white'/></svg>",
-                )?;
-                r.headers_mut().set("Content-Type", "image/svg+xml")?;
-                return Ok(r);
-            }
             "/.well-known/oauth-authorization-server"
             | "/.well-known/oauth-authorization-server/mcp"
             | "/.well-known/oauth-authorization-server/sse" => {

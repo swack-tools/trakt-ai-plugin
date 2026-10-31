@@ -1,6 +1,6 @@
 # Trakt MCP
 
-Connect your own [Trakt](https://trakt.tv/) account to Claude or Codex for recommendations, viewing history, title search, lists, and release calendars. Version 2.0.0 adds a documented API catalog and requested changes to your watchlist, history, ratings, and collection. Seven bundled skills guide these workflows; writes require explicit intent and a connection with write permission.
+Connect your own [Trakt](https://trakt.tv/) account to Claude or Codex for recommendations, viewing history, title search, lists, and release calendars. Version 3.0.0 replaces the generic API tools with curated tools that each perform one Trakt action, including requested changes to your lists, watchlist, history, ratings, and collection. Seven bundled skills guide these workflows; writes require explicit intent and a connection with write permission.
 
 ## Desktop setup
 
@@ -64,9 +64,9 @@ Use natural language or your client’s skill picker. See the [plugin README](pl
 
 ## API coverage and write access
 
-Fifteen MCP tools include six focused tools for public list discovery, list items, calendars, and personal list creation or item edits. The existing catalog tools still cover other documented API operations. Focused list writes require explicit confirmation, write authorization, and ownership verification. Successful calls include typed `structuredContent` while retaining the original JSON text for older clients. Catalog coverage does not mean every operation is callable; inspect an operation before using generic read/write tools. See the [API reference](https://trakt.swacktech.com/reference.html#api-coverage).
+Thirty-seven MCP tools each perform one fixed Trakt action, with fixed inputs defined in [`api/trakt/tools.json`](api/trakt/tools.json). They accept no free-form path, method, or request body. Every write requires explicit confirmation and write authorization, list changes also verify ownership, and writes are paced to Trakt's limit of one per second. Successful calls include typed `structuredContent` while retaining the original JSON text for older clients. See the [API reference](https://trakt.swacktech.com/reference.html#api-coverage).
 
-New browser OAuth connections request read and write access when scope is omitted, and the consent page states those permissions. Explicit `trakt:read` requests stay read-only. Existing tokens and standalone device login remain read-only; reauthorize through your client with `trakt:read trakt:write` for writes. Refresh cannot increase scope. The write tool also requires `confirmed: true` for a concrete change the user requested. Skills verify changes through reads and never automatically repeat a write after an uncertain failure.
+New browser OAuth connections request read and write access when scope is omitted, and the consent page states those permissions. Explicit `trakt:read` requests stay read-only. Existing tokens and standalone device login remain read-only; reauthorize through your client with `trakt:read trakt:write` for writes. Refresh cannot increase scope. Each write tool also requires `confirmed: true` for a concrete change the user requested. Skills verify changes through reads and never automatically repeat a write after an uncertain failure.
 
 ## Try asking
 

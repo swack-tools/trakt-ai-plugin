@@ -1,3 +1,4 @@
+use super::spec;
 use crate::error::ApiError;
 use serde_json::{Value, json};
 
@@ -26,13 +27,7 @@ pub fn success(tool: &str, data: Value) -> Value {
 }
 
 fn changes_data(tool: &str) -> bool {
-    matches!(
-        tool,
-        "trakt_api_write"
-            | "trakt_create_list"
-            | "trakt_add_list_items"
-            | "trakt_remove_list_items"
-    )
+    spec::find(tool).is_some_and(|tool| tool.kind == spec::Kind::Write)
 }
 
 pub fn failure(error: &ApiError) -> Value {
@@ -45,36 +40,28 @@ pub fn schema(tool: &str) -> Value {
     let generic = json!({"type":"object","required":["operation_id","status","data","pagination"],
         "properties":{"operation_id":{"type":"string"},"status":{"type":"integer"},
         "data":{},"pagination":{}},"additionalProperties":true});
-    let result = match tool {
-        "trakt_list_operations" => paged.clone(),
-        "trakt_get_operation" => json!({"type":"object","required":["operation_id"],
-            "properties":{"operation_id":{"type":"string"}},"additionalProperties":true}),
-        "trakt_api_read"
-        | "trakt_api_write"
-        | "trakt_discover_lists"
-        | "trakt_get_list_items"
-        | "trakt_get_calendar"
-        | "trakt_create_list"
-        | "trakt_add_list_items"
-        | "trakt_remove_list_items" => generic,
-        "trakt_request_login" => {
+    let output = spec::find(tool)
+        .unwrap_or_else(|| panic!("Output schema requested for unregistered tool: {tool}"))
+        .output;
+    let result = match output {
+        spec::Output::Operation => generic,
+        spec::Output::LoginRequest => {
             json!({"type":"object","required":["device_code","user_code","verification_url","expires_in","interval","instructions"],
             "properties":{"device_code":{"type":"string"},"user_code":{"type":"string"},
             "verification_url":{"type":"string"},"expires_in":{"type":"integer"},
             "interval":{"type":"integer"},"instructions":{"type":"string"}},"additionalProperties":false})
         }
-        "trakt_confirm_login" => json!({"type":"object","required":["status"],
+        spec::Output::LoginConfirm => json!({"type":"object","required":["status"],
             "properties":{"status":{"const":"connected"}},"additionalProperties":false}),
-        "trakt_get_watched_history" => json!({"anyOf":[paged.clone(),
+        spec::Output::Watched => json!({"anyOf":[paged.clone(),
             {"type":"object","required":["movies","shows"],
             "properties":{"movies":paged.clone(),"shows":paged.clone()},"additionalProperties":false}]}),
-        "trakt_get_recommendations" => paged.clone(),
-        "trakt_search" => {
+        spec::Output::Page => paged.clone(),
+        spec::Output::Search => {
             json!({"type":"object","required":["data","pagination","filters_applied_to_page"],
             "properties":{"data":{},"pagination":{},"filters_applied_to_page":{"type":"boolean"}},
             "additionalProperties":false})
         }
-        _ => panic!("Output schema requested for unregistered tool: {tool}"),
     };
     json!({"type":"object","required":["schema_version","tool","result"],
         "properties":{"schema_version":{"const":"1"},"tool":{"const":tool},"result":result},

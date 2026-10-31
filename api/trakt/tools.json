@@ -1,0 +1,2178 @@
+{
+  "schema_version": 1,
+  "tools": [
+    {
+      "name": "trakt_search",
+      "title": "Find a movie or show",
+      "description": "Search Trakt movies and shows by title. Genre and year filters apply only to the returned page, while pagination metadata describes the unfiltered search, so a filtered page can be empty while later pages still match.",
+      "kind": "read",
+      "handler": "search",
+      "operations": {
+        "selector": "media_type",
+        "map": {
+          "movie": "getSearchQuery",
+          "show": "getSearchQuery",
+          "movies": "getSearchQuery",
+          "shows": "getSearchQuery",
+          "all": "getSearchQuery"
+        },
+        "default": "all"
+      },
+      "output": "search",
+      "inputs": {
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "show",
+            "movies",
+            "shows",
+            "all"
+          ]
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "genres": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[a-z,-]+$",
+          "description": "Comma separated genre slugs."
+        },
+        "years": {
+          "type": "string",
+          "pattern": "^[0-9]{4}(-[0-9]{4})?$",
+          "description": "A year or inclusive YYYY-YYYY range."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "trakt_get_title",
+      "title": "Read a title's details",
+      "description": "Read the full details of one movie, show, or episode by its Trakt ID, slug, or IMDb ID. An episode also needs its season and episode numbers.",
+      "kind": "read",
+      "operations": {
+        "selector": "media_type",
+        "map": {
+          "movie": "getMoviesSummary",
+          "show": "getShowsSummary",
+          "episode": "getShowsEpisodeSummary"
+        }
+      },
+      "fixed": {
+        "query": {
+          "extended": "full"
+        }
+      },
+      "inputs": {
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "show",
+            "episode"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$",
+          "description": "Trakt ID, slug, or IMDb ID from a search result."
+        },
+        "season": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "episode": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        }
+      },
+      "required": [
+        "media_type",
+        "id"
+      ],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_get_people",
+      "title": "Read a title's cast and crew",
+      "description": "Read the cast and crew of one movie, show, or episode. An episode also needs its season and episode numbers.",
+      "kind": "read",
+      "operations": {
+        "selector": "media_type",
+        "map": {
+          "movie": "getMoviesPeople",
+          "show": "getShowsPeople",
+          "episode": "getShowsEpisodePeople"
+        }
+      },
+      "inputs": {
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "show",
+            "episode"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$",
+          "description": "Trakt ID, slug, or IMDb ID from a search result."
+        },
+        "season": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "episode": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        }
+      },
+      "required": [
+        "media_type",
+        "id"
+      ],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_get_related",
+      "title": "Read related titles",
+      "description": "Read one page of movies or shows Trakt lists as related to a title.",
+      "kind": "read",
+      "operations": {
+        "selector": "media_type",
+        "map": {
+          "movie": "getMoviesRelated",
+          "show": "getShowsRelated"
+        }
+      },
+      "defaults": {
+        "limit": 20
+      },
+      "inputs": {
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "show"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$",
+          "description": "Trakt ID, slug, or IMDb ID from a search result."
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "media_type",
+        "id"
+      ],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_get_seasons",
+      "title": "Read a show's seasons and episodes",
+      "description": "Read every season of a show with its episodes, including each episode's Trakt ID, season number, and episode number.",
+      "kind": "read",
+      "operation_id": "getShowsSeasons",
+      "fixed": {
+        "query": {
+          "extended": "episodes"
+        }
+      },
+      "inputs": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$",
+          "description": "Trakt ID, slug, or IMDb ID from a search result."
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_lookup_id",
+      "title": "Find a title by an external ID",
+      "description": "Find a movie, show, season, episode, or person from a Trakt, IMDb, TMDB, or TVDB ID.",
+      "kind": "read",
+      "operation_id": "getSearchLookup",
+      "bind": {
+        "media_type": "type"
+      },
+      "defaults": {
+        "limit": 20
+      },
+      "inputs": {
+        "id_type": {
+          "type": "string",
+          "enum": [
+            "trakt",
+            "imdb",
+            "tmdb",
+            "tvdb"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$"
+        },
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "show",
+            "season",
+            "episode",
+            "person"
+          ]
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "id_type",
+        "id"
+      ],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_get_recommendations",
+      "title": "Get personalized recommendations",
+      "description": "Get Trakt's personalized movie/show recommendations based on its viewing/preferences signals, filtered by genre and year. Select movie or show; limit 1-100.",
+      "kind": "read",
+      "handler": "recommendations",
+      "operations": {
+        "selector": "media_type",
+        "map": {
+          "movie": "getRecommendationsMoviesRecommend",
+          "movies": "getRecommendationsMoviesRecommend",
+          "show": "getRecommendationsShowsRecommend",
+          "shows": "getRecommendationsShowsRecommend"
+        },
+        "default": "movie"
+      },
+      "output": "page",
+      "inputs": {
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "show",
+            "movies",
+            "shows"
+          ]
+        },
+        "genres": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[a-z,-]+$",
+          "description": "Comma separated genre slugs."
+        },
+        "years": {
+          "type": "string",
+          "pattern": "^[0-9]{4}(-[0-9]{4})?$",
+          "description": "A year or inclusive YYYY-YYYY range."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "trakt_get_trending",
+      "title": "Read trending titles",
+      "description": "Read one page of the movies, shows, or both that are being watched most right now on Trakt, with optional genre, year, and library filters.",
+      "kind": "read",
+      "operations": {
+        "selector": "media_type",
+        "map": {
+          "movie": "getMoviesTrending",
+          "show": "getShowsTrending",
+          "all": "getMediaTrending"
+        }
+      },
+      "fixed": {
+        "query": {
+          "extended": "full"
+        }
+      },
+      "defaults": {
+        "limit": 20
+      },
+      "inputs": {
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "show",
+            "all"
+          ]
+        },
+        "genres": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[a-z,-]+$",
+          "description": "Comma separated genre slugs."
+        },
+        "years": {
+          "type": "string",
+          "pattern": "^[0-9]{4}(-[0-9]{4})?$",
+          "description": "A year or inclusive YYYY-YYYY range."
+        },
+        "ignore_watched": {
+          "type": "boolean"
+        },
+        "ignore_collected": {
+          "type": "boolean"
+        },
+        "ignore_watchlisted": {
+          "type": "boolean"
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "media_type"
+      ],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_get_popular",
+      "title": "Read popular titles",
+      "description": "Read one page of the movies, shows, or both that are most popular overall on Trakt, with optional genre, year, and library filters.",
+      "kind": "read",
+      "operations": {
+        "selector": "media_type",
+        "map": {
+          "movie": "getMoviesPopular",
+          "show": "getShowsPopular",
+          "all": "getMediaPopular"
+        }
+      },
+      "fixed": {
+        "query": {
+          "extended": "full"
+        }
+      },
+      "defaults": {
+        "limit": 20
+      },
+      "inputs": {
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "show",
+            "all"
+          ]
+        },
+        "genres": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[a-z,-]+$",
+          "description": "Comma separated genre slugs."
+        },
+        "years": {
+          "type": "string",
+          "pattern": "^[0-9]{4}(-[0-9]{4})?$",
+          "description": "A year or inclusive YYYY-YYYY range."
+        },
+        "ignore_watched": {
+          "type": "boolean"
+        },
+        "ignore_collected": {
+          "type": "boolean"
+        },
+        "ignore_watchlisted": {
+          "type": "boolean"
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "media_type"
+      ],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_get_anticipated",
+      "title": "Read anticipated titles",
+      "description": "Read one page of the movies, shows, or both that are most anticipated and not yet released on Trakt, with optional genre, year, and library filters.",
+      "kind": "read",
+      "operations": {
+        "selector": "media_type",
+        "map": {
+          "movie": "getMoviesAnticipated",
+          "show": "getShowsAnticipated",
+          "all": "getMediaAnticipated"
+        }
+      },
+      "fixed": {
+        "query": {
+          "extended": "full"
+        }
+      },
+      "defaults": {
+        "limit": 20
+      },
+      "inputs": {
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "show",
+            "all"
+          ]
+        },
+        "genres": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[a-z,-]+$",
+          "description": "Comma separated genre slugs."
+        },
+        "years": {
+          "type": "string",
+          "pattern": "^[0-9]{4}(-[0-9]{4})?$",
+          "description": "A year or inclusive YYYY-YYYY range."
+        },
+        "ignore_watched": {
+          "type": "boolean"
+        },
+        "ignore_collected": {
+          "type": "boolean"
+        },
+        "ignore_watchlisted": {
+          "type": "boolean"
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "media_type"
+      ],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_hide_recommendation",
+      "title": "Hide a recommendation",
+      "description": "Hide one movie or show from the connected account's future recommendations. Requires write authorization and confirmed=true.",
+      "kind": "write",
+      "operations": {
+        "selector": "media_type",
+        "map": {
+          "movie": "deleteRecommendationsMoviesHide",
+          "show": "deleteRecommendationsShowsHide"
+        }
+      },
+      "inputs": {
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "show"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$",
+          "description": "Trakt ID, slug, or IMDb ID from a search result."
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true,
+          "description": "True only when the user authorized this concrete change."
+        }
+      },
+      "required": [
+        "media_type",
+        "id",
+        "confirmed"
+      ],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_get_calendar",
+      "title": "Read upcoming Trakt releases",
+      "description": "Get one bounded UTC date window of releases from the personal (my) or public (all) calendar. kind selects shows, new shows, season premieres, finales, movies, streaming releases, or DVD releases. Dates and availability can change; a release is not proof of streaming access.",
+      "kind": "read",
+      "operations": {
+        "selector": "kind",
+        "map": {
+          "shows": "getCalendarsShows",
+          "new_shows": "getCalendarsNewShows",
+          "premieres": "getCalendarsSeasonPremieres",
+          "finales": "getCalendarsFinales",
+          "movies": "getCalendarsMovies",
+          "streaming": "getCalendarsStreaming",
+          "dvd": "getCalendarsDvdReleases"
+        }
+      },
+      "inputs": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "shows",
+            "new_shows",
+            "premieres",
+            "finales",
+            "movies",
+            "streaming",
+            "dvd"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "enum": [
+            "my",
+            "all"
+          ]
+        },
+        "start_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 31
+        },
+        "genres": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[a-z,-]+$",
+          "description": "Comma separated genre slugs."
+        },
+        "ignore_watched": {
+          "type": "boolean"
+        },
+        "ignore_collected": {
+          "type": "boolean"
+        },
+        "ignore_watchlisted": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "target",
+        "start_date",
+        "days"
+      ],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_get_watched_history",
+      "title": "Read watched movies and history",
+      "description": "Read one page (default 100) of the connected account's viewing. mode=all returns watched-title summaries with play counts, not play events; mode=recent returns chronological watch events, newest first, including repeat watches, and trakt_id limits those events to one movie or show. detail=compact (default) keeps identifiers, genres, dates, play counts, and each show's watched episode count; detail=full adds all upstream metadata. media_type=all returns separate movie and show pages, each with its own pagination. Complete history spans every page until has_more is false; a missing or failed page means incomplete coverage.",
+      "kind": "read",
+      "handler": "watched",
+      "operations": {
+        "selector": "mode",
+        "map": {
+          "all": "getSyncWatched",
+          "recent": "getSyncHistoryGet"
+        },
+        "default": "all"
+      },
+      "output": "watched",
+      "inputs": {
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "show",
+            "movies",
+            "shows",
+            "all"
+          ]
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295,
+          "default": 1
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 100
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "all",
+            "recent"
+          ],
+          "default": "all"
+        },
+        "detail": {
+          "type": "string",
+          "enum": [
+            "compact",
+            "full"
+          ],
+          "default": "compact"
+        },
+        "trakt_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        }
+      },
+      "required": [],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "trakt_get_show_progress",
+      "title": "Read a show's watched progress",
+      "description": "Read the connected account's watched progress for one show, including completed episodes and the next episode to watch.",
+      "kind": "read",
+      "operation_id": "getShowsProgressWatched",
+      "inputs": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$",
+          "description": "Trakt ID, slug, or IMDb ID from a search result."
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "specials": {
+          "type": "boolean"
+        },
+        "count_specials": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_get_up_next",
+      "title": "Read up next",
+      "description": "Read one page of the next episode to watch across the connected account's shows in progress.",
+      "kind": "read",
+      "operation_id": "getSyncProgressUpNextStandard",
+      "defaults": {
+        "limit": 20
+      },
+      "inputs": {
+        "sort_by": {
+          "type": "string",
+          "enum": [
+            "added",
+            "released",
+            "title",
+            "activity"
+          ]
+        },
+        "sort_how": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ]
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_get_stats",
+      "title": "Read viewing statistics",
+      "description": "Read the connected account's totals for movies, shows, seasons, episodes, ratings, and network activity.",
+      "kind": "read",
+      "operation_id": "getUsersStats",
+      "fixed": {
+        "path": {
+          "id": "me"
+        }
+      },
+      "inputs": {},
+      "required": [],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_add_history",
+      "title": "Mark titles as watched",
+      "description": "Record a watch event for up to 100 movies, shows, seasons, or episodes by Trakt ID. A show or season records all its episodes, and each call adds new plays. Requires write authorization and confirmed=true. An ambiguous result may already have recorded the plays.",
+      "kind": "write",
+      "operation_id": "postSyncHistoryAdd",
+      "body": {
+        "items": true
+      },
+      "inputs": {
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "properties": {
+              "media_type": {
+                "type": "string",
+                "enum": [
+                  "movie",
+                  "show",
+                  "season",
+                  "episode"
+                ]
+              },
+              "trakt_id": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18446744073709551615
+              },
+              "watched_at": {
+                "type": "string",
+                "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z|released|unknown)$",
+                "description": "UTC watch time, released for the release date, or unknown. Defaults to now."
+              }
+            },
+            "required": [
+              "media_type",
+              "trakt_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true,
+          "description": "True only when the user authorized this concrete change."
+        }
+      },
+      "required": [
+        "items",
+        "confirmed"
+      ],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_remove_history",
+      "title": "Remove watch history",
+      "description": "Remove watch events by history event ID, or every watch of up to 100 movies, shows, seasons, or episodes by Trakt ID. Requires write authorization and confirmed=true.",
+      "kind": "write",
+      "operation_id": "postSyncHistoryRemove",
+      "bind": {
+        "history_ids": "ids"
+      },
+      "body": {
+        "items": true,
+        "fields": [
+          "history_ids"
+        ]
+      },
+      "inputs": {
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "properties": {
+              "media_type": {
+                "type": "string",
+                "enum": [
+                  "movie",
+                  "show",
+                  "season",
+                  "episode"
+                ]
+              },
+              "trakt_id": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18446744073709551615
+              }
+            },
+            "required": [
+              "media_type",
+              "trakt_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "history_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18446744073709551615
+          }
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true,
+          "description": "True only when the user authorized this concrete change."
+        }
+      },
+      "required": [
+        "confirmed"
+      ],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_get_ratings",
+      "title": "Read your ratings",
+      "description": "Read one page of the connected account's ratings for movies, shows, episodes, seasons, or everything.",
+      "kind": "read",
+      "operations": {
+        "selector": "media_type",
+        "map": {
+          "all": "getUsersRatingsAll",
+          "movie": "getUsersRatingsMovies",
+          "show": "getUsersRatingsShows",
+          "episode": "getUsersRatingsEpisodes",
+          "season": {
+            "operation_id": "getUsersRatingsTypedRating",
+            "path": {
+              "type": "seasons"
+            }
+          }
+        }
+      },
+      "fixed": {
+        "path": {
+          "id": "me"
+        }
+      },
+      "defaults": {
+        "limit": 20
+      },
+      "inputs": {
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "all",
+            "movie",
+            "show",
+            "episode",
+            "season"
+          ]
+        },
+        "rating": {
+          "type": "string",
+          "enum": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10"
+          ],
+          "description": "Rating filter, required for seasons and accepted only for seasons."
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "media_type"
+      ],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_add_ratings",
+      "title": "Rate titles",
+      "description": "Set a 1-10 rating on up to 100 movies, shows, seasons, or episodes by Trakt ID. Requires write authorization and confirmed=true.",
+      "kind": "write",
+      "operation_id": "postSyncRatingsAdd",
+      "body": {
+        "items": true
+      },
+      "inputs": {
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "properties": {
+              "media_type": {
+                "type": "string",
+                "enum": [
+                  "movie",
+                  "show",
+                  "season",
+                  "episode"
+                ]
+              },
+              "trakt_id": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18446744073709551615
+              },
+              "rating": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10
+              }
+            },
+            "required": [
+              "media_type",
+              "trakt_id",
+              "rating"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true,
+          "description": "True only when the user authorized this concrete change."
+        }
+      },
+      "required": [
+        "items",
+        "confirmed"
+      ],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_remove_ratings",
+      "title": "Remove ratings",
+      "description": "Remove the connected account's rating from up to 100 movies, shows, seasons, or episodes by Trakt ID. Requires write authorization and confirmed=true.",
+      "kind": "write",
+      "operation_id": "postSyncRatingsRemove",
+      "body": {
+        "items": true
+      },
+      "inputs": {
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "properties": {
+              "media_type": {
+                "type": "string",
+                "enum": [
+                  "movie",
+                  "show",
+                  "season",
+                  "episode"
+                ]
+              },
+              "trakt_id": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18446744073709551615
+              }
+            },
+            "required": [
+              "media_type",
+              "trakt_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true,
+          "description": "True only when the user authorized this concrete change."
+        }
+      },
+      "required": [
+        "items",
+        "confirmed"
+      ],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_get_collection",
+      "title": "Read your collection",
+      "description": "Read the connected account's collected movies, shows, episodes, or all media. Movies, episodes, and all media return one page; shows return the whole collection and take no page or limit.",
+      "kind": "read",
+      "operations": {
+        "selector": "media_type",
+        "map": {
+          "movie": "getSyncCollectionMovies",
+          "show": "getSyncCollectionShows",
+          "episode": "getSyncCollectionEpisodes",
+          "all": "getSyncCollectionMedia"
+        }
+      },
+      "defaults": {
+        "limit": 20
+      },
+      "inputs": {
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "show",
+            "episode",
+            "all"
+          ]
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "media_type"
+      ],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_add_collection",
+      "title": "Add titles to your collection",
+      "description": "Add up to 100 movies, shows, seasons, or episodes to the connected account's collection by Trakt ID. Collecting a title does not mark it watched. Requires write authorization and confirmed=true.",
+      "kind": "write",
+      "operation_id": "postSyncCollectionAdd",
+      "body": {
+        "items": true
+      },
+      "inputs": {
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "properties": {
+              "media_type": {
+                "type": "string",
+                "enum": [
+                  "movie",
+                  "show",
+                  "season",
+                  "episode"
+                ]
+              },
+              "trakt_id": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18446744073709551615
+              }
+            },
+            "required": [
+              "media_type",
+              "trakt_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true,
+          "description": "True only when the user authorized this concrete change."
+        }
+      },
+      "required": [
+        "items",
+        "confirmed"
+      ],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_remove_collection",
+      "title": "Remove titles from your collection",
+      "description": "Remove up to 100 movies, shows, seasons, or episodes from the connected account's collection by Trakt ID. Requires write authorization and confirmed=true.",
+      "kind": "write",
+      "operation_id": "postSyncCollectionRemove",
+      "body": {
+        "items": true
+      },
+      "inputs": {
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "properties": {
+              "media_type": {
+                "type": "string",
+                "enum": [
+                  "movie",
+                  "show",
+                  "season",
+                  "episode"
+                ]
+              },
+              "trakt_id": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18446744073709551615
+              }
+            },
+            "required": [
+              "media_type",
+              "trakt_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true,
+          "description": "True only when the user authorized this concrete change."
+        }
+      },
+      "required": [
+        "items",
+        "confirmed"
+      ],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_get_watchlist",
+      "title": "Read your watchlist",
+      "description": "Read one page of the connected account's watchlist for movies, shows, seasons, episodes, or everything, in the chosen order.",
+      "kind": "read",
+      "operations": {
+        "selector": "media_type",
+        "map": {
+          "movie": {
+            "operation_id": "getSyncWatchlistGet",
+            "path": {
+              "type": "movies"
+            }
+          },
+          "show": {
+            "operation_id": "getSyncWatchlistGet",
+            "path": {
+              "type": "shows"
+            }
+          },
+          "season": {
+            "operation_id": "getSyncWatchlistGet",
+            "path": {
+              "type": "seasons"
+            }
+          },
+          "episode": {
+            "operation_id": "getSyncWatchlistGet",
+            "path": {
+              "type": "episodes"
+            }
+          },
+          "all": {
+            "operation_id": "getSyncWatchlistGet",
+            "path": {
+              "type": "all"
+            }
+          }
+        }
+      },
+      "defaults": {
+        "limit": 20,
+        "sort_by": "rank",
+        "sort_how": "asc"
+      },
+      "inputs": {
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "show",
+            "season",
+            "episode",
+            "all"
+          ]
+        },
+        "sort_by": {
+          "type": "string",
+          "enum": [
+            "rank",
+            "added",
+            "released",
+            "title"
+          ]
+        },
+        "sort_how": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ]
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "media_type"
+      ],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_add_watchlist",
+      "title": "Add titles to your watchlist",
+      "description": "Add up to 100 movies, shows, seasons, or episodes to the connected account's watchlist by Trakt ID. Requires write authorization and confirmed=true.",
+      "kind": "write",
+      "operation_id": "postSyncWatchlistAdd",
+      "body": {
+        "items": true
+      },
+      "inputs": {
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "properties": {
+              "media_type": {
+                "type": "string",
+                "enum": [
+                  "movie",
+                  "show",
+                  "season",
+                  "episode"
+                ]
+              },
+              "trakt_id": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18446744073709551615
+              }
+            },
+            "required": [
+              "media_type",
+              "trakt_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true,
+          "description": "True only when the user authorized this concrete change."
+        }
+      },
+      "required": [
+        "items",
+        "confirmed"
+      ],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_remove_watchlist",
+      "title": "Remove titles from your watchlist",
+      "description": "Remove up to 100 movies, shows, seasons, or episodes from the connected account's watchlist by Trakt ID. Requires write authorization and confirmed=true.",
+      "kind": "write",
+      "operation_id": "postSyncWatchlistRemove",
+      "body": {
+        "items": true
+      },
+      "inputs": {
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "properties": {
+              "media_type": {
+                "type": "string",
+                "enum": [
+                  "movie",
+                  "show",
+                  "season",
+                  "episode"
+                ]
+              },
+              "trakt_id": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18446744073709551615
+              }
+            },
+            "required": [
+              "media_type",
+              "trakt_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true,
+          "description": "True only when the user authorized this concrete change."
+        }
+      },
+      "required": [
+        "items",
+        "confirmed"
+      ],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_discover_lists",
+      "title": "Discover public Trakt lists",
+      "description": "Browse trending or popular public Trakt lists. Optional genre filters use upstream list filtering; this is not a free-text search. Follow pagination for more results.",
+      "kind": "read",
+      "operations": {
+        "selector": "view",
+        "map": {
+          "trending": "getListsTrending",
+          "popular": "getListsPopular"
+        },
+        "default": "trending"
+      },
+      "defaults": {
+        "limit": 20
+      },
+      "inputs": {
+        "view": {
+          "type": "string",
+          "enum": [
+            "trending",
+            "popular"
+          ]
+        },
+        "genres": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[a-z,-]+$",
+          "description": "Comma separated genre slugs."
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_get_list_items",
+      "title": "Read a Trakt list",
+      "description": "Read a page of movie, show, or all items from a public or authorized list using its owner and list ID, with optional sorting and library filters. Follow pagination for all items; reading a list does not grant edit permission.",
+      "kind": "read",
+      "operations": {
+        "selector": "media_type",
+        "map": {
+          "movie": "getUsersListsListItemsMovie",
+          "show": "getUsersListsListItemsShow",
+          "all": "getUsersListsListItemsAll"
+        }
+      },
+      "bind": {
+        "owner": "id"
+      },
+      "defaults": {
+        "limit": 20
+      },
+      "inputs": {
+        "owner": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$"
+        },
+        "list_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$"
+        },
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "show",
+            "all"
+          ]
+        },
+        "sort_by": {
+          "type": "string",
+          "enum": [
+            "rank",
+            "added",
+            "title",
+            "released",
+            "runtime",
+            "popularity",
+            "percentage",
+            "votes"
+          ]
+        },
+        "sort_how": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ]
+        },
+        "ignore_watched": {
+          "type": "boolean"
+        },
+        "ignore_collected": {
+          "type": "boolean"
+        },
+        "ignore_watchlisted": {
+          "type": "boolean"
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "owner",
+        "list_id",
+        "media_type"
+      ],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_get_my_lists",
+      "title": "Read your lists",
+      "description": "Read one page of the personal lists owned by the connected account.",
+      "kind": "read",
+      "operation_id": "getUsersListsPersonal",
+      "fixed": {
+        "path": {
+          "id": "me"
+        }
+      },
+      "defaults": {
+        "limit": 20
+      },
+      "inputs": {
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [],
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_create_list",
+      "title": "Create a personal Trakt list",
+      "description": "Create a list owned by the connected account. Lists are private unless privacy=public is explicitly requested. Requires write authorization and confirmed=true. An ambiguous result may already have created the list.",
+      "kind": "write",
+      "operation_id": "postUsersListsCreate",
+      "fixed": {
+        "path": {
+          "id": "me"
+        }
+      },
+      "defaults": {
+        "privacy": "private"
+      },
+      "body": {
+        "fields": [
+          "name",
+          "description",
+          "privacy",
+          "display_numbers",
+          "allow_comments",
+          "sort_by",
+          "sort_how"
+        ]
+      },
+      "inputs": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "\\S"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "privacy": {
+          "type": "string",
+          "enum": [
+            "private",
+            "public"
+          ]
+        },
+        "display_numbers": {
+          "type": "boolean"
+        },
+        "allow_comments": {
+          "type": "boolean"
+        },
+        "sort_by": {
+          "type": "string",
+          "enum": [
+            "rank",
+            "added",
+            "title",
+            "released",
+            "runtime",
+            "popularity",
+            "percentage",
+            "votes"
+          ]
+        },
+        "sort_how": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ]
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true,
+          "description": "True only when the user authorized this concrete change."
+        }
+      },
+      "required": [
+        "name",
+        "confirmed"
+      ],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_update_list",
+      "title": "Edit your list",
+      "description": "Change the name, description, privacy, or display options of a list owned by the connected account. Requires write authorization and confirmed=true.",
+      "kind": "write",
+      "operation_id": "putUsersListsListUpdate",
+      "fixed": {
+        "path": {
+          "id": "me"
+        }
+      },
+      "body": {
+        "fields": [
+          "name",
+          "description",
+          "privacy",
+          "display_numbers",
+          "allow_comments",
+          "sort_by",
+          "sort_how"
+        ]
+      },
+      "ownership": true,
+      "inputs": {
+        "list_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "\\S"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "privacy": {
+          "type": "string",
+          "enum": [
+            "private",
+            "public"
+          ]
+        },
+        "display_numbers": {
+          "type": "boolean"
+        },
+        "allow_comments": {
+          "type": "boolean"
+        },
+        "sort_by": {
+          "type": "string",
+          "enum": [
+            "rank",
+            "added",
+            "title",
+            "released",
+            "runtime",
+            "popularity",
+            "percentage",
+            "votes"
+          ]
+        },
+        "sort_how": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ]
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true,
+          "description": "True only when the user authorized this concrete change."
+        }
+      },
+      "required": [
+        "list_id",
+        "confirmed"
+      ],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_delete_list",
+      "title": "Delete your list",
+      "description": "Delete a list owned by the connected account and all its items. Requires write authorization and confirmed=true.",
+      "kind": "write",
+      "operation_id": "deleteUsersListsListDelete",
+      "fixed": {
+        "path": {
+          "id": "me"
+        }
+      },
+      "ownership": true,
+      "inputs": {
+        "list_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$"
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true,
+          "description": "True only when the user authorized this concrete change."
+        }
+      },
+      "required": [
+        "list_id",
+        "confirmed"
+      ],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_add_list_items",
+      "title": "Add titles to your list",
+      "description": "Add up to 100 distinct movie, show, season, or episode Trakt IDs to a list owned by the connected account. Requires write authorization and confirmed=true. Items already on the list are reported as existing.",
+      "kind": "write",
+      "operation_id": "postUsersListsListAdd",
+      "fixed": {
+        "path": {
+          "id": "me"
+        }
+      },
+      "body": {
+        "items": true
+      },
+      "ownership": true,
+      "inputs": {
+        "list_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$"
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "properties": {
+              "media_type": {
+                "type": "string",
+                "enum": [
+                  "movie",
+                  "show",
+                  "season",
+                  "episode"
+                ]
+              },
+              "trakt_id": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18446744073709551615
+              }
+            },
+            "required": [
+              "media_type",
+              "trakt_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true,
+          "description": "True only when the user authorized this concrete change."
+        }
+      },
+      "required": [
+        "list_id",
+        "items",
+        "confirmed"
+      ],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_remove_list_items",
+      "title": "Remove titles from your list",
+      "description": "Remove up to 100 distinct movie, show, season, or episode Trakt IDs from a list owned by the connected account. Requires write authorization and confirmed=true. Items not on the list are reported as not found.",
+      "kind": "write",
+      "operation_id": "postUsersListsListRemove",
+      "fixed": {
+        "path": {
+          "id": "me"
+        }
+      },
+      "body": {
+        "items": true
+      },
+      "ownership": true,
+      "inputs": {
+        "list_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]+$"
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "properties": {
+              "media_type": {
+                "type": "string",
+                "enum": [
+                  "movie",
+                  "show",
+                  "season",
+                  "episode"
+                ]
+              },
+              "trakt_id": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18446744073709551615
+              }
+            },
+            "required": [
+              "media_type",
+              "trakt_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true,
+          "description": "True only when the user authorized this concrete change."
+        }
+      },
+      "required": [
+        "list_id",
+        "items",
+        "confirmed"
+      ],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "output": "operation"
+    },
+    {
+      "name": "trakt_request_login",
+      "title": "Connect your Trakt account",
+      "description": "Start a Trakt device login for the connected user and return the activation URL and user code. Browser OAuth normally creates the connection; this reconnects it.",
+      "kind": "login",
+      "handler": "login_request",
+      "output": "login_request",
+      "inputs": {},
+      "required": [],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "trakt_confirm_login",
+      "title": "Complete Trakt connection",
+      "description": "Complete a device login after the user approves the code, replacing the connection's Trakt authorization on success. Returns authorization_pending until approval and slow_down when polled faster than the returned interval. Trakt tokens stay on the server.",
+      "kind": "login",
+      "handler": "login_confirm",
+      "output": "login_confirm",
+      "inputs": {
+        "device_code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "device_code"
+      ],
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    }
+  ]
+}

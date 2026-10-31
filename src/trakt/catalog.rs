@@ -24,84 +24,6 @@ pub fn find(id: &str) -> Result<&'static Value> {
         .find(|op| op["operation_id"] == id)
         .ok_or(ApiError::new(400, "unknown_operation"))
 }
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Discovery {
-    query: Option<String>,
-    category: Option<String>,
-    page: Option<u32>,
-    limit: Option<u32>,
-}
-pub fn discover(args: Value) -> Result<Value> {
-    let q: Discovery =
-        serde_json::from_value(args).map_err(|_| ApiError::new(400, "invalid_api_parameters"))?;
-    if q.query.as_ref().is_some_and(|s| s.len() > 200)
-        || q.category.as_ref().is_some_and(|s| s.len() > 100)
-    {
-        return Err(ApiError::new(400, "invalid_api_parameters"));
-    }
-    let (page, limit) = (q.page.unwrap_or(1), q.limit.unwrap_or(25));
-    if page == 0 || limit == 0 || limit > 100 {
-        return Err(ApiError::new(400, "invalid_pagination"));
-    }
-    let rows: Vec<_> = operations()
-        .iter()
-        .filter(|op| {
-            let text = format!(
-                "{} {} {} {}",
-                op["operation_id"], op["summary"], op["path"], op["categories"]
-            )
-            .to_lowercase();
-            q.query.as_ref().is_none_or(|s| {
-                s.to_lowercase()
-                    .split_whitespace()
-                    .all(|word| text.contains(word))
-            }) && q.category.as_ref().is_none_or(|category| {
-                op["categories"].as_array().is_some_and(|categories| {
-                    categories
-                        .iter()
-                        .any(|c| c.as_str().is_some_and(|s| s.eq_ignore_ascii_case(category)))
-                })
-            })
-        })
-        .collect();
-    let count = rows.len();
-    let pages = count.div_ceil(limit as usize);
-    let skip = (page as u64 - 1) * limit as u64;
-    let data: Vec<_> = rows
-        .into_iter()
-        .skip(usize::try_from(skip).unwrap_or(usize::MAX))
-        .take(limit as usize)
-        .map(|op| {
-            json!({"operation_id":op["operation_id"],"summary":op["summary"],
-            "method":op["method"],"path":op["path"],"categories":op["categories"],
-            "status":op["status"],"status_reason":op["status_reason"],
-            "tool":if op["method"]=="GET" {"trakt_api_read"} else {"trakt_api_write"}})
-        })
-        .collect();
-    Ok(
-        json!({"data":data,"pagination":{"page":page,"limit":limit,"item_count":count,
-        "page_count":pages,"has_more":(page as usize)<pages,
-        "next_page":if (page as usize)<pages {page.checked_add(1)} else {None}}}),
-    )
-}
-pub fn describe(args: Value) -> Result<Value> {
-    if args.as_object().is_none_or(|a| a.len() != 1) {
-        return Err(ApiError::new(400, "invalid_api_parameters"));
-    }
-    let id = args["operation_id"]
-        .as_str()
-        .ok_or(ApiError::new(400, "invalid_api_parameters"))?;
-    let mut op = find(id)?.clone();
-    op["input_schema"] = input_schema(&op);
-    op["tool"] = json!(if op["method"] == "GET" {
-        "trakt_api_read"
-    } else {
-        "trakt_api_write"
-    });
-    op["write_scope_required"] = json!(op["method"] != "GET");
-    Ok(op)
-}
 /// The catalog uses JSON Schema, with OpenAPI refs and nullable normalized at generation.
 pub fn input_schema(op: &Value) -> Value {
     let mut groups = Map::new();
@@ -166,7 +88,7 @@ fn scalar(value: &Value) -> Result<String> {
             .map(scalar)
             .collect::<Result<Vec<_>>>()
             .map(|parts| parts.join(",")),
-        _ => Err(ApiError::new(400, "invalid_api_parameters")),
+        _ => Err(ApiError::new(400, "invalid_parameters")),
     }
 }
 pub fn prepare(op: &Value, call: &Call, write: bool) -> Result<Prepared> {
@@ -183,7 +105,7 @@ pub fn prepare(op: &Value, call: &Call, write: bool) -> Result<Prepared> {
         return Err(ApiError::new(400, "confirmation_required"));
     }
     if !write && call.confirmed.is_some() {
-        return Err(ApiError::new(400, "invalid_api_parameters"));
+        return Err(ApiError::new(400, "invalid_parameters"));
     }
     let mut query = call.query_params.clone();
     // OpenAPI uses nullable for optional filters. Null means leave that filter
@@ -220,7 +142,7 @@ pub fn prepare(op: &Value, call: &Call, write: bool) -> Result<Prepared> {
         .build(&input_schema(op))
         .map_err(|_| ApiError::new(500, "invalid_operation_schema"))?;
     if !validator.is_valid(&input) {
-        return Err(ApiError::new(400, "invalid_api_parameters"));
+        return Err(ApiError::new(400, "invalid_parameters"));
     }
     let mut path = op["path"]
         .as_str()
@@ -237,7 +159,7 @@ pub fn prepare(op: &Value, call: &Call, write: bool) -> Result<Prepared> {
                 .bytes()
                 .all(|c| c.is_ascii_alphanumeric() || b"-_.:,".contains(&c))
         {
-            return Err(ApiError::new(400, "invalid_api_parameters"));
+            return Err(ApiError::new(400, "invalid_parameters"));
         }
         path = path.replace(&format!("{{{name}}}"), &value);
     }
@@ -247,7 +169,7 @@ pub fn prepare(op: &Value, call: &Call, write: bool) -> Result<Prepared> {
         || path.starts_with("/oauth/")
         || path.contains("/../")
     {
-        return Err(ApiError::new(400, "invalid_api_parameters"));
+        return Err(ApiError::new(400, "invalid_parameters"));
     }
     let query = query
         .iter()

@@ -1,4 +1,5 @@
 use super::{
+    auth::get_optional,
     catalog::{self, Call},
     client::{Client, response_pagination, upstream_error},
 };
@@ -7,18 +8,29 @@ use crate::{
     oauth,
 };
 use serde_json::{Value, json};
-use worker::{Method, Storage};
+use std::time::Duration;
+use worker::{Delay, Method, Storage};
 
-pub async fn execute(
-    c: &Client<'_>,
-    storage: &mut Storage,
-    session_id: &str,
-    args: Value,
-    write: bool,
-) -> Result<Value> {
-    let call: Call =
-        serde_json::from_value(args).map_err(|_| ApiError::new(400, "invalid_api_parameters"))?;
-    execute_call(c, storage, session_id, &call, write).await
+const PACED_UNTIL: &str = "trakt_paced_until";
+/// Trakt allows one authenticated POST, PUT, or DELETE per second per user.
+const PACE_MILLIS: u64 = 1000;
+
+/// Wait until the previous step of a paced sequence is at least a second old.
+pub async fn wait_for_pace(storage: &mut Storage) -> Result<()> {
+    if let Some(until) = get_optional::<u64>(storage, PACED_UNTIL).await? {
+        let now = worker::Date::now().as_millis();
+        if until > now {
+            Delay::from(Duration::from_millis(until - now)).await;
+        }
+    }
+    Ok(())
+}
+
+pub async fn mark_paced(storage: &mut Storage) -> Result<()> {
+    storage
+        .put(PACED_UNTIL, worker::Date::now().as_millis() + PACE_MILLIS)
+        .await?;
+    Ok(())
 }
 
 pub async fn execute_call(
@@ -49,7 +61,8 @@ pub async fn execute_call(
         .iter()
         .map(|(k, v)| (k.as_str(), v.clone()))
         .collect();
-    let r = c
+    wait_for_pace(storage).await?;
+    let sent = c
         .send(
             &request.path,
             method,
@@ -57,7 +70,11 @@ pub async fn execute_call(
             Some(&token),
             request.body.as_ref(),
         )
-        .await?;
+        .await;
+    if write {
+        mark_paced(storage).await?;
+    }
+    let r = sent?;
     if !(200..300).contains(&r.status) {
         return Err(upstream_error(&r));
     }

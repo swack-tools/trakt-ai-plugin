@@ -14,10 +14,13 @@ pub async fn watched(c: &Client<'_>, token: &str, q: &Query) -> Result<Value> {
 async fn page(c: &Client<'_>, token: &str, q: &Query, media: &str) -> Result<Value> {
     let recent = q.mode.as_deref() == Some("recent");
     let requested = q.page.unwrap_or(1);
-    let path = format!(
+    let mut path = format!(
         "/sync/{}/{media}",
         if recent { "history" } else { "watched" }
     );
+    if let Some(id) = q.trakt_id {
+        path.push_str(&format!("/{id}"));
+    }
     let mut result = c
         .get(
             &path,

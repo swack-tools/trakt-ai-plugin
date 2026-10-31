@@ -42,20 +42,53 @@ During browser authorization, approve the service connection, open the displayed
 
 Claude Code exposes skills under names such as `/trakt-mcp:what-to-watch`; other clients may select them from natural language or use their own skill picker. The instructions resolve the actual installed tool names rather than assuming a client namespace.
 
-The focused read tools are `trakt_search`, `trakt_get_watched_history`, `trakt_get_recommendations`, `trakt_discover_lists`, `trakt_get_list_items`, and `trakt_get_calendar`. The login tools, `trakt_request_login` and `trakt_confirm_login`, change authentication state. Three focused list writes, `trakt_create_list`, `trakt_add_list_items`, and `trakt_remove_list_items`, require write scope, `confirmed: true`, and, for edits, proof that the connected account owns the list. Creation defaults to private. Discovering a public list does not authorize editing it. Four additional tools expose the documented API through operation IDs:
+Each tool performs one fixed Trakt action with fixed inputs. Tools accept no free-form path, method, raw URL, header, or token. Every write requires write scope and `confirmed: true`; updating, deleting, or changing the items of a list also requires proof that the connected account owns it. List creation defaults to private. Discovering a public list does not authorize editing it. Writes are paced to Trakt's limit of one per second, so a change and its read-back can take a moment.
 
-| Tool | Purpose |
-| --- | --- |
-| `trakt_list_operations` | Search or filter the local operation catalog by query/category, one catalog page at a time. |
-| `trakt_get_operation` | Inspect exact path, query, and body schemas, authentication, availability, restrictions, and write annotations. |
-| `trakt_api_read` | Execute one supported GET operation with schema-validated parameters. |
-| `trakt_api_write` | Execute one supported write with explicit user intent, `confirmed: true`, and `trakt:write` permission. |
+| Area | Tool | Purpose |
+| --- | --- | --- |
+| Find | `trakt_search` | Search movies and shows by title, with optional genre and year filters on the returned page. |
+| Find | `trakt_get_title` | Read full details of one movie, show, or episode. |
+| Find | `trakt_get_people` | Read the cast and crew of a movie, show, or episode. |
+| Find | `trakt_get_related` | Read titles related to a movie or show. |
+| Find | `trakt_get_seasons` | Read a show's seasons with each episode's Trakt ID. |
+| Find | `trakt_lookup_id` | Find a title from a Trakt, IMDb, TMDB, or TVDB ID. |
+| Discover | `trakt_get_recommendations` | Read Trakt's personalized movie or show recommendations. |
+| Discover | `trakt_get_trending` | Read trending movies, shows, or both. |
+| Discover | `trakt_get_popular` | Read popular movies, shows, or both. |
+| Discover | `trakt_get_anticipated` | Read anticipated movies, shows, or both. |
+| Discover | `trakt_hide_recommendation` | Hide a movie or show from future recommendations (write). |
+| Calendar | `trakt_get_calendar` | Read a bounded personal or public window of shows, new shows, premieres, finales, movies, streaming, or DVD releases. |
+| History | `trakt_get_watched_history` | Read compact watched summaries or recent watch events, one page at a time. |
+| History | `trakt_get_show_progress` | Read watched progress for one show. |
+| History | `trakt_get_up_next` | Read the next episode across shows in progress. |
+| History | `trakt_get_stats` | Read account viewing totals. |
+| History | `trakt_add_history` | Record watch events (write). |
+| History | `trakt_remove_history` | Remove watch events by event ID or title (write). |
+| Ratings | `trakt_get_ratings` | Read your ratings. |
+| Ratings | `trakt_add_ratings` | Set 1-10 ratings (write). |
+| Ratings | `trakt_remove_ratings` | Remove ratings (write). |
+| Collection | `trakt_get_collection` | Read your collection. |
+| Collection | `trakt_add_collection` | Add titles to your collection (write). |
+| Collection | `trakt_remove_collection` | Remove titles from your collection (write). |
+| Watchlist | `trakt_get_watchlist` | Read your watchlist in the chosen order. |
+| Watchlist | `trakt_add_watchlist` | Add titles to your watchlist (write). |
+| Watchlist | `trakt_remove_watchlist` | Remove titles from your watchlist (write). |
+| Lists | `trakt_discover_lists` | Browse trending or popular public lists. |
+| Lists | `trakt_get_list_items` | Read one page of a public or authorized list. |
+| Lists | `trakt_get_my_lists` | Read your own lists. |
+| Lists | `trakt_create_list` | Create a private-by-default list (write). |
+| Lists | `trakt_update_list` | Edit a list you own (write). |
+| Lists | `trakt_delete_list` | Delete a list you own (write). |
+| Lists | `trakt_add_list_items` | Add titles to a list you own (write). |
+| Lists | `trakt_remove_list_items` | Remove titles from a list you own (write). |
+| Login | `trakt_request_login` | Reconnect your Trakt account with a device code. |
+| Login | `trakt_confirm_login` | Confirm the device code after approval. |
 
-Catalog coverage represents documented operations, including managed authentication and unavailable first-party operations. Presence in the catalog does not guarantee access through this integration or eligibility for an account feature. Inspect an operation before calling it; never invent IDs or parameters. Generic tools accept no raw URLs, headers, or tokens. Release or streaming metadata, where available, does not grant playback rights or prove access in a particular subscription.
+Release or streaming metadata, where available, does not grant playback rights or prove access in a particular subscription.
 
 New browser OAuth connections request `trakt:read trakt:write` when scope is omitted; the consent page describes writes. Explicit read-only requests remain read-only. Existing tokens and standalone device login retain read-only scope. Reauthorize through the client's OAuth flow for writes; refresh cannot elevate permission. A requested recommendation never authorizes saving or rating it. Skills execute a clear, concrete change without asking for the same confirmation twice, inspect per-item results, and read back the state. After an ambiguous failure, they check state instead of automatically replaying a write.
 
-Generic and focused list/calendar responses contain `operation_id`, upstream `status`, `data` (object, array, or empty result), and `pagination`. Paginated reads fetch one upstream page; unknown continuation metadata remains unknown and does not establish complete retrieval. Successful MCP results also provide a versioned `structuredContent` object with the same result as the JSON text block. A result larger than 60,000 characters fails with `tool_result_too_large`; request a smaller page instead. A write whose result is that large fails with `write_result_too_large`; Trakt already accepted it, so read the data back instead of repeating the write. Account restrictions, upstream validation, and rate limits still apply. See the [catalog reference](https://trakt.swacktech.com/reference.html#api-coverage) and the source snapshot under `api/trakt/` in the repository.
+Responses from most tools contain `operation_id`, upstream `status`, `data` (object, array, or empty result), and `pagination`. Paginated reads fetch one upstream page; unknown continuation metadata remains unknown and does not establish complete retrieval. Successful MCP results also provide a versioned `structuredContent` object with the same result as the JSON text block. A result larger than 60,000 characters fails with `tool_result_too_large`; request a smaller page instead. A write whose result is that large fails with `write_result_too_large`; Trakt already accepted it, so read the data back instead of repeating the write. Account restrictions, upstream validation, and rate limits still apply. See the [tool reference](https://trakt.swacktech.com/reference.html#api-coverage) and the reviewed tool spec under `api/trakt/` in the repository.
 
 `trakt_get_watched_history` accepts `media_type: movie|show|all`, `mode: all|recent` (default `all`), `page` (default 1), `limit` (1–100, default 100), and `detail: compact|full` (default `compact`). Each call returns one upstream page per requested medium. Compact detail reduces response size for traversal; full detail preserves the original upstream metadata for specific needs. `mode: all` returns watched-title summaries and play counts; `mode: recent` returns chronological watch events, newest first, including repeated watches. A show summary need not mean you finished the series; show events can represent episodes.
 
@@ -103,7 +136,7 @@ For reproducible bugs, use [GitHub issues](https://github.com/swack-tools/trakt-
 
 ## License and assets
 
-This package is licensed under [GPL-3.0-only](LICENSE). Its original geometric artwork is also covered by that license; [asset provenance](assets/README.md) records the source and limitations. Trakt and platform names identify interoperable services, not project ownership of their marks. Version 2.0.0 adds an API operation catalog, generic read and write tools, explicit write authorization, and three additional skills. It preserves the five focused tools, compact watched responses, full-history traversal, and the `trakt-mcp` identity.
+This package is licensed under [GPL-3.0-only](LICENSE). Its original geometric artwork is also covered by that license; [asset provenance](assets/README.md) records the source and limitations. Trakt and platform names identify interoperable services, not project ownership of their marks. Version 3.0.0 replaces the generic API tools with 37 curated single-action tools. It preserves compact watched responses, full-history traversal, explicit write authorization, and the `trakt-mcp` identity.
 
 ## Publisher and private reports
 
