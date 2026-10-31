@@ -636,3 +636,8 @@ test('optional-body comment likes send no JSON payload and GET rejects explicit 
  }
  assert.equal(requests.length,start+1,'GET bodies must be rejected before an upstream call');
 });
+// Runs last so it covers every upstream request the suite made.
+test('every Trakt data request carries the user token',()=>{
+ const anonymous=requests.filter(r=>!r.path.startsWith('/oauth/')&&!r.headers.authorization).map(r=>`${r.method} ${r.path}`);
+ assert.ok(requests.length>100);assert.deepEqual([...new Set(anonymous)],[]);
+});
