@@ -45,7 +45,7 @@ class ReleasePackageTests(unittest.TestCase):
                     manifest = json.loads(zipped.read(f'trakt-mcp/{manifest_path}'))
                     mcp = json.loads(zipped.read(f'trakt-mcp/{mcp_path}'))
                     self.assertEqual(manifest['name'], 'trakt-mcp')
-                    self.assertEqual(manifest['version'], '2.0.0')
+                    self.assertEqual(manifest['version'], '3.0.0')
                     self.assertEqual(len(mcp['mcpServers']), 1)
                     self.assertTrue(mcp['mcpServers']['trakt']['url'].endswith('/mcp'))
 

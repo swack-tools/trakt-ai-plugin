@@ -53,14 +53,6 @@ pattern = "${CLOUDFLARE_PLUGIN_DNS}/.well-known/openai-apps-challenge*"
 zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
 [[routes]]
-pattern = "${CLOUDFLARE_PLUGIN_DNS}/.well-known/ai-plugin.json*"
-zone_name = "${CLOUDFLARE_ZONE_NAME}"
-
-[[routes]]
-pattern = "${CLOUDFLARE_PLUGIN_DNS}/logo.svg*"
-zone_name = "${CLOUDFLARE_ZONE_NAME}"
-
-[[routes]]
 pattern = "${CLOUDFLARE_PLUGIN_DNS}/login.js*"
 zone_name = "${CLOUDFLARE_ZONE_NAME}"
 

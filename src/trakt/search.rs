@@ -5,7 +5,7 @@ pub async fn search_media(c: &Client<'_>, token: &str, q: &Query) -> Result<Valu
     if q.query.is_none() {
         return Err(ApiError::new(400, "query_required"));
     }
-    if q.mode.is_some() || q.detail.is_some() {
+    if q.mode.is_some() || q.detail.is_some() || q.trakt_id.is_some() {
         return Err(ApiError::new(400, "invalid_parameters"));
     }
     let media = match q.media_type.as_deref().unwrap_or("all") {

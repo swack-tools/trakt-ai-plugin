@@ -9,11 +9,18 @@ import struct
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = {'what-to-watch','watching-profile','find-title','connection-help',
           'lists-and-watchlist','upcoming-releases','manage-library'}
-TOOLS = {'trakt_search','trakt_get_watched_history','trakt_get_recommendations',
-         'trakt_request_login','trakt_confirm_login','trakt_list_operations',
-         'trakt_get_operation','trakt_api_read','trakt_api_write',
-         'trakt_discover_lists','trakt_get_list_items','trakt_get_calendar',
-         'trakt_create_list','trakt_add_list_items','trakt_remove_list_items'}
+TOOLS = {'trakt_search','trakt_get_title','trakt_get_people','trakt_get_related',
+         'trakt_get_seasons','trakt_lookup_id','trakt_get_recommendations',
+         'trakt_get_trending','trakt_get_popular','trakt_get_anticipated',
+         'trakt_hide_recommendation','trakt_get_calendar','trakt_get_watched_history',
+         'trakt_get_show_progress','trakt_get_up_next','trakt_get_stats',
+         'trakt_add_history','trakt_remove_history','trakt_get_ratings',
+         'trakt_add_ratings','trakt_remove_ratings','trakt_get_collection',
+         'trakt_add_collection','trakt_remove_collection','trakt_get_watchlist',
+         'trakt_add_watchlist','trakt_remove_watchlist','trakt_discover_lists',
+         'trakt_get_list_items','trakt_get_my_lists','trakt_create_list',
+         'trakt_update_list','trakt_delete_list','trakt_add_list_items',
+         'trakt_remove_list_items','trakt_request_login','trakt_confirm_login'}
 FORBIDDEN_NAMES = {'.DS_Store','Thumbs.db','node_modules','.git','.env','wrangler.toml','__pycache__'}
 
 

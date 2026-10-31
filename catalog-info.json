@@ -209,7 +209,7 @@
         "Install the plugin or the named standalone skill, and separately enable the Trakt MCP connection. Skills alone do not supply tools or authenticate the server.",
         "A concrete requested change and a connection with trakt:write; pass confirmed: true only for that intent. Reauthorize older read-only connections through client OAuth; refresh and device login cannot increase scope."
       ],
-      "expected_behavior": "Resolve the title and inspect each operation schema before writing. Require a write-enabled connection and explicit requested effects; verify each result by reading state and never replay an uncertain write automatically.",
+      "expected_behavior": "Resolve the title before writing. Require a write-enabled connection and explicit requested effects; verify each result by reading state and never replay an uncertain write automatically.",
       "sources": [
         {
           "path": "plugins/trakt-mcp/skills/manage-library/SKILL.md",
@@ -315,138 +315,315 @@
       "evidence": "documented"
     },
     {
-      "id": "tool-trakt_list_operations",
+      "id": "tool-trakt_search",
       "capability_refs": [
-        "mcp_tool:trakt_list_operations"
+        "mcp_tool:trakt_search"
       ],
-      "title": "Discover a Trakt operation",
-      "input_or_trigger": "Find documented Trakt calendar operations.",
+      "title": "Search for a title",
+      "input_or_trigger": "Search Trakt for Arrival.",
       "platform": "claude",
       "prerequisites": [
         "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
-      "expected_behavior": "Search the bundled operation catalog by query or category and follow its catalog pagination as needed. A catalog entry does not guarantee account eligibility or callability.",
+      "expected_behavior": "Search movies or shows with supported filters. For ordinary lookup stay bounded; follow every page only when all results are explicitly requested, and distinguish page-local filters from total pagination.",
       "sources": [
         {
-          "path": "plugins/trakt-mcp/skills/upcoming-releases/SKILL.md",
+          "path": "plugins/trakt-mcp/skills/find-title/SKILL.md",
           "format": "markdown",
           "mode": "section",
           "heading_path": [
-            "Upcoming releases"
+            "Find a movie or show"
           ]
         },
         {
-          "path": "src/mcp/protocol.rs"
+          "path": "api/trakt/tools.json"
+        },
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Try asking"
+          ]
         }
       ],
       "evidence": "documented"
     },
     {
-      "id": "tool-trakt_get_operation",
+      "id": "tool-trakt_get_title",
       "capability_refs": [
-        "mcp_tool:trakt_get_operation"
+        "mcp_tool:trakt_get_title"
       ],
-      "title": "Inspect an operation schema",
-      "input_or_trigger": "Show me the exact schema and restrictions for the calendar operation you found.",
+      "title": "Read a title's details",
+      "input_or_trigger": "Show me the details for Arrival (2016).",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Return the full details of the resolved movie, show, or episode. Details do not establish streaming availability.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/find-title/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Find a movie or show"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_people",
+      "capability_refs": [
+        "mcp_tool:trakt_get_people"
+      ],
+      "title": "Read cast and crew",
+      "input_or_trigger": "Who is in the cast of Arrival (2016)?",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Return the cast and crew Trakt lists for the resolved title.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/find-title/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Find a movie or show"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_related",
+      "capability_refs": [
+        "mcp_tool:trakt_get_related"
+      ],
+      "title": "Read related titles",
+      "input_or_trigger": "What is related to Arrival (2016)?",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Return one page of titles Trakt lists as related; this is not a personalized recommendation.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/find-title/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Find a movie or show"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_seasons",
+      "capability_refs": [
+        "mcp_tool:trakt_get_seasons"
+      ],
+      "title": "Read seasons and episodes",
+      "input_or_trigger": "List the seasons and episodes of this show.",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Return every season with each episode's Trakt ID, season, and number.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/find-title/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Find a movie or show"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_lookup_id",
+      "capability_refs": [
+        "mcp_tool:trakt_lookup_id"
+      ],
+      "title": "Look up an external ID",
+      "input_or_trigger": "Which title has IMDb ID tt2543164?",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Resolve a Trakt, IMDb, TMDB, or TVDB ID to its Trakt title.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/find-title/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Find a movie or show"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_recommendations",
+      "capability_refs": [
+        "mcp_tool:trakt_get_recommendations"
+      ],
+      "title": "Get Trakt recommendations",
+      "input_or_trigger": "Recommend science-fiction movies from 2020 onward.",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Return Trakt-personalized movie or show recommendations with supported genre/year filters and a bounded limit. Do not imply a separate model or streaming availability; this tool has no page parameter.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/what-to-watch/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "What to watch"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        },
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Try asking"
+          ]
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_trending",
+      "capability_refs": [
+        "mcp_tool:trakt_get_trending"
+      ],
+      "title": "Read trending titles",
+      "input_or_trigger": "What movies are trending on Trakt?",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Return one page of trending titles with optional genre, year, and library filters.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/what-to-watch/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "What to watch"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_popular",
+      "capability_refs": [
+        "mcp_tool:trakt_get_popular"
+      ],
+      "title": "Read popular titles",
+      "input_or_trigger": "What shows are popular on Trakt?",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Return one page of popular titles with optional genre, year, and library filters.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/what-to-watch/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "What to watch"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_anticipated",
+      "capability_refs": [
+        "mcp_tool:trakt_get_anticipated"
+      ],
+      "title": "Read anticipated titles",
+      "input_or_trigger": "What movies are most anticipated?",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Return one page of anticipated titles with optional genre, year, and library filters.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/what-to-watch/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "What to watch"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_hide_recommendation",
+      "capability_refs": [
+        "mcp_tool:trakt_hide_recommendation"
+      ],
+      "title": "Hide a recommendation",
+      "input_or_trigger": "Stop recommending this movie to me.",
       "platform": "claude",
       "prerequisites": [
         "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
-        "First discover the actual operation ID with trakt_list_operations; inspect its schema before execution. Do not guess identifiers or availability."
+        "A write requires a connection with trakt:write and a concrete requested change."
       ],
-      "expected_behavior": "Return the selected operation's exact parameters, authentication, availability, restrictions, and effects; use this before constructing a generic API request.",
+      "expected_behavior": "Hide one movie or show from future recommendations after an explicit request. A dislike alone does not authorize it.",
       "sources": [
         {
-          "path": "plugins/trakt-mcp/skills/upcoming-releases/SKILL.md",
+          "path": "plugins/trakt-mcp/skills/what-to-watch/SKILL.md",
           "format": "markdown",
           "mode": "section",
           "heading_path": [
-            "Upcoming releases"
+            "What to watch"
           ]
         },
         {
-          "path": "src/mcp/protocol.rs"
-        }
-      ],
-      "evidence": "documented"
-    },
-    {
-      "id": "tool-trakt_api_read",
-      "capability_refs": [
-        "mcp_tool:trakt_api_read"
-      ],
-      "title": "Read an inspected operation",
-      "input_or_trigger": "Read the calendar operation we just inspected for my chosen date window.",
-      "platform": "claude",
-      "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
-        "First discover the actual operation ID with trakt_list_operations; inspect its schema before execution. Do not guess identifiers or availability."
-      ],
-      "expected_behavior": "Execute one allowlisted GET only with the inspected operation ID and schema-supported parameters. Follow returned pagination when requested and report unknown or partial coverage.",
-      "sources": [
-        {
-          "path": "plugins/trakt-mcp/skills/upcoming-releases/SKILL.md",
-          "format": "markdown",
-          "mode": "section",
-          "heading_path": [
-            "Upcoming releases"
-          ]
-        },
-        {
-          "path": "src/mcp/protocol.rs"
-        }
-      ],
-      "evidence": "documented"
-    },
-    {
-      "id": "tool-trakt_discover_lists",
-      "capability_refs": [
-        "mcp_tool:trakt_discover_lists"
-      ],
-      "title": "Browse public lists",
-      "input_or_trigger": "Show trending public science-fiction lists.",
-      "platform": "claude",
-      "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
-      ],
-      "expected_behavior": "Browse trending or popular public lists with an optional genre slug and pagination. Genre filtering is not free-text list search; discovery does not grant edit permission.",
-      "sources": [
-        {
-          "path": "plugins/trakt-mcp/skills/lists-and-watchlist/SKILL.md",
-          "format": "markdown",
-          "mode": "section",
-          "heading_path": [
-            "Lists and watchlist"
-          ]
-        },
-        {
-          "path": "src/mcp/protocol.rs"
-        }
-      ],
-      "evidence": "documented"
-    },
-    {
-      "id": "tool-trakt_get_list_items",
-      "capability_refs": [
-        "mcp_tool:trakt_get_list_items"
-      ],
-      "title": "Read one list page",
-      "input_or_trigger": "Show the movies on this list by its owner and list ID.",
-      "platform": "claude",
-      "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
-      ],
-      "expected_behavior": "Read one movie or show page using the returned owner and list ID, following pagination for a complete listing. Reading a public list does not authorize editing it.",
-      "sources": [
-        {
-          "path": "plugins/trakt-mcp/skills/lists-and-watchlist/SKILL.md",
-          "format": "markdown",
-          "mode": "section",
-          "heading_path": [
-            "Lists and watchlist"
-          ]
-        },
-        {
-          "path": "src/mcp/protocol.rs"
+          "path": "api/trakt/tools.json"
         }
       ],
       "evidence": "documented"
@@ -473,7 +650,7 @@
           ]
         },
         {
-          "path": "src/mcp/protocol.rs"
+          "path": "api/trakt/tools.json"
         },
         {
           "path": "README.md",
@@ -482,6 +659,508 @@
           "heading_path": [
             "Try asking"
           ]
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_watched_history",
+      "capability_refs": [
+        "mcp_tool:trakt_get_watched_history"
+      ],
+      "title": "Read watched summaries",
+      "input_or_trigger": "Show me the movies and TV shows I’ve watched.",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Read one page per requested medium. For all-history requests, follow each stream's next_page until has_more=false and next_page=null; otherwise report partial coverage. Recent mode is bounded to the latest 100 events per medium.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/watching-profile/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Watching profile"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        },
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Try asking"
+          ]
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_show_progress",
+      "capability_refs": [
+        "mcp_tool:trakt_get_show_progress"
+      ],
+      "title": "Read show progress",
+      "input_or_trigger": "How far am I through this show?",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Return watched progress and the next episode for one show.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/watching-profile/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Watching profile"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_up_next",
+      "capability_refs": [
+        "mcp_tool:trakt_get_up_next"
+      ],
+      "title": "Read up next",
+      "input_or_trigger": "What should I watch next from my shows?",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Return one page of next episodes across shows in progress.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/watching-profile/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Watching profile"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_stats",
+      "capability_refs": [
+        "mcp_tool:trakt_get_stats"
+      ],
+      "title": "Read viewing totals",
+      "input_or_trigger": "How many movies have I watched?",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Return account totals from Trakt without inferring anything beyond them.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/watching-profile/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Watching profile"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_add_history",
+      "capability_refs": [
+        "mcp_tool:trakt_add_history"
+      ],
+      "title": "Record a watch",
+      "input_or_trigger": "Mark Arrival (2016) as watched.",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "A write requires a connection with trakt:write and a concrete requested change."
+      ],
+      "expected_behavior": "Record exactly the requested watch. Each add creates new plays, so an uncertain result is checked by reading history rather than repeated.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/find-title/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Find a movie or show"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_remove_history",
+      "capability_refs": [
+        "mcp_tool:trakt_remove_history"
+      ],
+      "title": "Remove a watch",
+      "input_or_trigger": "Remove my watch of Arrival from last night.",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "A write requires a connection with trakt:write and a concrete requested change."
+      ],
+      "expected_behavior": "Remove the identified watch event or title's watches after the scope is clear, then read history back.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/manage-library/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Manage a Trakt library"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_ratings",
+      "capability_refs": [
+        "mcp_tool:trakt_get_ratings"
+      ],
+      "title": "Read ratings",
+      "input_or_trigger": "What have I rated 8?",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Return one page of the account's ratings, including the read-back after a rating change.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/manage-library/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Manage a Trakt library"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_add_ratings",
+      "capability_refs": [
+        "mcp_tool:trakt_add_ratings"
+      ],
+      "title": "Rate a title",
+      "input_or_trigger": "Rate Arrival (2016) 8.",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "A write requires a connection with trakt:write and a concrete requested change."
+      ],
+      "expected_behavior": "Set the requested 1-10 rating and verify it by reading ratings back. A rating does not imply a watch or collection change.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/manage-library/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Manage a Trakt library"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_remove_ratings",
+      "capability_refs": [
+        "mcp_tool:trakt_remove_ratings"
+      ],
+      "title": "Remove a rating",
+      "input_or_trigger": "Remove my rating for Arrival.",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "A write requires a connection with trakt:write and a concrete requested change."
+      ],
+      "expected_behavior": "Remove the requested rating and verify it by reading ratings back.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/manage-library/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Manage a Trakt library"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_collection",
+      "capability_refs": [
+        "mcp_tool:trakt_get_collection"
+      ],
+      "title": "Read collection",
+      "input_or_trigger": "What movies are in my collection?",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Return the account's collected titles, including the read-back after a collection change.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/manage-library/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Manage a Trakt library"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_add_collection",
+      "capability_refs": [
+        "mcp_tool:trakt_add_collection"
+      ],
+      "title": "Collect a title",
+      "input_or_trigger": "Add Arrival (2016) to my collection.",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "A write requires a connection with trakt:write and a concrete requested change."
+      ],
+      "expected_behavior": "Add the requested title and verify it by reading the collection back. Collecting does not mark it watched.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/manage-library/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Manage a Trakt library"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_remove_collection",
+      "capability_refs": [
+        "mcp_tool:trakt_remove_collection"
+      ],
+      "title": "Remove from collection",
+      "input_or_trigger": "Remove Arrival from my collection.",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "A write requires a connection with trakt:write and a concrete requested change."
+      ],
+      "expected_behavior": "Remove the requested title and verify it by reading the collection back.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/manage-library/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Manage a Trakt library"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_watchlist",
+      "capability_refs": [
+        "mcp_tool:trakt_get_watchlist"
+      ],
+      "title": "Read watchlist",
+      "input_or_trigger": "What is on my watchlist?",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Return one page of the watchlist in the chosen order.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/lists-and-watchlist/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Lists and watchlist"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_add_watchlist",
+      "capability_refs": [
+        "mcp_tool:trakt_add_watchlist"
+      ],
+      "title": "Add to watchlist",
+      "input_or_trigger": "Add Arrival (2016) to my watchlist.",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "A write requires a connection with trakt:write and a concrete requested change."
+      ],
+      "expected_behavior": "Add the requested title and verify it by reading the watchlist back.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/lists-and-watchlist/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Lists and watchlist"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_remove_watchlist",
+      "capability_refs": [
+        "mcp_tool:trakt_remove_watchlist"
+      ],
+      "title": "Remove from watchlist",
+      "input_or_trigger": "Remove Arrival from my watchlist.",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "A write requires a connection with trakt:write and a concrete requested change."
+      ],
+      "expected_behavior": "Remove the requested title and verify it by reading the watchlist back.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/lists-and-watchlist/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Lists and watchlist"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_discover_lists",
+      "capability_refs": [
+        "mcp_tool:trakt_discover_lists"
+      ],
+      "title": "Browse public lists",
+      "input_or_trigger": "Show trending public science-fiction lists.",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Browse trending or popular public lists with an optional genre slug and pagination. Genre filtering is not free-text list search; discovery does not grant edit permission.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/lists-and-watchlist/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Lists and watchlist"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_list_items",
+      "capability_refs": [
+        "mcp_tool:trakt_get_list_items"
+      ],
+      "title": "Read one list page",
+      "input_or_trigger": "Show the movies on this list by its owner and list ID.",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Read one movie or show page using the returned owner and list ID, following pagination for a complete listing. Reading a public list does not authorize editing it.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/lists-and-watchlist/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Lists and watchlist"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_get_my_lists",
+      "capability_refs": [
+        "mcp_tool:trakt_get_my_lists"
+      ],
+      "title": "Read my lists",
+      "input_or_trigger": "What lists do I have on Trakt?",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+      ],
+      "expected_behavior": "Return one page of the lists owned by the connected account.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/lists-and-watchlist/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Lists and watchlist"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
         }
       ],
       "evidence": "documented"
@@ -509,7 +1188,7 @@
           ]
         },
         {
-          "path": "src/mcp/protocol.rs"
+          "path": "api/trakt/tools.json"
         },
         {
           "path": "README.md",
@@ -531,6 +1210,62 @@
       "evidence": "documented"
     },
     {
+      "id": "tool-trakt_update_list",
+      "capability_refs": [
+        "mcp_tool:trakt_update_list"
+      ],
+      "title": "Edit my list",
+      "input_or_trigger": "Rename my Rainy Sunday list to Stormy Sunday.",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "A write requires a connection with trakt:write and a concrete requested change."
+      ],
+      "expected_behavior": "Change only the requested fields of a list the connected account owns. Foreign or unverifiable lists are refused.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/lists-and-watchlist/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Lists and watchlist"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
+      "id": "tool-trakt_delete_list",
+      "capability_refs": [
+        "mcp_tool:trakt_delete_list"
+      ],
+      "title": "Delete my list",
+      "input_or_trigger": "Delete my Rainy Sunday list.",
+      "platform": "claude",
+      "prerequisites": [
+        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "A write requires a connection with trakt:write and a concrete requested change."
+      ],
+      "expected_behavior": "Delete a list the connected account owns only on an explicit request. Foreign or unverifiable lists are refused.",
+      "sources": [
+        {
+          "path": "plugins/trakt-mcp/skills/lists-and-watchlist/SKILL.md",
+          "format": "markdown",
+          "mode": "section",
+          "heading_path": [
+            "Lists and watchlist"
+          ]
+        },
+        {
+          "path": "api/trakt/tools.json"
+        }
+      ],
+      "evidence": "documented"
+    },
+    {
       "id": "tool-trakt_add_list_items",
       "capability_refs": [
         "mcp_tool:trakt_add_list_items"
@@ -542,7 +1277,7 @@
         "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A concrete requested change and a connection with trakt:write; pass confirmed: true only for that intent. Reauthorize older read-only connections through client OAuth; refresh and device login cannot increase scope."
       ],
-      "expected_behavior": "Add up to 100 distinct movie/show Trakt IDs only to an owned list after resolving the target. Require write authorization and confirmed=true, then inspect the result and read back state.",
+      "expected_behavior": "Add up to 100 distinct movie, show, season, or episode Trakt IDs only to an owned list after resolving the target. Require write authorization and confirmed=true, then inspect the result and read back state.",
       "sources": [
         {
           "path": "plugins/trakt-mcp/skills/lists-and-watchlist/SKILL.md",
@@ -553,7 +1288,7 @@
           ]
         },
         {
-          "path": "src/mcp/protocol.rs"
+          "path": "api/trakt/tools.json"
         },
         {
           "path": "README.md",
@@ -586,7 +1321,7 @@
         "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A concrete requested change and a connection with trakt:write; pass confirmed: true only for that intent. Reauthorize older read-only connections through client OAuth; refresh and device login cannot increase scope."
       ],
-      "expected_behavior": "Remove only the resolved movie/show IDs from a list owned by the connected account. Require explicit intent, write authorization, and confirmed=true; verify the result without replaying an uncertain write.",
+      "expected_behavior": "Remove only the resolved title IDs from a list owned by the connected account. Require explicit intent, write authorization, and confirmed=true; verify the result without replaying an uncertain write.",
       "sources": [
         {
           "path": "plugins/trakt-mcp/skills/lists-and-watchlist/SKILL.md",
@@ -597,51 +1332,7 @@
           ]
         },
         {
-          "path": "src/mcp/protocol.rs"
-        },
-        {
-          "path": "README.md",
-          "format": "markdown",
-          "mode": "section",
-          "heading_path": [
-            "API coverage and write access"
-          ]
-        }
-      ],
-      "evidence": "documented"
-    },
-    {
-      "id": "tool-trakt_api_write",
-      "capability_refs": [
-        "mcp_tool:trakt_api_write"
-      ],
-      "title": "Make an inspected requested change",
-      "input_or_trigger": "Rate Arrival (2016) 8.",
-      "platform": "claude",
-      "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
-        "A concrete requested change and a connection with trakt:write; pass confirmed: true only for that intent. Reauthorize older read-only connections through client OAuth; refresh and device login cannot increase scope."
-      ],
-      "expected_behavior": "Use an inspected allowlisted write only for the user's concrete requested target and values, with trakt:write and confirmed=true. Read back after completion; inspect state rather than automatically retrying a timeout.",
-      "sources": [
-        {
-          "path": "plugins/trakt-mcp/skills/manage-library/SKILL.md",
-          "format": "markdown",
-          "mode": "section",
-          "heading_path": [
-            "Manage a Trakt library"
-          ]
-        },
-        {
-          "path": "src/mcp/protocol.rs"
-        },
-        {
-          "path": "README.md",
-          "format": "markdown",
-          "mode": "section",
-          "heading_path": [
-            "Try asking"
-          ]
+          "path": "api/trakt/tools.json"
         },
         {
           "path": "README.md",
@@ -711,111 +1402,6 @@
           "format": "html",
           "mode": "section",
           "selector": "#authentication"
-        }
-      ],
-      "evidence": "documented"
-    },
-    {
-      "id": "tool-trakt_get_watched_history",
-      "capability_refs": [
-        "mcp_tool:trakt_get_watched_history"
-      ],
-      "title": "Read watched summaries",
-      "input_or_trigger": "Show me the movies and TV shows I’ve watched.",
-      "platform": "claude",
-      "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
-      ],
-      "expected_behavior": "Read one page per requested medium. For all-history requests, follow each stream's next_page until has_more=false and next_page=null; otherwise report partial coverage. Recent mode is bounded to the latest 100 events per medium.",
-      "sources": [
-        {
-          "path": "plugins/trakt-mcp/skills/watching-profile/SKILL.md",
-          "format": "markdown",
-          "mode": "section",
-          "heading_path": [
-            "Watching profile"
-          ]
-        },
-        {
-          "path": "src/mcp/protocol.rs"
-        },
-        {
-          "path": "README.md",
-          "format": "markdown",
-          "mode": "section",
-          "heading_path": [
-            "Try asking"
-          ]
-        }
-      ],
-      "evidence": "documented"
-    },
-    {
-      "id": "tool-trakt_get_recommendations",
-      "capability_refs": [
-        "mcp_tool:trakt_get_recommendations"
-      ],
-      "title": "Get Trakt recommendations",
-      "input_or_trigger": "Recommend science-fiction movies from 2020 onward.",
-      "platform": "claude",
-      "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
-      ],
-      "expected_behavior": "Return Trakt-personalized movie or show recommendations with supported genre/year filters and a bounded limit. Do not imply a separate model or streaming availability; this tool has no page parameter.",
-      "sources": [
-        {
-          "path": "plugins/trakt-mcp/skills/what-to-watch/SKILL.md",
-          "format": "markdown",
-          "mode": "section",
-          "heading_path": [
-            "What to watch"
-          ]
-        },
-        {
-          "path": "src/mcp/protocol.rs"
-        },
-        {
-          "path": "README.md",
-          "format": "markdown",
-          "mode": "section",
-          "heading_path": [
-            "Try asking"
-          ]
-        }
-      ],
-      "evidence": "documented"
-    },
-    {
-      "id": "tool-trakt_search",
-      "capability_refs": [
-        "mcp_tool:trakt_search"
-      ],
-      "title": "Search for a title",
-      "input_or_trigger": "Search Trakt for Arrival.",
-      "platform": "claude",
-      "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
-      ],
-      "expected_behavior": "Search movies or shows with supported filters. For ordinary lookup stay bounded; follow every page only when all results are explicitly requested, and distinguish page-local filters from total pagination.",
-      "sources": [
-        {
-          "path": "plugins/trakt-mcp/skills/find-title/SKILL.md",
-          "format": "markdown",
-          "mode": "section",
-          "heading_path": [
-            "Find a movie or show"
-          ]
-        },
-        {
-          "path": "src/mcp/protocol.rs"
-        },
-        {
-          "path": "README.md",
-          "format": "markdown",
-          "mode": "section",
-          "heading_path": [
-            "Try asking"
-          ]
         }
       ],
       "evidence": "documented"

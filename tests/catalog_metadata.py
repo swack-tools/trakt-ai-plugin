@@ -170,36 +170,18 @@ class CatalogMetadataTests(unittest.TestCase):
         shutil.rmtree(self.root / 'plugins/trakt-mcp/skills/what-to-watch')
         self.rejected(self.data)
 
-    def test_tool_inventory_rejects_adapter_drift_and_comment_invention(self):
-        path = self.root / 'src/mcp/protocol.rs'
+    def test_tool_inventory_rejects_invented_and_malformed_tools(self):
+        path = self.root / 'api/trakt/tools.json'
         text = path.read_text()
-        path.write_text(text.replace('tool("trakt_search"', 'tool(dynamic_name'))
-        self.rejected(self.data)
-        path.write_text(text + '\n// tool("invented", "Fake", "Fake", x)\n')
         data = deepcopy(self.data)
         data['examples'][0]['capability_refs'] = ['mcp_tool:invented']
         self.rejected(data)
-
-    def test_non_helper_tools_and_alternate_return_construction_fail_closed(self):
-        import check_catalog
-        path = self.root / 'src/mcp/protocol.rs'
-        text = path.read_text()
-        for replacement in (
-            'json!({"tools":[json!({"name":"hidden_tool"}),',
-            'json!({"tools":[other_helper(),',
-            'json!({"tools":vec![',
-        ):
-            path.write_text(text.replace('json!({"tools":[', replacement))
-            with self.subTest(replacement=replacement), self.assertRaises(check_catalog.CatalogError):
-                self.validate(refresh_review=True)
-        for changed in (
-            text.replace('    json!({"tools":[', '    return json!({"tools":[]});\n    json!({"tools":['),
-            text.replace('    json!({"tools":[', '    let mut result = json!({"tools":[')
-                .replace('    ]})\n}', '    ]});\n    result["tools"].as_array_mut().unwrap().push(other_helper());\n    result\n}'),
-        ):
-            path.write_text(changed)
-            with self.subTest(changed=changed[-150:]), self.assertRaises(check_catalog.CatalogError):
-                self.validate(refresh_review=True)
+        document = json.loads(text)
+        document['tools'][0]['name'] = 'Not a tool name'
+        path.write_text(json.dumps(document))
+        self.rejected(self.data)
+        path.write_text(json.dumps({'tools': []}))
+        self.rejected(self.data)
 
     def test_nested_changelogs_require_selector_and_stay_fingerprinted(self):
         import check_catalog

@@ -15,6 +15,7 @@ pub struct Query {
     pub years: Option<String>,
     pub limit: Option<u32>,
     pub page: Option<u32>,
+    pub trakt_id: Option<u64>,
 }
 impl Query {
     pub fn parse(v: Value) -> Result<Self> {

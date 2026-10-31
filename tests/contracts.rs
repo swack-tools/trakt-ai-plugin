@@ -53,33 +53,82 @@ fn tool_metadata_distinguishes_account_reads_catalog_and_auth_changes() {
         names,
         [
             "trakt_search",
-            "trakt_get_watched_history",
+            "trakt_get_title",
+            "trakt_get_people",
+            "trakt_get_related",
+            "trakt_get_seasons",
+            "trakt_lookup_id",
             "trakt_get_recommendations",
-            "trakt_request_login",
-            "trakt_confirm_login",
-            "trakt_list_operations",
-            "trakt_get_operation",
-            "trakt_api_read",
-            "trakt_api_write",
+            "trakt_get_trending",
+            "trakt_get_popular",
+            "trakt_get_anticipated",
+            "trakt_hide_recommendation",
+            "trakt_get_calendar",
+            "trakt_get_watched_history",
+            "trakt_get_show_progress",
+            "trakt_get_up_next",
+            "trakt_get_stats",
+            "trakt_add_history",
+            "trakt_remove_history",
+            "trakt_get_ratings",
+            "trakt_add_ratings",
+            "trakt_remove_ratings",
+            "trakt_get_collection",
+            "trakt_add_collection",
+            "trakt_remove_collection",
+            "trakt_get_watchlist",
+            "trakt_add_watchlist",
+            "trakt_remove_watchlist",
             "trakt_discover_lists",
             "trakt_get_list_items",
-            "trakt_get_calendar",
+            "trakt_get_my_lists",
             "trakt_create_list",
+            "trakt_update_list",
+            "trakt_delete_list",
             "trakt_add_list_items",
             "trakt_remove_list_items",
+            "trakt_request_login",
+            "trakt_confirm_login",
         ]
         .into_iter()
         .collect()
     );
+    let find = |name| tools.iter().find(|tool| tool["name"] == name).unwrap();
     for tool in tools {
         assert!(tool["title"].as_str().unwrap().len() > 5);
+        jsonschema::validator_for(&tool["inputSchema"])
+            .expect("Every advertised tool has a valid schema");
+        let confirmed = &tool["inputSchema"]["properties"]["confirmed"];
+        let write = !confirmed.is_null();
+        assert_eq!(confirmed["const"].as_bool().unwrap_or(false), write);
+        if write {
+            let a = &tool["annotations"];
+            assert_eq!(a["readOnlyHint"], false, "{}", tool["name"]);
+            assert_eq!(a["destructiveHint"], true, "{}", tool["name"]);
+            assert_eq!(a["openWorldHint"], false, "{}", tool["name"]);
+            assert!(
+                tool["inputSchema"]["required"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!("confirmed"))
+            );
+        }
     }
-    let find = |name| tools.iter().find(|tool| tool["name"] == name).unwrap();
-    assert_eq!(
-        find("trakt_get_watched_history")["annotations"]["openWorldHint"],
-        false
-    );
-    assert_eq!(find("trakt_search")["annotations"]["openWorldHint"], true);
+    for (name, open) in [
+        ("trakt_search", true),
+        ("trakt_get_trending", true),
+        ("trakt_get_watched_history", false),
+        ("trakt_get_recommendations", false),
+        ("trakt_get_ratings", false),
+    ] {
+        assert_eq!(find(name)["annotations"]["openWorldHint"], open, "{name}");
+        assert_eq!(find(name)["annotations"]["readOnlyHint"], true, "{name}");
+        assert_eq!(
+            find(name)["annotations"]["destructiveHint"],
+            false,
+            "{name}"
+        );
+    }
     assert_eq!(
         find("trakt_confirm_login")["annotations"]["readOnlyHint"],
         false
@@ -92,48 +141,8 @@ fn tool_metadata_distinguishes_account_reads_catalog_and_auth_changes() {
         find("trakt_request_login")["annotations"]["readOnlyHint"],
         false
     );
-    for name in [
-        "trakt_list_operations",
-        "trakt_get_operation",
-        "trakt_api_read",
-    ] {
-        assert_eq!(find(name)["annotations"]["readOnlyHint"], true);
-        assert_eq!(find(name)["annotations"]["destructiveHint"], false);
-    }
-    assert_eq!(
-        find("trakt_list_operations")["annotations"]["openWorldHint"],
-        false
-    );
-    assert_eq!(
-        find("trakt_get_operation")["annotations"]["openWorldHint"],
-        false
-    );
-    assert_eq!(find("trakt_api_read")["annotations"]["openWorldHint"], true);
-    assert_eq!(
-        find("trakt_api_write")["annotations"]["readOnlyHint"],
-        false
-    );
-    assert_eq!(
-        find("trakt_api_write")["annotations"]["destructiveHint"],
-        true
-    );
-    assert_eq!(
-        find("trakt_api_write")["annotations"]["openWorldHint"],
-        true
-    );
-    assert_eq!(
-        find("trakt_api_write")["inputSchema"]["properties"]["confirmed"]["const"],
-        true
-    );
-    assert!(
-        find("trakt_api_write")["inputSchema"]["required"]
-            .as_array()
-            .unwrap()
-            .contains(&json!("confirmed"))
-    );
-    for tool in tools {
-        jsonschema::validator_for(&tool["inputSchema"])
-            .expect("Every advertised tool has a valid schema");
+    for name in ["trakt_add_history", "trakt_add_ratings"] {
+        assert_eq!(find(name)["annotations"]["idempotentHint"], false, "{name}");
     }
     assert!(
         !find("trakt_get_recommendations")["inputSchema"]["properties"]["media_type"]["enum"]
@@ -141,6 +150,22 @@ fn tool_metadata_distinguishes_account_reads_catalog_and_auth_changes() {
             .unwrap()
             .contains(&json!("all"))
     );
+}
+
+#[test]
+fn removed_generic_tools_stay_removed() {
+    let definitions = protocol::tools();
+    for name in [
+        "trakt_list_operations",
+        "trakt_get_operation",
+        "trakt_api_read",
+        "trakt_api_write",
+    ] {
+        assert!(
+            !definitions.to_string().contains(name),
+            "{name} is still advertised"
+        );
+    }
 }
 
 #[test]
@@ -152,26 +177,17 @@ fn tool_output_contracts_are_advertised_and_validate_success_envelopes() {
         assert!(schema.is_object(), "{name}: missing output schema");
         let validator = jsonschema::validator_for(schema).unwrap();
         let result = match name {
-            "trakt_list_operations" => json!({"data":[],"pagination":{}}),
-            "trakt_get_operation" => json!({"operation_id":"getCalendarsMovies"}),
-            "trakt_api_read"
-            | "trakt_api_write"
-            | "trakt_discover_lists"
-            | "trakt_get_list_items"
-            | "trakt_get_calendar"
-            | "trakt_create_list"
-            | "trakt_add_list_items"
-            | "trakt_remove_list_items" => {
-                json!({"operation_id":"getCalendarsMovies","status":200,"data":[],"pagination":null})
-            }
             "trakt_request_login" => {
                 json!({"device_code":"device","user_code":"ABCD","verification_url":"https://trakt.tv/activate","expires_in":600,"interval":5,"instructions":"Visit Trakt"})
             }
             "trakt_confirm_login" => json!({"status":"connected"}),
-            "trakt_get_watched_history" => json!({"data":[],"pagination":{}}),
-            "trakt_get_recommendations" => json!({"data":[],"pagination":{}}),
+            "trakt_get_watched_history" | "trakt_get_recommendations" => {
+                json!({"data":[],"pagination":{}})
+            }
             "trakt_search" => json!({"data":[],"pagination":{},"filters_applied_to_page":false}),
-            _ => panic!("unexpected tool {name}"),
+            _ => {
+                json!({"operation_id":"getCalendarsMovies","status":200,"data":[],"pagination":null})
+            }
         };
         let example = json!({"schema_version":"1","tool":name,"result":result});
         assert!(
@@ -182,11 +198,11 @@ fn tool_output_contracts_are_advertised_and_validate_success_envelopes() {
             !validator.is_valid(&json!({"schema_version":"1","tool":name})),
             "{name}: missing result accepted"
         );
-        if name == "trakt_api_read" {
+        if name == "trakt_get_calendar" {
             assert!(
                 !validator
                     .is_valid(&json!({"schema_version":"1","tool":name,"result":{"data":[]}})),
-                "generic result must identify the operation and status"
+                "an operation result must identify the operation and status"
             );
         }
     }

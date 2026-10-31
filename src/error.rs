@@ -74,9 +74,6 @@ pub fn describe(code: &str) -> &'static str {
             "This authorization already finished. Return to the client to continue."
         }
         "invalid_action" => "The browser step action must be start or poll.",
-        "invalid_api_parameters" => {
-            "The parameters do not match the operation schema. Read trakt_get_operation and correct path_params, query_params, or body once."
-        }
         "invalid_authorization_request" => {
             "The authorization request needs response_type=code and a redirect_uri registered for this client."
         }
@@ -109,7 +106,7 @@ pub fn describe(code: &str) -> &'static str {
             "The authorization service rejected this request. Restart the connection from the MCP client."
         }
         "invalid_operation_schema" => {
-            "The bundled catalog entry for this operation is invalid. Choose another operation or report the problem."
+            "The bundled catalog entry behind this tool is invalid. Report the problem."
         }
         "invalid_pagination" => {
             "page must be a positive integer and limit must be between 1 and 100."
@@ -148,9 +145,6 @@ pub fn describe(code: &str) -> &'static str {
         "invalid_years" => {
             "years must be a four-digit year or an inclusive YYYY-YYYY range between 1800 and 2200."
         }
-        "legacy_manifest_not_configured" => {
-            "This deployment does not publish the legacy plugin manifest."
-        }
         "list_not_owned" => {
             "The connected account does not own this list, so it cannot be changed."
         }
@@ -173,12 +167,14 @@ pub fn describe(code: &str) -> &'static str {
             "The SSE session_id is missing or unknown. Open a new /sse stream."
         }
         "not_found" => "No endpoint exists at this path.",
-        "operation_requires_read_tool" => "This operation is a read. Use trakt_api_read.",
+        "operation_requires_read_tool" => {
+            "This tool's mapped operation is a read and cannot run as a change. Report the problem."
+        }
         "operation_requires_write_tool" => {
-            "This operation changes data. Use trakt_api_write after the user requests the change."
+            "This tool's mapped operation changes data and cannot run as a read. Report the problem."
         }
         "operation_unavailable" => {
-            "This catalog operation is restricted or unsupported on this service."
+            "The Trakt operation behind this tool is restricted or unsupported on this service."
         }
         "origin_not_allowed" => "Requests from this browser origin are not allowed.",
         "pkce_required" => "Public clients must send a PKCE code_challenge.",
@@ -234,11 +230,11 @@ pub fn describe(code: &str) -> &'static str {
             "Trakt returned an unexpected error. Retry a read later; inspect state before repeating a write."
         }
         "trakt_validation_failed" => {
-            "Trakt rejected the submitted values. Correct them using the operation schema."
+            "Trakt rejected the submitted values. Correct them using the tool's input schema."
         }
         "unauthorized" => "Send a bearer access token from the MCP client's sign-in flow.",
         "unknown_operation" => {
-            "No catalog operation has this operation_id. Find one with trakt_list_operations."
+            "This tool maps to an operation missing from the catalog. Report the problem."
         }
         "unknown_tool" => "No tool has this name. Use a name from tools/list.",
         "unsupported_grant_type" => "grant_type must be authorization_code or refresh_token.",

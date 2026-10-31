@@ -161,7 +161,11 @@ fn every_data_change_is_marked_destructive() {
         "trakt_create_list",
         "trakt_add_list_items",
         "trakt_remove_list_items",
-        "trakt_api_write",
+        "trakt_add_history",
+        "trakt_remove_history",
+        "trakt_add_ratings",
+        "trakt_delete_list",
+        "trakt_hide_recommendation",
         "trakt_confirm_login",
     ] {
         assert_eq!(find(name)["annotations"]["destructiveHint"], true, "{name}");
@@ -171,7 +175,8 @@ fn every_data_change_is_marked_destructive() {
     }
     for name in [
         "trakt_create_list",
-        "trakt_api_write",
+        "trakt_add_history",
+        "trakt_add_ratings",
         "trakt_request_login",
         "trakt_confirm_login",
     ] {
@@ -190,10 +195,6 @@ fn tool_descriptions_describe_the_tool_instead_of_steering_the_model() {
             assert!(!description.contains(phrase), "{name}: {phrase}");
         }
     }
-    let write = find("trakt_api_write");
-    let description = write["description"].as_str().unwrap();
-    assert!(description.contains("Trakt API"));
-    assert!(description.contains("https://docs.trakt.tv"));
 }
 
 #[test]
@@ -247,7 +248,7 @@ fn tool_results_fit_claude_result_limits() {
     // A write that already reached Trakt must not read as a retriable size error.
     let row = serde_json::json!({"title":"x".repeat(1000)});
     for tool in [
-        "trakt_api_write",
+        "trakt_add_history",
         "trakt_create_list",
         "trakt_add_list_items",
         "trakt_remove_list_items",

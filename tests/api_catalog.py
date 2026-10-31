@@ -31,6 +31,11 @@ class CatalogTests(unittest.TestCase):
             if operation['request_body'] is not None:
                 Draft202012Validator.check_schema(operation['request_body']['schema'])
 
+    def test_account_operations_require_a_user_token(self):
+        for operation in CATALOG.values():
+            if operation['status'] == 'supported' and (operation['method'] != 'GET' or operation['path'].startswith('/sync/')):
+                self.assertEqual(operation['auth'], 'required', operation['operation_id'])
+
     def test_catalog_integrity(self):
         GENERATOR.offline_check()
 
@@ -56,7 +61,7 @@ class CatalogTests(unittest.TestCase):
         self.assert_invalid(schema, {'name':'Rainy Sunday', 'unexpected':True})
 
     def test_list_item_variants_accept_show_ids_without_duplicate_branch_failure(self):
-        for operation in ('postUsersListsListAdd', 'postUsersListsListRemove'):
+        for operation in sorted(GENERATOR.OVERLAPPING_SHOW_ITEMS - {'postUsersHiddenRemoveCalendar', 'postUsersHiddenRemoveProgress', 'postUsersHiddenRemoveSection', 'postUsersHiddenAdd'}):
             schema = self.body(operation)
             self.assert_valid(schema, {'shows':[{'ids':{'trakt':456}}]})
             self.assert_valid(schema, {'shows':[{'title':'Fixture show','year':2026}]})

@@ -110,6 +110,24 @@ def normalize_media_choices(schema):
     return schema
 
 
+# Bodies whose show items overlap between the basic and with-seasons variants.
+OVERLAPPING_SHOW_ITEMS = {
+    'postSyncCollectionAdd',
+    'postSyncCollectionRemove',
+    'postSyncHistoryAdd',
+    'postSyncHistoryRemove',
+    'postSyncWatchlistAdd',
+    'postSyncWatchlistRemove',
+    'postUsersHiddenAdd',
+    'postUsersHiddenRemoveCalendar',
+    'postUsersHiddenRemoveProgress',
+    'postUsersHiddenRemoveSection',
+    'postUsersListsListAdd',
+    'postUsersListsListRemove',
+    'putSyncWatchlistUpdate',
+}
+
+
 def normalize_overlapping_choices(schema):
     """Allow the source's overlapping basic/show-with-seasons list items."""
     branches = schema.get('oneOf', [])
@@ -221,6 +239,9 @@ def extract(url: str, refresh: bool = False) -> list[dict]:
             elif body and request_body is None:
                 status = 'unavailable'
                 reason = 'The documented request uses a non-JSON content type.'
+            # Some references omit the marker, but these act on the token's own account.
+            if auth == 'none' and status == 'supported' and (method != 'get' or path.startswith('/sync/')):
+                auth = 'required'
             restrictions = []
             if 'VIP' in desc:
                 restrictions.append('Account VIP features or limits apply; see source documentation.')
@@ -242,7 +263,7 @@ def extract(url: str, refresh: bool = False) -> list[dict]:
                 record['calendar_normalization_note'] = 'Calendar windows use UTC dates in YYYY-MM-DD form and 1 to 33 days, per the official calendar guide.'
             if request_body is not None:
                 record['schema_normalization_note'] = 'Objects with documented properties reject unknown fields unless the source explicitly allows additional properties; composed objects close after evaluating all branches. Identifier alternatives allow one or more supported IDs; ambiguous source oneOf ID alternatives are normalized to anyOf. Exclusive media-target alternatives require their named non-null target.'
-                if operation_id in {'postUsersListsListAdd', 'postUsersListsListRemove'}:
+                if operation_id in OVERLAPPING_SHOW_ITEMS:
                     record['schema_normalization_note'] += ' Overlapping show item variants are inclusive within each identifier form, while ID and title/year forms remain exclusive.'
             if paginated:
                 record['normalization_note'] = 'Pagination page and limit use positive integer inputs; MCP locally caps limit at 100 and page at 4294967295. Pagination parameters are included for documented paginated operations.'

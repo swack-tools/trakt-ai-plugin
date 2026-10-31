@@ -25,8 +25,8 @@ claude plugin eval . --case <case-name> --runs 1 --ablation none
 Evals need a Claude Code login. Results go to `evals/results/`, which Git ignores.
 
 `mocks/trakt/_tools.json` mirrors `protocol::tools()` in `src/mcp/protocol.rs`, without output
-schemas because mocks return text only. The `manage-library-rating` fixtures mirror
-`api/trakt/catalog.json`. Regenerate both when tool definitions or catalog operations change.
+schemas because mocks return text only. `tests/tools_spec.rs` checks this file; regenerate it
+with `UPDATE_EVAL_TOOLS=1 cargo test --test tools_spec` when `api/trakt/tools.json` changes.
 
 The runner refuses hard-linked files anywhere in the plugin directory. Delete a local Cargo
 `target/` directory before running evals.
