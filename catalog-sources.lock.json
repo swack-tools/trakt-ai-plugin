@@ -46,7 +46,7 @@
   "plugins/trakt-mcp/skills/manage-library/agents/openai.yaml": "4191de0d1929f97f267dedb4b1fb38a858fade0bbfe3fabc747259c5234eb491",
   "plugins/trakt-mcp/skills/upcoming-releases/SKILL.md": "b6ca924e81788b2a4cb0baef14a2a0296b198d88a079e240d39bc688099ce181",
   "plugins/trakt-mcp/skills/upcoming-releases/agents/openai.yaml": "13e3353009552b6af75ad495b1919c30db5dff0004aec8150b0a3c50bb5872ed",
-  "plugins/trakt-mcp/skills/watching-profile/SKILL.md": "a69a54ec39e466febcbc4944aee1f7cab3256302fe80508da27df85ea6a6253c",
+  "plugins/trakt-mcp/skills/watching-profile/SKILL.md": "e3c9e89aa0cb490fc44ac6a06c7fe720f0a8347895f71d827ce01d7996ebbed7",
   "plugins/trakt-mcp/skills/watching-profile/agents/openai.yaml": "524ccbe088faa9cf2931791b2662ccec61bad3178e162e1fdbd1645cfd143070",
   "plugins/trakt-mcp/skills/what-to-watch/SKILL.md": "39e4a28138733a1bd943fa8188844b45882a0858b01ce78bf26707a09c66ac7d",
   "plugins/trakt-mcp/skills/what-to-watch/agents/openai.yaml": "c89f3bf33efb565f45a2c0c2075fcb526d43550a2fa54cb725d2cab4ebf62b50",
