@@ -41,7 +41,12 @@ pub struct Flow {
     pub challenge: Option<String>,
     pub ticket_hash: String,
     pub expires: u64,
-    pub device_code: Option<String>,
+    #[serde(default)]
+    pub trakt_verifier: Option<String>,
+    #[serde(default)]
+    pub trakt_state_hash: Option<String>,
+    #[serde(default)]
+    pub browser_hash: Option<String>,
     pub code_hash: Option<String>,
     pub resource: String,
 }
@@ -297,11 +302,11 @@ pub async fn finish_device_login(
     code: &str,
     key: &seal::Key,
 ) -> Result<String> {
-    let tokens = match auth::parked(c, storage, id).await? {
+    let tokens = match auth::parked(c, storage, id, code).await? {
         Some(tokens) => tokens,
         None => {
             let tokens = auth::poll_device_token(c, storage, code).await?;
-            auth::park(c, state, id, &tokens).await?;
+            auth::park(c, state, id, code, &tokens).await?;
             tokens
         }
     };
@@ -361,7 +366,9 @@ pub async fn begin(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> 
         challenge,
         ticket_hash: security::hash(&ticket),
         expires: now() + 900,
-        device_code: None,
+        trakt_verifier: None,
+        trakt_state_hash: None,
+        browser_hash: None,
         code_hash: None,
         resource: resource.clone(),
     };
@@ -382,6 +389,7 @@ async fn complete_flow(
     let code = keys.seal_token("code", id, key, now() + 120)?;
     f.code_hash = Some(security::hash(&code));
     f.expires = now() + 120;
+    f.trakt_verifier = None;
     let mut redirect = worker::Url::parse(&f.redirect_uri)
         .map_err(|_| ApiError::new(500, "invalid_redirect_uri"))?;
     redirect
@@ -389,15 +397,37 @@ async fn complete_flow(
         .append_pair("code", &code)
         .append_pair("state", &f.state);
     storage.put("flow", &*f).await?;
-    Ok(json!({"redirect":redirect.as_str()}))
+    Ok(json!({"redirect":redirect.as_str(),"connected":true}))
 }
-pub async fn browser_step(
+async fn link_with_key(
     env: &Env,
-    state: &State,
     storage: &mut Storage,
     id: &str,
-    v: Value,
+    f: &mut Flow,
+    text: Option<&str>,
 ) -> Result<Value> {
+    // A valid connection key connects this client without another Trakt login.
+    let (grant_id, key) = text
+        .and_then(seal::parse_connection_key)
+        .ok_or(ApiError::new(400, "connection_key_invalid"))?;
+    grant::request(
+        env,
+        &grant_id,
+        "/_grant/link",
+        json!({"k":grant::wire_key(&key),"connection":id}),
+    )
+    .await
+    .map_err(|e| match e.code {
+        "connection_key_invalid" | "trakt_login_required" => {
+            ApiError::new(400, "connection_key_invalid")
+        }
+        _ => e,
+    })?;
+    auth::drop_pending(storage).await?;
+    set_session_grant(env, storage, &grant_id).await?;
+    complete_flow(env, storage, id, f, &key).await
+}
+pub async fn browser_step(env: &Env, storage: &mut Storage, id: &str, v: Value) -> Result<Value> {
     let mut f = get_optional::<Flow>(storage, "flow")
         .await?
         .ok_or(ApiError::new(400, "invalid_flow"))?;
@@ -410,70 +440,137 @@ pub async fn browser_step(
         return Err(ApiError::new(400, "invalid_flow"));
     }
     let action = v["action"].as_str().unwrap_or("");
-    if !matches!(action, "start" | "poll" | "replace" | "link") {
+    if !matches!(action, "start" | "link") {
         return Err(ApiError::new(400, "invalid_action"));
     }
-    let c = Client { env };
     if f.code_hash.is_some() {
         return Err(ApiError::new(409, "flow_already_completed"));
     }
-    if action == "start" {
-        if f.device_code.is_some() {
-            return Err(ApiError::new(409, "login_already_pending"));
-        }
-        let d = auth::request_device_code(&c, storage).await?;
-        f.device_code = d["device_code"].as_str().map(String::from);
-        storage.put("flow", &f).await?;
-        return Ok(d);
-    }
     if action == "link" {
-        // A valid connection key connects this client without another Trakt login.
-        let (grant_id, key) = v["connection_key"]
-            .as_str()
-            .and_then(seal::parse_connection_key)
-            .ok_or(ApiError::new(400, "connection_key_invalid"))?;
-        grant::request(
-            env,
-            &grant_id,
-            "/_grant/link",
-            json!({"k":grant::wire_key(&key),"connection":id}),
+        return link_with_key(env, storage, id, &mut f, v["connection_key"].as_str()).await;
+    }
+    // A new start replaces any earlier attempt, so going back and retrying still works.
+    auth::drop_pending(storage).await?;
+    let verifier = security::random();
+    let state = format!("{id}.{}", security::random());
+    let mut authorize = worker::Url::parse(&format!(
+        "{}/oauth/authorize",
+        env.var("TRAKT_AUTHORIZE_URL")?
+            .to_string()
+            .trim_end_matches('/')
+    ))
+    .map_err(|_| ApiError::new(500, "invalid_upstream_configuration"))?;
+    authorize
+        .query_pairs_mut()
+        .append_pair("response_type", "code")
+        .append_pair("client_id", &env.secret("TRAKT_CLIENT_ID")?.to_string())
+        .append_pair("redirect_uri", &trakt_callback_url(&config::base(env)?))
+        .append_pair("state", &state)
+        .append_pair("code_challenge", &security::pkce(&verifier))
+        .append_pair("code_challenge_method", "S256");
+    f.trakt_verifier = Some(verifier);
+    f.trakt_state_hash = Some(security::hash(&state));
+    f.browser_hash = v["browser"].as_str().map(security::hash);
+    storage.put("flow", &f).await?;
+    Ok(json!({"authorize_url":authorize.as_str()}))
+}
+pub fn trakt_callback_url(base: &str) -> String {
+    format!("{base}/oauth/trakt/callback")
+}
+/// Handle Trakt's redirect and the choices on the pages that follow it. Only the
+/// browser that started the flow can act on it: otherwise someone could send a victim
+/// a Trakt link and collect the grant in their own flow. A failed exchange leaves the
+/// flow in place, because reloading can retry until the Trakt code expires.
+pub async fn trakt_callback(
+    env: &Env,
+    state: &State,
+    storage: &mut Storage,
+    id: &str,
+    v: Value,
+) -> Result<Value> {
+    let mut f = get_optional::<Flow>(storage, "flow")
+        .await?
+        .ok_or(ApiError::new(400, "invalid_flow"))?;
+    let expected = f
+        .trakt_state_hash
+        .as_deref()
+        .ok_or(ApiError::new(400, "invalid_flow"))?;
+    let browser = f
+        .browser_hash
+        .as_deref()
+        .ok_or(ApiError::new(400, "invalid_flow"))?;
+    let trakt_state = v["state"].as_str().unwrap_or("");
+    if f.expires <= now()
+        || f.code_hash.is_some()
+        || !security::equal(
+            browser,
+            &security::hash(v["browser"].as_str().unwrap_or("")),
         )
-        .await
-        .map_err(|e| match e.code {
-            "connection_key_invalid" | "trakt_login_required" => {
-                ApiError::new(400, "connection_key_invalid")
-            }
-            _ => e,
-        })?;
+        || !security::equal(expected, &security::hash(trakt_state))
+    {
+        return Err(ApiError::new(400, "invalid_flow"));
+    }
+    let mut redirect = worker::Url::parse(&f.redirect_uri)
+        .map_err(|_| ApiError::new(500, "invalid_redirect_uri"))?;
+    if v["error"].is_string() {
+        let code = if v["error"] == "access_denied" {
+            "access_denied"
+        } else {
+            "server_error"
+        };
+        redirect
+            .query_pairs_mut()
+            .append_pair("error", code)
+            .append_pair("state", &f.state);
+        storage.delete("flow").await?;
         auth::drop_pending(storage).await?;
-        set_session_grant(env, storage, &grant_id).await?;
+        return Ok(json!({"redirect":redirect.as_str(),"connected":false}));
+    }
+    let action = v["action"].as_str().unwrap_or("");
+    if action == "link" {
+        return link_with_key(env, storage, id, &mut f, v["connection_key"].as_str()).await;
+    }
+    let now_time = now();
+    if action == "continue" {
+        // The code starts its two minutes only now, after the user saved the key.
+        let key = seal::Keys::from_env(env)?
+            .open_token("continue", v["sealed"].as_str().unwrap_or(""), now_time)
+            .ok_or(ApiError::new(400, "invalid_flow"))?;
         return complete_flow(env, storage, id, &mut f, &key).await;
     }
-    let tokens = match auth::parked(&c, storage, id).await? {
+    let c = Client { env };
+    let tokens = match auth::parked(&c, storage, id, trakt_state).await? {
         Some(tokens) => tokens,
         None => {
-            let code = f
-                .device_code
+            let code = v["code"]
+                .as_str()
+                .filter(|code| !code.is_empty())
+                .ok_or(ApiError::new(400, "invalid_flow"))?;
+            let verifier = f
+                .trakt_verifier
                 .as_deref()
-                .ok_or(ApiError::new(400, "login_not_started"))?;
-            let tokens = auth::poll_device_token(&c, storage, code).await?;
-            auth::park(&c, state, id, &tokens).await?;
+                .ok_or(ApiError::new(400, "invalid_flow"))?;
+            let redirect_uri = trakt_callback_url(&config::base(env)?);
+            let tokens = auth::exchange_code(&c, code, verifier, &redirect_uri).await?;
+            auth::park(&c, state, id, trakt_state, &tokens).await?;
             tokens
         }
     };
     let grant_id = auth::grant_for(&c, &tokens).await?;
     // Replacing a grant disconnects that user's other clients, so ask first.
-    if action == "poll"
+    if action != "replace"
         && grant::request(env, &grant_id, "/_grant/exists", json!({})).await?["exists"] == true
     {
         return Ok(json!({"existing":true}));
     }
     let key = seal::random_key();
     auth::store_grant(&c, storage, id, &grant_id, &tokens, &key).await?;
-    set_session_grant(c.env, storage, &grant_id).await?;
-    let mut done = complete_flow(env, storage, id, &mut f, &key).await?;
-    done["connection_key"] = json!(seal::connection_key(&grant_id, &key));
-    Ok(done)
+    set_session_grant(env, storage, &grant_id).await?;
+    // Saving the key can take a while, so keep the flow open for this page.
+    f.expires = now_time + 900;
+    storage.put("flow", &f).await?;
+    let sealed = seal::Keys::from_env(env)?.seal_token("continue", id, &key, now_time + 900)?;
+    Ok(json!({"connection_key":seal::connection_key(&grant_id, &key),"sealed":sealed}))
 }
 pub async fn exchange(env: &Env, state: &State, storage: &mut Storage, v: Value) -> Result<Value> {
     let q = &v["params"];
@@ -605,15 +702,68 @@ pub fn login_page(v: &Value) -> String {
         field("ticket")
     )
 }
-pub const LOGIN_JS: &str = r#"const form=document.querySelector('#connect'), status=document.querySelector('#status'),button=form.querySelector('button'),linkForm=document.querySelector('#link');let interval=5,expires=0;
-function waitToRetry(seconds){if(seconds>0){status.textContent=`Trakt is busy. Try again in ${seconds} second${seconds===1?"":"s"}.`;setTimeout(()=>waitToRetry(seconds-1),1000);return;}status.textContent='Trakt should be ready. Try again.';button.disabled=false;}
+pub const LOGIN_JS: &str = r#"const form=document.querySelector('#connect'), status=document.querySelector('#status'),button=form.querySelector('button'),linkForm=document.querySelector('#link');
 async function step(action,extra={}){const response=await fetch('/oauth/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:form.dataset.session,ticket:form.dataset.ticket,action,...extra})});return [response,await response.json()];}
-function finish(d){if(!d.connection_key){location.assign(d.redirect);return;}const p=document.createElement('p');p.textContent='This is your connection key. It is shown once and is not stored. Save it if you want to connect another AI client without logging in to Trakt again.';const key=document.createElement('code');key.textContent=d.connection_key;const a=document.createElement('a');a.href=d.redirect;a.textContent='Continue';status.replaceChildren(p,key,a);}
-function warnExisting(){const p=document.createElement('p');p.textContent='This Trakt account is already connected to another AI client. Continuing disconnects that client. To keep it, enter its connection key above instead.';const b=document.createElement('button');b.type='button';b.textContent='Continue and disconnect it';b.addEventListener('click',async()=>{b.disabled=true;const [,d]=await step('replace');if(d.redirect)finish(d);else status.append(document.createTextNode(' '+(d.error||'Connection failed.')));});status.replaceChildren(p,b);}
-async function poll(){if(Date.now()>expires){status.append(document.createTextNode(' Code expired. Close this page and reconnect.'));return;}try{const [r,d]=await step('poll');if(d.redirect){finish(d);return;}if(d.existing){warnExisting();return;}if(d.error==='authorization_pending'||d.error==='slow_down'){setTimeout(poll,(d.retry_after||interval)*1000);return;}if(d.retry_after){setTimeout(poll,d.retry_after*1000);return;}status.append(document.createTextNode(' '+(d.error||'Connection failed.')));}catch{status.append(document.createTextNode(' Network error. Reconnect to retry.'));}}
-form.addEventListener('submit',async e=>{e.preventDefault();button.disabled=true;try{const [r,d]=await step('start');if(!r.ok){if(d.retry_after)waitToRetry(d.retry_after);else status.textContent=d.error;return;}interval=d.interval;expires=Date.now()+d.expires_in*1000;const p=document.createElement('p');p.textContent='Enter this code: ';const code=document.createElement('strong');code.textContent=d.user_code;p.append(code);const a=document.createElement('a');a.href='https://trakt.tv/activate';a.target='_blank';a.rel='noopener noreferrer';a.textContent='Open Trakt activation';status.replaceChildren(p,a);setTimeout(poll,interval*1000);}catch{status.textContent='Network error. Reconnect to retry.'}});
-linkForm.addEventListener('submit',async e=>{e.preventDefault();const [,d]=await step('link',{connection_key:document.querySelector('#connection-key').value});if(d.redirect){finish(d);return;}status.textContent=d.error_description||d.error||'That key did not work.';});"#;
-pub const LOGIN_CSS: &str = "body{font:18px/1.6 system-ui;background:#101419;color:#ecf1f5;margin:0;padding:8vh 24px}main{max-width:640px;margin:auto}h1{line-height:1.15;font-size:40px}button,a{display:inline-block;background:#2f5d8a;color:white;border:0;border-radius:8px;padding:12px 20px;font:inherit;cursor:pointer}code{overflow-wrap:anywhere;font-size:14px}strong{color:#fff}#status strong{font-size:32px;letter-spacing:4px}button:disabled{opacity:.5}input{display:block;width:100%;box-sizing:border-box;padding:10px;margin:8px 0;font:14px monospace}label{display:block}details{margin:16px 0}#status code{display:block;margin:12px 0;padding:10px;background:#1c232b;border-radius:6px}";
+form.addEventListener('submit',async e=>{e.preventDefault();button.disabled=true;try{const [response,d]=await step('start');if(!response.ok||!d.authorize_url){status.textContent=d.error||'Connection failed.';return;}location.assign(d.authorize_url);}catch{status.textContent='Network error. Reconnect to retry.';}});
+linkForm.addEventListener('submit',async e=>{e.preventDefault();try{const [,d]=await step('link',{connection_key:document.querySelector('#connection-key').value});if(d.redirect){location.assign(d.redirect);return;}status.textContent=d.error_description||d.error||'That key did not work.';}catch{status.textContent='Network error. Reconnect to retry.';}});"#;
+fn trakt_page(title: &str, body: &str) -> String {
+    format!(
+        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>{title}</title><link rel="stylesheet" href="/login.css"><main><p>TRAKT MCP</p><h1>{title}</h1>{body}</main></html>"#
+    )
+}
+/// Shown after Trakt redirects back: the link returns the user to their client. It is
+/// a link rather than a redirect because the page's CSP covers form redirects too.
+pub fn connected_page(redirect: &str, connected: bool) -> String {
+    let (title, text) = if connected {
+        ("Trakt connected", "Your Trakt account is connected.")
+    } else {
+        ("Trakt not connected", "Trakt did not connect your account.")
+    };
+    trakt_page(
+        title,
+        &format!(
+            r#"<p>{text}</p><p><a href="{}">Return to your app</a></p>"#,
+            security::escape(redirect)
+        ),
+    )
+}
+/// K is shown once, here, and never in tool output. The sealed field lets Continue
+/// issue the authorization code without the service storing K.
+pub fn connection_key_page(key: &str, sealed: &str, state: &str) -> String {
+    trakt_page(
+        "Save your connection key",
+        &format!(
+            r#"<p>Your Trakt account is connected. This key is shown once and is not stored. Save it if you want to connect another AI client without logging in to Trakt again. Treat it like a password.</p><p><code id="connection-key-value">{}</code></p><form method="post" action="/oauth/trakt/callback"><input type="hidden" name="state" value="{}"><input type="hidden" name="action" value="continue"><input type="hidden" name="sealed" value="{}"><button type="submit">Continue</button></form>"#,
+            security::escape(key),
+            security::escape(state),
+            security::escape(sealed)
+        ),
+    )
+}
+/// Replacing a grant disconnects the account's other clients, so offer the key first.
+pub fn existing_grant_page(state: &str) -> String {
+    let state = security::escape(state);
+    trakt_page(
+        "Already connected",
+        &format!(
+            r#"<p>This Trakt account is already connected to another AI client. Continuing disconnects that client, and its connection key stops working. To keep it connected, enter its connection key instead.</p><form method="post" action="/oauth/trakt/callback"><input type="hidden" name="state" value="{state}"><input type="hidden" name="action" value="link"><label for="connection-key">Connection key</label><input id="connection-key" name="connection_key" autocomplete="off" spellcheck="false"><button type="submit">Connect with key</button></form><form method="post" action="/oauth/trakt/callback"><input type="hidden" name="state" value="{state}"><input type="hidden" name="action" value="replace"><button type="submit">Continue and disconnect it</button></form>"#
+        ),
+    )
+}
+/// A failed exchange keeps the flow, so a reload retries it while the code is valid.
+pub fn callback_error_page(error: &str, retry_after: Option<u64>) -> String {
+    let retry = retry_after.map_or(String::new(), |seconds| {
+        format!("<p>Trakt is busy. Reload this page in {seconds} seconds to try again.</p>")
+    });
+    trakt_page(
+        "Trakt not connected",
+        &format!(
+            "<p>{}</p>{retry}",
+            security::escape(crate::error::describe(error))
+        ),
+    )
+}
+pub const LOGIN_CSS: &str = "body{font:18px/1.6 system-ui;background:#101419;color:#ecf1f5;margin:0;padding:8vh 24px}main{max-width:640px;margin:auto}h1{line-height:1.15;font-size:40px}button,a{display:inline-block;background:#2f5d8a;color:white;border:0;border-radius:8px;padding:12px 20px;font:inherit;cursor:pointer}code{overflow-wrap:anywhere;font-size:14px}strong{color:#fff}button:disabled{opacity:.5}input{display:block;width:100%;box-sizing:border-box;padding:10px;margin:8px 0;font:14px monospace}label{display:block}details{margin:16px 0}form{margin:16px 0}main code{display:block;margin:12px 0;padding:10px;background:#1c232b;border-radius:6px}";
 
 #[cfg(test)]
 mod scope_tests {

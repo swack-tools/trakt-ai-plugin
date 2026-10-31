@@ -39,8 +39,9 @@ before(async()=>{
  if(u.pathname==='/oauth/device/code'){const code=`device-${++next}`;users.set(code,{id:next,authorized:false});data={device_code:code,user_code:`USER${next}`,verification_url:'https://trakt.tv/activate',expires_in:600,interval:deviceInterval};}
  else if(u.pathname==='/oauth/device/token'){const user=users.get(body.code);assert.equal(body.client_secret,'test-client-secret');if(!user){status=404;data={};}else if(user.status){status=user.status;data={};if(user.retryAfter)res.setHeader('Retry-After',String(user.retryAfter));}else if(!user.authorized){status=400;data={};}else{data={access_token:`trakt-${user.id}`,refresh_token:`refresh-${user.id}`,created_at:Math.floor(Date.now()/1000),expires_in:user.expired?1:3600};}}
  else if(u.pathname==='/oauth/revoke'){revocations.push(body.token);if(revokeFailure){status=revokeFailure;data={};}else data={};}
- else if(u.pathname==='/oauth/token'&&refreshFailures.length){const failure=refreshFailures.shift();status=failure.status;data={};if(failure.retryAfter)res.setHeader('Retry-After',String(failure.retryAfter));refreshAttempts.push(body.refresh_token);}
- else if(u.pathname==='/oauth/token'){refreshAttempts.push(body.refresh_token);if(consumedRefreshes.has(body.refresh_token)){status=400;data={};}else{consumedRefreshes.add(body.refresh_token);refreshes++;await pause(150);data={access_token:body.refresh_token.replace('refresh-','trakt-'),refresh_token:`rotated-${refreshes}`,created_at:Math.floor(Date.now()/1000),expires_in:3600};}}
+ else if(u.pathname==='/oauth/token'&&body.grant_type==='authorization_code'&&!upstreamFailures.has('POST /oauth/token')){const user=users.get(body.code);assert.equal(body.client_secret,undefined);assert.equal(body.redirect_uri,'https://plugin.example.test/oauth/trakt/callback');if(!user||createHash('sha256').update(body.code_verifier).digest('base64url')!==user.challenge){status=400;data={error:'invalid_grant'};}else{data={access_token:`trakt-${user.id}`,refresh_token:`refresh-${user.id}`,created_at:Math.floor(Date.now()/1000),expires_in:3600};}}
+ else if(u.pathname==='/oauth/token'&&!upstreamFailures.has('POST /oauth/token')&&refreshFailures.length){const failure=refreshFailures.shift();status=failure.status;data={};if(failure.retryAfter)res.setHeader('Retry-After',String(failure.retryAfter));refreshAttempts.push(body.refresh_token);}
+ else if(u.pathname==='/oauth/token'&&!upstreamFailures.has('POST /oauth/token')){assert.equal(body.redirect_uri,'https://plugin.example.test/oauth/trakt/callback');assert.equal(body.client_secret,'test-client-secret');refreshAttempts.push(body.refresh_token);if(consumedRefreshes.has(body.refresh_token)){status=400;data={};}else{consumedRefreshes.add(body.refresh_token);refreshes++;await pause(150);data={access_token:body.refresh_token.replace('refresh-','trakt-'),refresh_token:`rotated-${refreshes}`,created_at:Math.floor(Date.now()/1000),expires_in:3600};}}
  else if(upstreamFailures.has(`${req.method} ${u.pathname}`)&&!upstreamFailures.get(`${req.method} ${u.pathname}`).commit){
   const failure=upstreamFailures.get(`${req.method} ${u.pathname}`);status=failure.status;data=failure.data??{private_upstream_detail:'must not be returned'};if(failure.pagination)paginationHeaders(res,failure.pagination);if(status===429)res.setHeader('Retry-After','13');
  }
@@ -304,17 +305,55 @@ test('client ID metadata documents are advertised and unusable documents are ref
  const refused=await api('/oauth/authorize?'+params,{headers:{'CF-Connecting-IP':'198.51.100.8'}});assert.equal(refused.status,400);assert.equal(refused.data.error,'invalid_client_metadata');
  for(const client_id of ['http://insecure.invalid/client.json','https://203.0.113.9/client.json']){params.set('client_id',client_id);const r=await api('/oauth/authorize?'+params,{headers:{'CF-Connecting-IP':'198.51.100.8'}});assert.equal(r.status,400,client_id);}
 });
-test('login page offers a retry after Trakt rate limits the start',async()=>{
+test('login page sends the browser to Trakt',async()=>{
  const source=await (await fetch(base+'/login.js')).text();
- const button={disabled:false},status={textContent:''},timers=[];let submit;
+ const button={disabled:false},status={textContent:''},visited=[];let submit;
  const form={dataset:{session:'s',ticket:'t'},querySelector:()=>button,addEventListener:(_,handler)=>{submit=handler;}};
  const page={querySelector:selector=>selector==='#connect'?form:selector==='#link'?{addEventListener(){}}:status};
- const limited=async()=>({ok:false,json:async()=>({error:'trakt_rate_limited',retry_after:2})});
- new Function('document','fetch','setTimeout',source)(page,limited,callback=>timers.push(callback));
+ const start=async()=>({ok:true,json:async()=>({authorize_url:'https://auth.trakt.example/oauth/authorize'})});
+ new Function('document','fetch','location',source)(page,start,{assign:url=>visited.push(url)});
  await submit({preventDefault(){}});
- assert.equal(button.disabled,true);assert.match(status.textContent,/Try again in 2 seconds/);
- timers.shift()();assert.match(status.textContent,/Try again in 1 second\./);assert.equal(button.disabled,true);
- timers.shift()();assert.match(status.textContent,/Try again\.$/);assert.equal(button.disabled,false);
+ assert.equal(button.disabled,true);assert.deepEqual(visited,['https://auth.trakt.example/oauth/authorize']);
+});
+const flowCookie=response=>{const cookie=response.headers.get('set-cookie');assert.match(cookie,/^__Host-trakt_flow_[0-9a-f]{32}=[^;]+; Path=\/; Max-Age=900; Secure; HttpOnly; SameSite=Lax$/);return cookie.split(';')[0];};
+// Stands in for the user approving on Trakt, then Trakt redirecting back.
+async function approveAtTrakt(session_id,ticket,{userId,replace=true}={}){
+ const started=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'start'}});assert.equal(started.status,200,JSON.stringify(started.data));
+ const url=new URL(started.data.authorize_url);assert.equal(url.origin,'https://auth.trakt.example');assert.equal(url.pathname,'/oauth/authorize');
+ assert.equal(url.searchParams.get('code_challenge_method'),'S256');assert.equal(url.searchParams.get('redirect_uri'),'https://plugin.example.test/oauth/trakt/callback');assert.equal(url.searchParams.get('client_id'),'test-client-id');assert.equal(url.searchParams.has('client_secret'),false);
+ const code=`auth-${++next}`;users.set(code,{id:userId??next,authorized:true,challenge:url.searchParams.get('code_challenge')});
+ const state=url.searchParams.get('state'),headers=()=>({...freshIp(),Cookie:flowCookie(started)});
+ let page=await api('/oauth/trakt/callback?'+new URLSearchParams({code,state}),{headers:headers()});assert.equal(page.status,200,String(page.data));
+ const choose=body=>api('/oauth/trakt/callback',{method:'POST',headers:headers(),body:{state,...body}});
+ if(/Already connected/.test(page.data)){
+  if(!replace)return {existing:true,code,state,choose};
+  page=await choose({action:'replace'});assert.equal(page.status,200,String(page.data));
+ }
+ assert.match(page.data,/Save your connection key/);
+ const connection_key=page.data.match(/<code id="connection-key-value">([^<]+)<\/code>/)[1],sealed=page.data.match(/name="sealed" value="([^"]+)"/)[1];
+ const done=await choose({action:'continue',sealed});assert.equal(done.status,200,String(done.data));assert.match(done.data,/Trakt connected/);
+ return {code,state,connection_key,redirect:new URL(done.data.match(/<a href="([^"]+)"/)[1].replaceAll('&amp;','&'))};
+}
+test('Trakt callback rejects bad state, reports denial, and retries after a rate limit',async()=>{
+ const registration=await api('/oauth/register',{method:'POST',body:{client_name:'Callback test',redirect_uris:['http://127.0.0.1:9997/callback'],token_endpoint_auth_method:'none'}});const client_id=registration.data.client_id;
+ const verifier='c'.repeat(64),params=new URLSearchParams({client_id,redirect_uri:'http://127.0.0.1:9997/callback',response_type:'code',state:'client-state',code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256'});
+ const open=async()=>{const page=await api('/oauth/authorize?'+params,{headers:{'CF-Connecting-IP':'198.51.100.9'}});return {session_id:page.data.match(/data-session="([^"]+)"/)[1],ticket:page.data.match(/data-ticket="([^"]+)"/)[1]};};
+ const callback=(q,cookie)=>api('/oauth/trakt/callback?'+new URLSearchParams(q),{headers:{'CF-Connecting-IP':'198.51.100.9',...(cookie?{Cookie:cookie}:{})}});
+ const {session_id,ticket}=await open();
+ const started=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'start'}});const state=new URL(started.data.authorize_url).searchParams.get('state'),cookie=flowCookie(started);
+ assert.equal((await callback({code:'x',state:`${session_id}.${'0'.repeat(64)}`},cookie)).status,400);assert.equal((await callback({code:'x',state:'not-a-session'},cookie)).status,400);
+ assert.equal((await callback({code:'x',state})).status,400,'another browser cannot finish the flow');assert.equal((await callback({code:'x',state},`__Host-trakt_flow_${session_id}=wrong`)).status,400);
+ // A second login in another tab keeps its own cookie, so this flow can still finish.
+ const other=await open();const otherStart=await api('/oauth/complete',{method:'POST',body:{session_id:other.session_id,ticket:other.ticket,action:'start'}});assert.notEqual(flowCookie(otherStart).split('=')[0],cookie.split('=')[0]);
+ const code=`auth-${++next}`;users.set(code,{id:next,authorized:true,challenge:new URL(started.data.authorize_url).searchParams.get('code_challenge')});
+ upstreamFailures.set('POST /oauth/token',{status:429});
+ const limited=await callback({code,state},`${flowCookie(otherStart)}; ${cookie}`);upstreamFailures.delete('POST /oauth/token');
+ assert.equal(limited.status,429);assert.match(limited.data,/Reload this page in 13 seconds/);
+ const retried=await callback({code,state},cookie);assert.equal(retried.status,200,String(retried.data));assert.match(retried.data,/Your Trakt account is connected/);
+ assert.equal((await callback({code,state},cookie)).status,400,'a finished flow cannot be replayed');
+ const denied=await open();const deniedStart=await api('/oauth/complete',{method:'POST',body:{session_id:denied.session_id,ticket:denied.ticket,action:'start'}});
+ const page=await callback({error:'access_denied',state:new URL(deniedStart.data.authorize_url).searchParams.get('state')},flowCookie(deniedStart));assert.equal(page.status,200);assert.match(page.data,/Trakt not connected/);
+ const back=new URL(page.data.match(/<a href="([^"]+)"/)[1].replaceAll('&amp;','&'));assert.equal(back.searchParams.get('error'),'access_denied');assert.equal(back.searchParams.get('state'),'client-state');assert.equal(back.searchParams.has('code'),false);
 });
 test('OAuth registration, browser consent, PKCE, redirect binding and code replay',async()=>{
  const registration=await api('/oauth/register',{method:'POST',body:{client_name:'SDK test',redirect_uris:['http://127.0.0.1:9999/callback'],token_endpoint_auth_method:'none'}});assert.equal(registration.status,201,JSON.stringify(registration.data));const client_id=registration.data.client_id;
@@ -323,8 +362,7 @@ test('OAuth registration, browser consent, PKCE, redirect binding and code repla
  for(const [redirect_uri,status] of [['http://127.0.0.1:41234/callback',200],['http://localhost:9999/callback',400],['http://127.0.0.1:9999/other',400]]){const probe=new URLSearchParams(params);probe.set('redirect_uri',redirect_uri);assert.equal((await api('/oauth/authorize?'+probe,{headers:{'CF-Connecting-IP':'198.51.100.7'}})).status,status,redirect_uri);}
  const page=await api('/oauth/authorize?'+params);assert.equal(page.status,200,JSON.stringify(page.data));assert.match(page.data,/make changes you request/);const session_id=page.data.match(/data-session="([^"]+)"/)[1],ticket=page.data.match(/data-ticket="([^"]+)"/)[1];
  assert.equal((await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'unknown'}})).status,400);
- const d=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'start'}});assert.equal(d.status,200);users.get(d.data.device_code).authorized=true;await pause(1100);
- const complete=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'poll'}});assert.equal(complete.status,200);const redirect=new URL(complete.data.redirect);assert.equal(redirect.searchParams.get('state'),'state-123');
+ const {redirect}=await approveAtTrakt(session_id,ticket);assert.equal(redirect.searchParams.get('state'),'state-123');
  const body={grant_type:'authorization_code',client_id,code:redirect.searchParams.get('code'),redirect_uri:'http://127.0.0.1:9999/callback',code_verifier:verifier,resource};
  assert.equal((await api('/oauth/token',{method:'POST',body:{...body,code_verifier:'x'.repeat(64)}})).status,400);
  assert.equal((await api('/oauth/token',{method:'POST',body:{...body,redirect_uri:'https://evil.test'}})).status,400);
@@ -379,14 +417,10 @@ async function browserConnect(scope,{userId,replace=true}={}){
  const page=await api('/oauth/authorize?'+params,{headers:freshIp()});assert.equal(page.status,200,JSON.stringify(page.data));
  assert.match(page.data,scope==='trakt:read'?/without making account changes/:/make changes you request/);
  const session_id=page.data.match(/data-session="([^"]+)"/)[1],ticket=page.data.match(/data-ticket="([^"]+)"/)[1];
- const device=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'start'}});assert.equal(device.status,200,JSON.stringify(device.data));
- const fixtureUser=users.get(device.data.device_code);if(userId)fixtureUser.id=userId;fixtureUser.authorized=true;await pause(1100);
- let complete=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'poll'}});assert.equal(complete.status,200,JSON.stringify(complete.data));
- if(complete.data.existing){if(!replace)return {existing:true,session_id,ticket};complete=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'replace'}});assert.equal(complete.status,200,JSON.stringify(complete.data));}
- const redirect=new URL(complete.data.redirect);assert.equal(redirect.searchParams.get('state'),'write-fixture');
+ const approved=await approveAtTrakt(session_id,ticket,{userId,replace});if(approved.existing)return {...approved,session_id,ticket};const {redirect}=approved;assert.equal(redirect.searchParams.get('state'),'write-fixture');
  const tokens=await api('/oauth/token',{method:'POST',body:{grant_type:'authorization_code',client_id:browserRegistration.client_id,code:redirect.searchParams.get('code'),redirect_uri,code_verifier:verifier,resource}});
  assert.equal(tokens.status,200,JSON.stringify(tokens.data));assert.equal(tokens.data.scope,scope||'trakt:read trakt:write');
- return {...tokens.data,client_id:browserRegistration.client_id,resource,upstream_user_id:fixtureUser.id,connection_key:complete.data.connection_key};
+ return {...tokens.data,client_id:browserRegistration.client_id,resource,upstream_user_id:users.get(approved.code).id,connection_key:approved.connection_key};
 }
 let writeAccount,readBrowserAccount;
 async function writer(){return writeAccount??=await browserConnect();}
@@ -722,8 +756,8 @@ test('a fresh login warns, then replaces the grant and invalidates the old key',
  const old=await browserConnect();
  const pending=await browserConnect(undefined,{userId:old.upstream_user_id,replace:false});assert.equal(pending.existing,true,'the page warns before replacing');
  assert.equal((await search(old.access_token)).status,200,'declining leaves the other client connected');
- const linkedAfterWarning=await api('/oauth/complete',{method:'POST',headers:freshIp(),body:{session_id:pending.session_id,ticket:pending.ticket,action:'link',connection_key:old.connection_key}});
- assert.equal(linkedAfterWarning.status,200,'the old key still works at the warning');
+ const linkedAfterWarning=await pending.choose({action:'link',connection_key:old.connection_key});
+ assert.equal(linkedAfterWarning.status,200,String(linkedAfterWarning.data));assert.match(linkedAfterWarning.data,/Trakt connected/,'the old key still works at the warning');
  const fresh=await browserConnect(undefined,{userId:old.upstream_user_id});
  assert.notEqual(fresh.connection_key,old.connection_key);
  assert.equal((await search(fresh.access_token)).status,200);
@@ -878,6 +912,32 @@ test('a purge alarm deletes the grant and connection after the retention period'
   assert.equal((await call('/search?query=x',{token:u.access_token})).status,401,'the connection record is gone');
   assert.equal((await call('/oauth/token',{method:'POST',body:{grant_type:'refresh_token',refresh_token:u.refresh_token}})).status,400);
  }finally{const exited=once(short,'exit');short.kill('SIGTERM');const timer=setTimeout(()=>short.kill('SIGKILL'),5000);timer.unref();try{await exited;}finally{clearTimeout(timer);}await rm(persist,{recursive:true,force:true});}
+});
+
+test('Codex regressions: login sources, the key step, and connection lists',async()=>{
+ // Parked tokens from one device login never finish a later one for another account.
+ const a=await browserConnect(),request=async()=>callSuccess(a.access_token,'trakt_request_login',{});
+ const first=await request();users.get(first.device_code).authorized=true;await pause(1100);
+ upstreamFailures.set('GET /users/settings',{status:429});
+ try{await callFailure(a.access_token,'trakt_confirm_login',{device_code:first.device_code},'trakt_rate_limited');}finally{upstreamFailures.delete('GET /users/settings');}
+ const second=await request();Object.assign(users.get(second.device_code),{id:9100,authorized:true});await pause(1100);
+ await callSuccess(a.access_token,'trakt_confirm_login',{device_code:second.device_code});
+ assert.equal((await search(a.access_token)).status,200);assert.equal(requests.at(-1).headers.authorization,'Bearer trakt-9100','the later login connects its own account');
+ // The authorization code exists only after Continue, so a slow user still has two minutes.
+ await browserConnect();
+ const flow=await linkPage();const started=await api('/oauth/complete',{method:'POST',body:{session_id:flow.session_id,ticket:flow.ticket,action:'start'}});
+ const url=new URL(started.data.authorize_url),state=url.searchParams.get('state'),code=`auth-${++next}`;users.set(code,{id:next,authorized:true,challenge:url.searchParams.get('code_challenge')});
+ const keyPage=await api('/oauth/trakt/callback?'+new URLSearchParams({code,state}),{headers:{...freshIp(),Cookie:flowCookie(started)}});
+ assert.match(keyPage.data,/Save your connection key/);assert.doesNotMatch(keyPage.data,/code=/,'no authorization code before Continue');assert.doesNotMatch(keyPage.data,/127\.0\.0\.1/);
+ // Another browser cannot press Continue.
+ const sealed=keyPage.data.match(/name="sealed" value="([^"]+)"/)[1];
+ assert.equal((await api('/oauth/trakt/callback',{method:'POST',headers:freshIp(),body:{state,action:'continue',sealed}})).status,400);
+ // Reconnecting under the same key keeps linked clients, so sign-out still reaches them.
+ const owner=await browserConnect(),linked=await linkClient(owner.connection_key);
+ const again=await callSuccess(owner.access_token,'trakt_request_login',{});Object.assign(users.get(again.device_code),{id:owner.upstream_user_id,authorized:true});await pause(1100);
+ await callSuccess(owner.access_token,'trakt_confirm_login',{device_code:again.device_code});
+ assert.equal((await api('/auth/session',{method:'DELETE',token:owner.access_token})).status,204);
+ assert.equal((await search(linked.access_token)).status,401,'sign-out reached the linked client');
 });
 
 // Runs last so it covers every upstream request the suite made.

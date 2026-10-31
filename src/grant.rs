@@ -67,7 +67,7 @@ async fn access(env: &Env, storage: &Storage, id: &str, v: &Value) -> Result<Val
         return Err(e);
     }
     let c = Client { env };
-    let body = json!({"refresh_token":tokens.refresh_token,"client_id":env.secret("TRAKT_CLIENT_ID")?.to_string(),"client_secret":env.secret("TRAKT_CLIENT_SECRET")?.to_string(),"redirect_uri":env.var("TRAKT_REDIRECT_URI")?.to_string(),"grant_type":"refresh_token"});
+    let body = json!({"refresh_token":tokens.refresh_token,"client_id":env.secret("TRAKT_CLIENT_ID")?.to_string(),"client_secret":env.secret("TRAKT_CLIENT_SECRET")?.to_string(),"redirect_uri":crate::oauth::trakt_callback_url(&crate::config::base(env)?),"grant_type":"refresh_token"});
     let r = c
         .send("/oauth/token", Method::Post, &[], None, Some(&body))
         .await?;
@@ -150,16 +150,16 @@ pub async fn handle(env: &Env, state: &State, path: &str, v: Value) -> Value {
         let result = match path {
             "/_grant/exists" => Ok(json!({"exists":storage.get::<String>(GRANT).await?.is_some()})),
             "/_grant/put" => {
+                // The same key keeps its clients, so sign-out still reaches them all.
+                let same_key = open(&storage, &id, &v).await.is_ok();
                 storage
                     .put(GRANT, v["sealed"].as_str().unwrap_or_default())
                     .await?;
                 storage.delete(BACKOFF_UNTIL).await?;
-                storage
-                    .put(
-                        CONNECTIONS,
-                        vec![v["connection"].as_str().unwrap_or_default()],
-                    )
-                    .await?;
+                if !same_key {
+                    storage.delete(CONNECTIONS).await?;
+                }
+                add_connection(&storage, v["connection"].as_str().unwrap_or_default()).await?;
                 Ok(json!({}))
             }
             "/_grant/link" => {

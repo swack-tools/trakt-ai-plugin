@@ -1,7 +1,7 @@
 use super::client::{Client, upstream_error};
 use crate::{
     error::{ApiError, Result},
-    grant, retention, seal,
+    grant, retention, seal, security,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -41,6 +41,8 @@ pub async fn get_optional<T: serde::de::DeserializeOwned>(
     Ok(storage.get(key).await?)
 }
 pub async fn request_device_code(c: &Client<'_>, storage: &mut Storage) -> Result<Value> {
+    // A new login abandons any tokens still waiting from an earlier one.
+    drop_pending(storage).await?;
     if let Some(p) = get_optional::<Pending>(storage, "pending").await?
         && p.expires_at > now()
     {
@@ -154,6 +156,29 @@ pub async fn poll_device_token(
     }
     Err(e)
 }
+/// Exchange a browser authorization code. PKCE proves the request, so no client
+/// secret is sent. A 429 leaves the code unused, so the caller can try it again.
+pub async fn exchange_code(
+    c: &Client<'_>,
+    code: &str,
+    verifier: &str,
+    redirect_uri: &str,
+) -> Result<Tokens> {
+    let body = json!({"code":code,"client_id":c.env.secret("TRAKT_CLIENT_ID")?.to_string(),"redirect_uri":redirect_uri,"grant_type":"authorization_code","code_verifier":verifier});
+    let r = c
+        .send("/oauth/token", Method::Post, &[], None, Some(&body))
+        .await?;
+    if r.status != 200 {
+        if matches!(r.status, 400 | 401) {
+            return Err(ApiError::new(400, "trakt_authorization_failed"));
+        }
+        return Err(upstream_error(&r));
+    }
+    let t: Tokens =
+        serde_json::from_value(r.data).map_err(|_| ApiError::new(502, "invalid_trakt_token"))?;
+    check(&t)?;
+    Ok(t)
+}
 /// The connection a request runs on, with its key while the request lasts.
 pub struct Conn {
     pub id: String,
@@ -187,17 +212,20 @@ pub async fn access_token(c: &Client<'_>, conn: &Conn) -> Result<String> {
 }
 
 const PENDING_LOGIN: &str = "pending_login";
+const PENDING_SOURCE: &str = "pending_login_source";
 /// How long new Trakt tokens may wait, sealed under the Worker secret, for login to end.
 const PENDING_LOGIN_SECONDS: u64 = 15 * 60;
 
 pub async fn drop_pending(storage: &Storage) -> Result<()> {
     storage.delete(PENDING_LOGIN).await?;
+    storage.delete(PENDING_SOURCE).await?;
     storage.delete(retention::PENDING_EXPIRES).await?;
     Ok(())
 }
 
 /// A device code is spent once Trakt issues tokens, so keep them until the login ends.
-pub async fn park(c: &Client<'_>, state: &State, id: &str, t: &Tokens) -> Result<()> {
+/// `source` names that login, so a later login can never finish with these tokens.
+pub async fn park(c: &Client<'_>, state: &State, id: &str, source: &str, t: &Tokens) -> Result<()> {
     let keys = seal::Keys::from_env(c.env)?;
     let storage = state.storage();
     storage
@@ -206,16 +234,29 @@ pub async fn park(c: &Client<'_>, state: &State, id: &str, t: &Tokens) -> Result
             keys.seal_pending(id, &serde_json::to_string(t)?)?,
         )
         .await?;
+    storage.put(PENDING_SOURCE, security::hash(source)).await?;
     storage
         .put(retention::PENDING_EXPIRES, now() + PENDING_LOGIN_SECONDS)
         .await?;
     retention::rearm(state).await
 }
 
-pub async fn parked(c: &Client<'_>, storage: &Storage, id: &str) -> Result<Option<Tokens>> {
+pub async fn parked(
+    c: &Client<'_>,
+    storage: &Storage,
+    id: &str,
+    source: &str,
+) -> Result<Option<Tokens>> {
     let Some(sealed) = storage.get::<String>(PENDING_LOGIN).await? else {
         return Ok(None);
     };
+    let stored = storage
+        .get::<String>(PENDING_SOURCE)
+        .await?
+        .unwrap_or_default();
+    if !security::equal(&stored, &security::hash(source)) {
+        return Ok(None);
+    }
     let expires = storage
         .get::<u64>(retention::PENDING_EXPIRES)
         .await?
@@ -268,7 +309,7 @@ pub async fn store_grant(
         c.env,
         grant_id,
         "/_grant/put",
-        json!({"sealed":sealed,"connection":conn_id}),
+        json!({"sealed":sealed,"connection":conn_id,"k":grant::wire_key(key)}),
     )
     .await?;
     drop_pending(storage).await

@@ -17,7 +17,7 @@ if (urlsplit(BASE_URL).scheme != "https" or not urlsplit(BASE_URL).hostname
 ROOT = Path(__file__).resolve().parent
 PAGES = {
     "index": ("Trakt MCP — Your next great watch", "Connect your Trakt account to Claude, Codex, and ChatGPT for viewing history, recommendations, and search."),
-    "connect": ("Connect your client — Trakt MCP", "Install Trakt MCP in Claude and Codex, connect ChatGPT web, and approve your own Trakt account with a device code."),
+    "connect": ("Connect your client — Trakt MCP", "Install Trakt MCP in Claude and Codex, connect ChatGPT web, and approve your own Trakt account."),
     "skills": ("Four useful workflows — Trakt MCP", "Choose a movie, understand watched summaries, find a title, or diagnose your connection."),
     "data-privacy": ("Privacy and data handling — Trakt MCP", "What the hosted Trakt MCP service stores, sends, and deletes."),
     "terms": ("Software and service terms — Trakt MCP", "Community software licensing, service limitations, and operator responsibilities."),

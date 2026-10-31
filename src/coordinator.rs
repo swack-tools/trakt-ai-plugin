@@ -39,7 +39,11 @@ impl DurableObject for TraktStore {
     async fn alarm(&self) -> worker::Result<Response> {
         let lock = self.lock.clone();
         let _guard = lock.lock().await;
-        if matches!(retention::alarm(&self.state).await, Ok(true)) {
+        // A failed alarm must return an error so the runtime retries the deletion.
+        let purged = retention::alarm(&self.state)
+            .await
+            .map_err(|e| worker::Error::RustError(e.code.to_string()))?;
+        if purged {
             self.streams.borrow_mut().clear();
         }
         Response::ok("")
@@ -103,7 +107,17 @@ impl TraktStore {
                     .ok_or(ApiError::new(400, "invalid_flow"))?
                     .to_string();
                 return Ok(Response::from_json(
-                    &oauth::browser_step(&self.env, &self.state, &mut storage, &id, v).await?,
+                    &oauth::browser_step(&self.env, &mut storage, &id, v).await?,
+                )?);
+            }
+            "/_trakt_callback" => {
+                let v: Value = req.json().await?;
+                let id = v["session_id"]
+                    .as_str()
+                    .ok_or(ApiError::new(400, "invalid_flow"))?
+                    .to_string();
+                return Ok(Response::from_json(
+                    &oauth::trakt_callback(&self.env, &self.state, &mut storage, &id, v).await?,
                 )?);
             }
             "/_exchange" => {
