@@ -47,6 +47,9 @@ pub struct Flow {
     pub trakt_state_hash: Option<String>,
     #[serde(default)]
     pub browser_hash: Option<String>,
+    /// The grant is stored and the key shown; only Continue remains.
+    #[serde(default)]
+    pub key_shown: bool,
     pub code_hash: Option<String>,
     pub resource: String,
 }
@@ -369,6 +372,7 @@ pub async fn begin(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> 
         trakt_verifier: None,
         trakt_state_hash: None,
         browser_hash: None,
+        key_shown: false,
         code_hash: None,
         resource: resource.clone(),
     };
@@ -527,6 +531,10 @@ pub async fn trakt_callback(
         return Ok(json!({"redirect":redirect.as_str(),"connected":false}));
     }
     let action = v["action"].as_str().unwrap_or("");
+    // Reloading the key page must not repeat the login or show the key again.
+    if f.key_shown != (action == "continue") {
+        return Err(ApiError::new(400, "invalid_flow"));
+    }
     if action == "link" {
         return link_with_key(env, storage, id, &mut f, v["connection_key"].as_str()).await;
     }
@@ -568,6 +576,7 @@ pub async fn trakt_callback(
     set_session_grant(env, storage, &grant_id).await?;
     // Saving the key can take a while, so keep the flow open for this page.
     f.expires = now_time + 900;
+    f.key_shown = true;
     storage.put("flow", &f).await?;
     let sealed = seal::Keys::from_env(env)?.seal_token("continue", id, &key, now_time + 900)?;
     Ok(json!({"connection_key":seal::connection_key(&grant_id, &key),"sealed":sealed}))
