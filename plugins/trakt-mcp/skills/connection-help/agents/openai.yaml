@@ -6,6 +6,6 @@ dependencies:
   tools:
     - type: "mcp"
       value: "trakt"
-      description: "Independent Trakt MCP service for the hosted deployment"
+      description: "Independent Companion for Trakt service for the hosted deployment"
       transport: "streamable_http"
       url: "https://trakt.swacktech.com/mcp"

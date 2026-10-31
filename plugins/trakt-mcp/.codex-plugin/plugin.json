@@ -22,9 +22,9 @@
   ],
   "mcpServers": "./.mcp.json",
   "interface": {
-    "displayName": "Trakt MCP \u2014 Community",
-    "shortDescription": "Discover and manage your Trakt viewing.",
-    "longDescription": "An independent community integration with seven guided workflows and 37 single-action MCP tools. Discover recommendations, viewing history, titles, lists, and release calendars. Make requested list, watchlist, history, rating, and collection changes with write permission. Not endorsed by Trakt, Anthropic, or OpenAI.",
+    "displayName": "Companion for Trakt",
+    "shortDescription": "Your Trakt movies and shows",
+    "longDescription": "Companion for Trakt is an independent integration built by SwackTech LLC. It uses Trakt but is not endorsed or certified by Trakt. Connect your own Trakt account to search movies and shows, get personalized recommendations, review your viewing history and profile, browse public and personal lists, and check upcoming episodes and releases. With write permission, it creates and edits your lists and updates your watchlist, ratings, history, and collection, but only when you ask, and it reads the change back. Read-only connections stay read-only.",
     "developerName": "SwackTech LLC",
     "category": "Productivity",
     "capabilities": [

@@ -702,7 +702,7 @@ pub fn login_page(v: &Value) -> String {
         u.scheme() == "http" && matches!(u.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"))
     });
     format!(
-        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Connect Trakt</title><link rel="stylesheet" href="/login.css"><main><p>TRAKT MCP</p><h1>Connect your Trakt account</h1><p><strong>{}</strong> is requesting permission to {}. Your credentials stay on this server.</p><p>After authorization you will return to <code>{}</code>.</p>{}<form id="connect" data-session="{}" data-ticket="{}"><button type="submit">Connect Trakt</button></form><details id="have-key"><summary>I have a connection key</summary><form id="link"><label for="connection-key">Connection key</label><input id="connection-key" autocomplete="off" spellcheck="false"><button type="submit">Connect with key</button></form></details><section id="status" aria-live="polite"></section><p>You can close this page to cancel.</p></main><script src="/login.js" defer></script></html>"#,
+        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Connect Trakt - Companion for Trakt</title><link rel="stylesheet" href="/login.css"><main><p>COMPANION FOR TRAKT</p><h1>Connect your Trakt account</h1><p><strong>{}</strong> is requesting permission to {}. Your credentials stay on this server.</p><p>After authorization you will return to <code>{}</code>.</p>{}<form id="connect" data-session="{}" data-ticket="{}"><button type="submit">Connect Trakt</button></form><details id="have-key"><summary>I have a connection key</summary><form id="link"><label for="connection-key">Connection key</label><input id="connection-key" autocomplete="off" spellcheck="false"><button type="submit">Connect with key</button></form></details><section id="status" aria-live="polite"></section><p>You can close this page to cancel.</p><p>Companion for Trakt is an independent, unofficial integration by SwackTech LLC. Companion for Trakt uses Trakt but is not endorsed or certified by Trakt.</p></main><script src="/login.js" defer></script></html>"#,
         field("client_name"),
         permissions,
         field("redirect_uri"),
@@ -721,7 +721,7 @@ form.addEventListener('submit',async e=>{e.preventDefault();button.disabled=true
 linkForm.addEventListener('submit',async e=>{e.preventDefault();try{const [,d]=await step('link',{connection_key:document.querySelector('#connection-key').value});if(d.redirect){location.assign(d.redirect);return;}status.textContent=d.error_description||d.error||'That key did not work.';}catch{status.textContent='Network error. Reconnect to retry.';}});"#;
 fn trakt_page(title: &str, body: &str) -> String {
     format!(
-        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>{title}</title><link rel="stylesheet" href="/login.css"><main><p>TRAKT MCP</p><h1>{title}</h1>{body}</main></html>"#
+        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>{title}</title><link rel="stylesheet" href="/login.css"><main><p>COMPANION FOR TRAKT</p><h1>{title}</h1>{body}</main></html>"#
     )
 }
 /// Shown after Trakt redirects back: the link returns the user to their client. It is

@@ -1,7 +1,7 @@
 {
   "name": "trakt-mcp",
   "interface": {
-    "displayName": "Trakt MCP"
+    "displayName": "Companion for Trakt"
   },
   "plugins": [
     {

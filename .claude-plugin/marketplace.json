@@ -11,7 +11,8 @@
       "name": "trakt-mcp",
       "source": "./plugins/trakt-mcp",
       "description": "Trakt discovery, release calendars, viewing profiles, and explicitly requested list and library changes.",
-      "category": "productivity"
+      "category": "productivity",
+      "displayName": "Companion for Trakt"
     }
   ]
 }

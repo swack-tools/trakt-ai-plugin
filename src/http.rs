@@ -173,7 +173,7 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
         match path.as_str() {
             "/" => {
                 return Ok(Response::from_html(format!(
-                    "<!doctype html><title>Trakt MCP</title><h1>Trakt MCP</h1><p>Connect your own Trakt account through your MCP client at <code>{}/mcp</code>.</p><p><a href='/openapi.json'>HTTP API schema</a> · <a href='/data-privacy'>Privacy</a></p>",
+                    "<!doctype html><title>Companion for Trakt</title><h1>Companion for Trakt</h1><p>Connect your own Trakt account through your MCP client at <code>{}/mcp</code>.</p><p><a href='/openapi.json'>HTTP API schema</a> · <a href='/data-privacy'>Privacy</a></p>",
                     security::escape(&base)
                 ))?);
             }
