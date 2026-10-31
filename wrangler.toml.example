@@ -80,17 +80,19 @@ zone_name = "${CLOUDFLARE_ZONE_NAME}"
 pattern = "${CLOUDFLARE_PLUGIN_DNS}/recommendations*"
 zone_name = "${CLOUDFLARE_ZONE_NAME}"
 
-[[kv_namespaces]]
-binding = "TRAKT_SESSIONS"
-id = "${CLOUDFLARE_KV_NAMESPACE}"
-
 [[durable_objects.bindings]]
 name = "TRAKT_COORDINATOR"
-class_name = "TraktCoordinator"
+class_name = "TraktStore"
 
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["TraktCoordinator"]
+
+# Deleting the old class erases its plaintext Trakt tokens on deploy.
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["TraktStore"]
+deleted_classes = ["TraktCoordinator"]
 
 [observability]
 enabled = true

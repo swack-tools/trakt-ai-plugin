@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
-import {mkdtemp,rm,writeFile,mkdir,readFile} from 'node:fs/promises';
+import {mkdtemp,rm,writeFile,mkdir,readFile,readdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
@@ -13,10 +13,12 @@ import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 const base='http://127.0.0.1:8787';
 const watchedFixtures=new Map();
 const mockLists=new Map(),upstreamFailures=new Map();let nextList=9000;
-const users=new Map();let next=0,refreshes=0,worker,mock;let logs='',stateDir; const requests=[];let deviceInterval=1;
+const users=new Map(),consumedRefreshes=new Set(),refreshFailures=[];let revokeFailure=null;const revocations=[];let next=0,refreshes=0,worker,mock;let logs='',stateDir; const requests=[],refreshAttempts=[];let deviceInterval=1;
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
+// The rate limit applies per IP; give each fixture login its own address.
+let fixtureIp=0;const freshIp=()=>({'CF-Connecting-IP':`10.${(++fixtureIp>>8)&255}.${fixtureIp&255}.1`});
 async function api(path,{token,method='GET',body,headers={}}={}){const r=await fetch(base+path,{signal:AbortSignal.timeout(15000),method,headers:{...(token?{Authorization:`Bearer ${token}`} : {}),...(body?{'Content-Type':'application/json'}:{}),...headers},body:body?JSON.stringify(body):undefined});const text=await r.text();let data;try{data=JSON.parse(text);}catch{data=text;}return {status:r.status,data,headers:r.headers};}
-async function device(interval=1){deviceInterval=interval;try{const r=await api('/auth/device/code',{method:'POST',body:{}});assert.equal(r.status,200,JSON.stringify(r.data));return r.data;}finally{deviceInterval=1;}}
+async function device(interval=1){deviceInterval=interval;try{const r=await api('/auth/device/code',{method:'POST',body:{},headers:freshIp()});assert.equal(r.status,200,JSON.stringify(r.data));return r.data;}finally{deviceInterval=1;}}
 async function connect(){const d=await device();users.get(d.device_code).authorized=true;await pause(1100);const r=await api('/auth/device/token',{token:d.session_token,method:'POST',body:{device_code:d.device_code}});assert.equal(r.status,200,JSON.stringify(r.data));assert.ok(r.data.access_token);assert.equal(r.data.scope,'trakt:read');return {...r.data,device:d};}
 // Pagination cases share a fixture account so this suite does not exhaust the
 // production IP-based device-registration limit. Authentication tests keep separate users.
@@ -35,8 +37,10 @@ before(async()=>{
  assert.equal(req.headers['user-agent'],'trakt-mcp/1.0 (+https://plugin.example.test)');assert.equal(req.headers['trakt-api-key'],'test-client-id');assert.equal(req.headers['trakt-api-version'],'2');
  let status=200,data;
  if(u.pathname==='/oauth/device/code'){const code=`device-${++next}`;users.set(code,{id:next,authorized:false});data={device_code:code,user_code:`USER${next}`,verification_url:'https://trakt.tv/activate',expires_in:600,interval:deviceInterval};}
- else if(u.pathname==='/oauth/device/token'){const user=users.get(body.code);assert.equal(body.client_secret,'test-client-secret');if(!user){status=404;data={};}else if(user.status){status=user.status;data={};}else if(!user.authorized){status=400;data={};}else{data={access_token:`trakt-${user.id}`,refresh_token:`refresh-${user.id}`,created_at:Math.floor(Date.now()/1000),expires_in:user.expired?1:3600};}}
- else if(u.pathname==='/oauth/token'){refreshes++;await pause(150);data={access_token:body.refresh_token.replace('refresh-','trakt-'),refresh_token:`rotated-${refreshes}`,created_at:Math.floor(Date.now()/1000),expires_in:3600};}
+ else if(u.pathname==='/oauth/device/token'){const user=users.get(body.code);assert.equal(body.client_secret,'test-client-secret');if(!user){status=404;data={};}else if(user.status){status=user.status;data={};if(user.retryAfter)res.setHeader('Retry-After',String(user.retryAfter));}else if(!user.authorized){status=400;data={};}else{data={access_token:`trakt-${user.id}`,refresh_token:`refresh-${user.id}`,created_at:Math.floor(Date.now()/1000),expires_in:user.expired?1:3600};}}
+ else if(u.pathname==='/oauth/revoke'){revocations.push(body.token);if(revokeFailure){status=revokeFailure;data={};}else data={};}
+ else if(u.pathname==='/oauth/token'&&refreshFailures.length){const failure=refreshFailures.shift();status=failure.status;data={};if(failure.retryAfter)res.setHeader('Retry-After',String(failure.retryAfter));refreshAttempts.push(body.refresh_token);}
+ else if(u.pathname==='/oauth/token'){refreshAttempts.push(body.refresh_token);if(consumedRefreshes.has(body.refresh_token)){status=400;data={};}else{consumedRefreshes.add(body.refresh_token);refreshes++;await pause(150);data={access_token:body.refresh_token.replace('refresh-','trakt-'),refresh_token:`rotated-${refreshes}`,created_at:Math.floor(Date.now()/1000),expires_in:3600};}}
  else if(upstreamFailures.has(`${req.method} ${u.pathname}`)&&!upstreamFailures.get(`${req.method} ${u.pathname}`).commit){
   const failure=upstreamFailures.get(`${req.method} ${u.pathname}`);status=failure.status;data=failure.data??{private_upstream_detail:'must not be returned'};if(failure.pagination)paginationHeaders(res,failure.pagination);if(status===429)res.setHeader('Retry-After','13');
  }
@@ -304,7 +308,7 @@ test('login page offers a retry after Trakt rate limits the start',async()=>{
  const source=await (await fetch(base+'/login.js')).text();
  const button={disabled:false},status={textContent:''},timers=[];let submit;
  const form={dataset:{session:'s',ticket:'t'},querySelector:()=>button,addEventListener:(_,handler)=>{submit=handler;}};
- const page={querySelector:selector=>selector==='#connect'?form:status};
+ const page={querySelector:selector=>selector==='#connect'?form:selector==='#link'?{addEventListener(){}}:status};
  const limited=async()=>({ok:false,json:async()=>({error:'trakt_rate_limited',retry_after:2})});
  new Function('document','fetch','setTimeout',source)(page,limited,callback=>timers.push(callback));
  await submit({preventDefault(){}});
@@ -367,22 +371,22 @@ async function callFailure(token,name,args,error){
  const result=await mcpCall(token,name,args);assert.equal(result.isError,true,JSON.stringify(result));assert.equal(result.data.error,error);return result.data;
 }
 let browserRegistration;
-async function browserConnect(scope){
- browserRegistration??=(await api('/oauth/register',{method:'POST',body:{client_name:'Write consent fixture',redirect_uris:['http://127.0.0.1:9998/callback'],token_endpoint_auth_method:'none'}})).data;
+async function browserConnect(scope,{userId,replace=true}={}){
+ browserRegistration??=(await api('/oauth/register',{method:'POST',headers:freshIp(),body:{client_name:'Write consent fixture',redirect_uris:['http://127.0.0.1:9998/callback'],token_endpoint_auth_method:'none'}})).data;
  assert.ok(browserRegistration.client_id,JSON.stringify(browserRegistration));
  const verifier='w'.repeat(64),resource='https://plugin.example.test/mcp',redirect_uri='http://127.0.0.1:9998/callback';
  const params=new URLSearchParams({client_id:browserRegistration.client_id,redirect_uri,response_type:'code',state:'write-fixture',code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256',resource,...(scope?{scope}:{})});
- for(const [redirect_uri,status] of [['http://127.0.0.1:41234/callback',200],['http://localhost:9999/callback',400],['http://127.0.0.1:9999/other',400]]){const probe=new URLSearchParams(params);probe.set('redirect_uri',redirect_uri);assert.equal((await api('/oauth/authorize?'+probe,{headers:{'CF-Connecting-IP':'198.51.100.7'}})).status,status,redirect_uri);}
- const page=await api('/oauth/authorize?'+params);assert.equal(page.status,200,JSON.stringify(page.data));
+ const page=await api('/oauth/authorize?'+params,{headers:freshIp()});assert.equal(page.status,200,JSON.stringify(page.data));
  assert.match(page.data,scope==='trakt:read'?/without making account changes/:/make changes you request/);
  const session_id=page.data.match(/data-session="([^"]+)"/)[1],ticket=page.data.match(/data-ticket="([^"]+)"/)[1];
  const device=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'start'}});assert.equal(device.status,200,JSON.stringify(device.data));
- users.get(device.data.device_code).authorized=true;await pause(1100);
- const complete=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'poll'}});assert.equal(complete.status,200,JSON.stringify(complete.data));
+ const fixtureUser=users.get(device.data.device_code);if(userId)fixtureUser.id=userId;fixtureUser.authorized=true;await pause(1100);
+ let complete=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'poll'}});assert.equal(complete.status,200,JSON.stringify(complete.data));
+ if(complete.data.existing){if(!replace)return {existing:true,session_id,ticket};complete=await api('/oauth/complete',{method:'POST',body:{session_id,ticket,action:'replace'}});assert.equal(complete.status,200,JSON.stringify(complete.data));}
  const redirect=new URL(complete.data.redirect);assert.equal(redirect.searchParams.get('state'),'write-fixture');
  const tokens=await api('/oauth/token',{method:'POST',body:{grant_type:'authorization_code',client_id:browserRegistration.client_id,code:redirect.searchParams.get('code'),redirect_uri,code_verifier:verifier,resource}});
  assert.equal(tokens.status,200,JSON.stringify(tokens.data));assert.equal(tokens.data.scope,scope||'trakt:read trakt:write');
- return {...tokens.data,client_id:browserRegistration.client_id,resource,upstream_user_id:users.get(device.data.device_code).id};
+ return {...tokens.data,client_id:browserRegistration.client_id,resource,upstream_user_id:fixtureUser.id,connection_key:complete.data.connection_key};
 }
 let writeAccount,readBrowserAccount;
 async function writer(){return writeAccount??=await browserConnect();}
@@ -671,6 +675,211 @@ test('deleting a list sends no JSON payload',async()=>{
  assert.equal(deleted.status,204);assert.equal(requests.at(-1).method,'DELETE');
  assert.equal(requests.at(-1).bodyPresent,false,'an omitted body must send zero payload bytes');
 });
+// Client-held key encryption: fixtures for linking, refresh, purge, and revoke.
+async function linkPage(scope){
+ const verifier='l'.repeat(64),resource='https://plugin.example.test/mcp',redirect_uri='http://127.0.0.1:9998/callback';
+ const params=new URLSearchParams({client_id:browserRegistration.client_id,redirect_uri,response_type:'code',state:'link-fixture',code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256',resource,...(scope?{scope}:{})});
+ const page=await api('/oauth/authorize?'+params,{headers:freshIp()});assert.equal(page.status,200);assert.match(page.data,/I have a connection key/);
+ return {session_id:page.data.match(/data-session="([^"]+)"/)[1],ticket:page.data.match(/data-ticket="([^"]+)"/)[1],verifier,resource,redirect_uri};
+}
+async function linkClient(key,scope){
+ const flow=await linkPage(scope);
+ const linked=await api('/oauth/complete',{method:'POST',headers:freshIp(),body:{session_id:flow.session_id,ticket:flow.ticket,action:'link',connection_key:key}});
+ if(linked.status!==200)return {failed:linked};
+ assert.equal(linked.data.connection_key,undefined,'linking never shows a key again');
+ const code=new URL(linked.data.redirect).searchParams.get('code');
+ const tokens=await api('/oauth/token',{method:'POST',body:{grant_type:'authorization_code',client_id:browserRegistration.client_id,code,redirect_uri:flow.redirect_uri,code_verifier:flow.verifier,resource:flow.resource}});
+ assert.equal(tokens.status,200,JSON.stringify(tokens.data));
+ return {...tokens.data,client_id:browserRegistration.client_id,resource:flow.resource};
+}
+const search=token=>api('/search?query=x',{token});
+const searchError=async token=>(await search(token)).data.error;
+function storedFiles(directory){return readdir(directory,{recursive:true,withFileTypes:true}).then(entries=>Promise.all(entries.filter(e=>e.isFile()).map(e=>readFile(join(e.parentPath,e.name)))));}
+
+test('the first login shows K once, and a valid key links another client without Trakt',async()=>{
+ const first=await browserConnect();
+ assert.match(first.connection_key,/^tck_[0-9a-f]{64}_[0-9a-f]{64}$/);
+ assert.ok(!JSON.stringify(first.access_token+first.refresh_token).includes(first.connection_key.split('_')[2]),'tokens seal K rather than carry it');
+ const before=requests.length;
+ const second=await linkClient(first.connection_key);
+ assert.equal(requests.slice(before).filter(r=>r.path.startsWith('/oauth/')).length,0,'linking needs no Trakt authorization');
+ assert.equal((await search(second.access_token)).status,200);assert.equal(requests.at(-1).headers.authorization,`Bearer trakt-${first.upstream_user_id}`);
+ assert.equal((await search(first.access_token)).status,200);
+ assert.equal(second.scope,'trakt:read trakt:write');
+ const reader=await linkClient(first.connection_key,'trakt:read');assert.equal(reader.scope,'trakt:read');
+ await callFailure(reader.access_token,'trakt_create_list',createList('Read only link'),'write_authorization_required');
+});
+
+test('a wrong or malformed connection key links nothing',async()=>{
+ const owner=await browserConnect(),grant=owner.connection_key.split('_')[1];
+ for(const key of [`tck_${grant}_${'0'.repeat(64)}`,`tck_${'a'.repeat(64)}_${'0'.repeat(64)}`,'not-a-key',owner.connection_key+'00']){
+  const {failed}=await linkClient(key);assert.equal(failed?.status,400,key);assert.equal(failed.data.error,'connection_key_invalid');
+ }
+ assert.equal((await search(owner.access_token)).status,200);
+});
+
+test('a fresh login warns, then replaces the grant and invalidates the old key',async()=>{
+ const old=await browserConnect();
+ const pending=await browserConnect(undefined,{userId:old.upstream_user_id,replace:false});assert.equal(pending.existing,true,'the page warns before replacing');
+ assert.equal((await search(old.access_token)).status,200,'declining leaves the other client connected');
+ const linkedAfterWarning=await api('/oauth/complete',{method:'POST',headers:freshIp(),body:{session_id:pending.session_id,ticket:pending.ticket,action:'link',connection_key:old.connection_key}});
+ assert.equal(linkedAfterWarning.status,200,'the old key still works at the warning');
+ const fresh=await browserConnect(undefined,{userId:old.upstream_user_id});
+ assert.notEqual(fresh.connection_key,old.connection_key);
+ assert.equal((await search(fresh.access_token)).status,200);
+ assert.equal(await searchError(old.access_token),'trakt_login_required');
+ assert.equal((await linkClient(old.connection_key)).failed?.data.error,'connection_key_invalid');
+ assert.equal((await linkClient(fresh.connection_key)).failed,undefined);
+ // The replaced key must not sign the new login out.
+ assert.equal((await api('/auth/session',{method:'DELETE',token:old.access_token})).status,204);
+ assert.equal((await search(fresh.access_token)).status,200);
+});
+
+test('reconnecting from chat keeps the connection key and never returns it',async()=>{
+ const user=await browserConnect();
+ const requested=await callSuccess(user.access_token,'trakt_request_login',{});
+ users.get(requested.device_code).id=user.upstream_user_id;users.get(requested.device_code).authorized=true;await pause(1100);
+ const confirmed=await callSuccess(user.access_token,'trakt_confirm_login',{device_code:requested.device_code});
+ assert.deepEqual(confirmed,{status:'connected'});
+ assert.equal((await search(user.access_token)).status,200,'the client keeps its credentials');
+ assert.equal((await linkClient(user.connection_key)).failed,undefined,'the saved key still opens the new grant');
+ const tools=JSON.stringify((await api('/mcp',{method:'POST',token:user.access_token,body:{jsonrpc:'2.0',id:3,method:'tools/list'}})).data);
+ assert.ok(!tools.includes(user.connection_key));
+});
+
+test('stored data never contains Trakt tokens or K',async()=>{
+ const user=await browserConnect(),id=user.upstream_user_id,hexKey=user.connection_key.split('_')[2];
+ assert.equal((await search(user.access_token)).status,200);
+ const files=await storedFiles(stateDir);assert.ok(files.length>0);
+ for(const data of files){
+  for(const secret of [`refresh-${id}"`,`trakt-${id}"`,hexKey])assert.equal(data.includes(secret),false,secret);
+ }
+});
+
+test('concurrent refreshes across clients use one single-use Trakt refresh',async()=>{
+ const d=await device();const fixture=users.get(d.device_code);fixture.authorized=true;fixture.expired=true;await pause(1100);
+ const flowUser=await browserConnect();
+ // A browser login with an expiring grant, then a linked client, all refreshing at once.
+ const requested=await callSuccess(flowUser.access_token,'trakt_request_login',{});
+ Object.assign(users.get(requested.device_code),{id:flowUser.upstream_user_id,expired:true,authorized:true});await pause(1100);
+ await callSuccess(flowUser.access_token,'trakt_confirm_login',{device_code:requested.device_code});
+ const linked=await linkClient(flowUser.connection_key);
+ const before=refreshes;consumedRefreshes.delete(`refresh-${flowUser.upstream_user_id}`);
+ const results=await Promise.all([search(flowUser.access_token),search(linked.access_token),search(flowUser.access_token),search(linked.access_token)]);
+ results.forEach(r=>assert.equal(r.status,200,JSON.stringify(r.data)));
+ assert.equal(refreshes,before+1,'every waiter reuses the one refresh');
+ const after=refreshes;assert.equal((await search(linked.access_token)).status,200);assert.equal(refreshes,after,'a fresh token is not refreshed again');
+});
+
+test('a 429 on refresh keeps the grant, reports the wait, and never retries',async()=>{
+ const user=await browserConnect();
+ const requested=await callSuccess(user.access_token,'trakt_request_login',{});
+ Object.assign(users.get(requested.device_code),{id:user.upstream_user_id,expired:true,authorized:true});await pause(1100);
+ await callSuccess(user.access_token,'trakt_confirm_login',{device_code:requested.device_code});
+ const token=`refresh-${user.upstream_user_id}`;consumedRefreshes.delete(token);
+ refreshFailures.push({status:429,retryAfter:2});
+ let attempts=refreshAttempts.length;
+ const limited=await search(user.access_token);
+ assert.equal(limited.status,429);assert.equal(limited.data.error,'trakt_rate_limited');assert.equal(limited.headers.get('retry-after'),'2');
+ assert.equal(refreshAttempts.length,attempts+1,'no automatic retry');
+ const during=await search(user.access_token);assert.equal(during.status,429);assert.equal(refreshAttempts.length,attempts+1,'the wait is honored without calling Trakt');
+ assert.ok(during.data.retry_after>=1);
+ await pause(2100);
+ assert.equal((await search(user.access_token)).status,200,'the unconsumed refresh token still works');
+ assert.equal(refreshAttempts.at(-1),token);
+});
+
+test('a 429 without Retry-After backs off by the default and reports it',async()=>{
+ const user=await browserConnect();
+ const requested=await callSuccess(user.access_token,'trakt_request_login',{});
+ Object.assign(users.get(requested.device_code),{id:user.upstream_user_id,expired:true,authorized:true});await pause(1100);
+ await callSuccess(user.access_token,'trakt_confirm_login',{device_code:requested.device_code});
+ consumedRefreshes.delete(`refresh-${user.upstream_user_id}`);
+ refreshFailures.push({status:429});const attempts=refreshAttempts.length;
+ const limited=await search(user.access_token);assert.equal(limited.status,429);assert.equal(limited.data.retry_after,60);
+ const during=await search(user.access_token);assert.equal(during.status,429);assert.ok(during.data.retry_after<=60&&during.data.retry_after>=50);
+ assert.equal(refreshAttempts.length,attempts+1);
+});
+
+test('reads refresh only near expiry',async()=>{
+ const user=await browserConnect(),attempts=refreshAttempts.length;
+ for(let i=0;i<3;i++)assert.equal((await search(user.access_token)).status,200);
+ assert.equal(refreshAttempts.length,attempts);
+});
+
+test('device polling honors the interval and Trakt slow_down',async()=>{
+ const d=await device();const tokenCalls=()=>requests.filter(r=>r.path==='/oauth/device/token'&&r.body.code===d.device_code).length;
+ Object.assign(users.get(d.device_code),{status:429,retryAfter:3});await pause(1100);
+ const body={device_code:d.device_code};
+ const slowed=await api('/auth/device/token',{method:'POST',token:d.session_token,body});
+ assert.equal(slowed.data.error,'slow_down');assert.ok(slowed.data.retry_after>=3);assert.equal(tokenCalls(),1);
+ const early=await api('/auth/device/token',{method:'POST',token:d.session_token,body});
+ assert.equal(early.data.error,'slow_down');assert.equal(tokenCalls(),1,'an early poll stays local');
+ Object.assign(users.get(d.device_code),{status:null,retryAfter:null,authorized:true});await pause(slowed.data.retry_after*1000+1100);
+ const done=await api('/auth/device/token',{method:'POST',token:d.session_token,body});assert.equal(done.status,200,JSON.stringify(done.data));assert.ok(done.data.access_token);
+});
+
+test('a failure identifying the user after login keeps the spent device code usable',async()=>{
+ const d=await device();users.get(d.device_code).authorized=true;await pause(1100);
+ const tokenCalls=()=>requests.filter(r=>r.path==='/oauth/device/token'&&r.body.code===d.device_code).length;
+ upstreamFailures.set('GET /users/settings',{status:429});
+ let limited;
+ try{limited=await api('/auth/device/token',{method:'POST',token:d.session_token,body:{device_code:d.device_code}});}finally{upstreamFailures.delete('GET /users/settings');}
+ assert.equal(limited.status,429);assert.ok(limited.data.retry_after>0);assert.equal(tokenCalls(),1);
+ const done=await api('/auth/device/token',{method:'POST',token:d.session_token,body:{device_code:d.device_code}});
+ assert.equal(done.status,200,JSON.stringify(done.data));assert.equal(tokenCalls(),1,'the spent code is not sent again');
+ assert.equal((await search(done.data.access_token)).status,200);
+});
+
+test('refresh reuse revokes that connection but not the shared grant',async()=>{
+ const first=await browserConnect(),second=await linkClient(first.connection_key);
+ const body={grant_type:'refresh_token',refresh_token:first.refresh_token,client_id:first.client_id,resource:first.resource};
+ const rotated=await api('/oauth/token',{method:'POST',body});assert.equal(rotated.status,200,JSON.stringify(rotated.data));
+ assert.equal((await search(rotated.data.access_token)).status,200,'rotation keeps the sealed key');
+ assert.equal((await api('/oauth/token',{method:'POST',body})).status,400);
+ assert.equal((await search(rotated.data.access_token)).status,401,'reuse ends this connection');
+ assert.equal((await search(second.access_token)).status,200,'the other client keeps working');
+});
+
+test('sign-out revokes at Trakt and deletes the grant for every client',async()=>{
+ const first=await browserConnect(),second=await linkClient(first.connection_key),before=revocations.length;
+ assert.equal((await api('/auth/session',{method:'DELETE',token:first.access_token})).status,204);
+ assert.deepEqual(revocations.slice(before),[`trakt-${first.upstream_user_id}`]);
+ for(const token of [first.access_token,second.access_token])assert.equal((await search(token)).status,401);
+ assert.equal((await linkClient(first.connection_key)).failed?.status,400);
+});
+
+test('a Trakt failure during sign-out is reported and local records still go',async()=>{
+ const user=await browserConnect();revokeFailure=429;
+ let out;try{out=await api('/auth/session',{method:'DELETE',token:user.access_token});}finally{revokeFailure=null;}
+ assert.equal(out.status,200);assert.equal(out.data.trakt_revoked,false);assert.equal(out.data.retry_after,60);
+ assert.equal((await search(user.access_token)).status,401);assert.equal((await linkClient(user.connection_key)).failed?.status,400);
+});
+
+test('writes from two clients of one user share the one-per-second pace',async()=>{
+ const first=await browserConnect(),second=await linkClient(first.connection_key);
+ const made=await Promise.all([callSuccess(first.access_token,'trakt_create_list',createList('Pace one')),callSuccess(second.access_token,'trakt_create_list',createList('Pace two'))]);
+ const writes=requests.filter(r=>r.method==='POST'&&r.path==='/users/me/lists').slice(-2);
+ assert.ok(Math.abs(writes[1].at-writes[0].at)>=950,'clients of one user are paced together');
+ for(const list of made)await callSuccess(first.access_token,'trakt_delete_list',{list_id:String(list.data.ids.trakt),confirmed:true});
+});
+
+test('a purge alarm deletes the grant and connection after the retention period',async()=>{
+ const persist=await mkdtemp(join(tmpdir(),'trakt-purge-'));const port=8788;
+ const short=spawn('node',['node_modules/wrangler/bin/wrangler.js','dev','--config','tests/wrangler.test.toml','--port',String(port),'--inspector-port','9232','--persist-to',persist,'--var','RETENTION_SECONDS:3'],{stdio:'ignore',env:{...process.env,WRANGLER_SEND_METRICS:'false'}});
+ const call=async(path,{token,method='GET',body}={})=>{const r=await fetch(`http://127.0.0.1:${port}${path}`,{signal:AbortSignal.timeout(15000),method,headers:{...(token?{Authorization:`Bearer ${token}`}:{}),...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});return {status:r.status,data:await r.json().catch(()=>null)};};
+ try{
+  for(let i=0;i<100;i++){try{if((await call('/health')).status===200)break;}catch{}await pause(200);}
+  const d=(await call('/auth/device/code',{method:'POST',body:{}})).data;users.get(d.device_code).authorized=true;await pause(1100);
+  const u=(await call('/auth/device/token',{method:'POST',token:d.session_token,body:{device_code:d.device_code}})).data;assert.ok(u.access_token,JSON.stringify(u));
+  assert.equal((await call('/search?query=x',{token:u.access_token})).status,200);
+  assert.ok((await storedFiles(persist)).some(data=>data.length>0));
+  await pause(5000);
+  assert.equal((await call('/search?query=x',{token:u.access_token})).status,401,'the connection record is gone');
+  assert.equal((await call('/oauth/token',{method:'POST',body:{grant_type:'refresh_token',refresh_token:u.refresh_token}})).status,400);
+ }finally{const exited=once(short,'exit');short.kill('SIGTERM');const timer=setTimeout(()=>short.kill('SIGKILL'),5000);timer.unref();try{await exited;}finally{clearTimeout(timer);}await rm(persist,{recursive:true,force:true});}
+});
+
 // Runs last so it covers every upstream request the suite made.
 test('every Trakt data request carries the user token',()=>{
  const anonymous=requests.filter(r=>!r.path.startsWith('/oauth/')&&!r.headers.authorization).map(r=>`${r.method} ${r.path}`);

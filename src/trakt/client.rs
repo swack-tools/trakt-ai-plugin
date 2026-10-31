@@ -265,6 +265,10 @@ pub fn upstream_error(r: &Upstream) -> ApiError {
         .ok()
         .flatten()
         .and_then(|s| s.parse().ok());
+    // Trakt's edge limiting can omit the header; a caller still needs a wait.
+    if r.status == 429 && e.retry_after.is_none() {
+        e.retry_after = Some(crate::grant::DEFAULT_BACKOFF_SECONDS);
+    }
     e
 }
 

@@ -23,8 +23,10 @@ pub fn token_id(token: &str) -> Result<&str> {
         .ok_or(ApiError::new(401, "invalid_token"))?;
     if id.len() != 32
         || !id.bytes().all(|b| b.is_ascii_hexdigit())
-        || secret.len() != 64
-        || !secret.bytes().all(|b| b.is_ascii_hexdigit())
+        || !(64..=1024).contains(&secret.len())
+        || !secret
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'.')
     {
         return Err(ApiError::new(401, "invalid_token"));
     }
@@ -94,13 +96,13 @@ pub fn redirect_matches(registered: &str, requested: &str) -> bool {
 }
 /// Hosted Claude registers every user's client from Anthropic's published egress
 /// range, so that range shares one larger bucket instead of the per-IP limit.
-pub fn rate_bucket(ip: &str) -> (String, u32) {
+pub fn rate_bucket(ip: &str, salted: &str) -> (String, u32) {
     let anthropic = ip.parse::<std::net::Ipv4Addr>().is_ok_and(|a| {
         u32::from(a) >> 11 == u32::from(std::net::Ipv4Addr::new(160, 79, 104, 0)) >> 11
     });
     if anthropic {
         ("anthropic".into(), 600)
     } else {
-        (format!("ip:{}", hash(ip)), 20)
+        (format!("ip:{salted}"), 20)
     }
 }

@@ -534,7 +534,7 @@
     "/auth/session": {
       "delete": {
         "operationId": "deleteConnection",
-        "description": "Delete this connection, its stored Trakt tokens, KV cache and open SSE streams. Does not change watch history. Revoke the Trakt app separately in Trakt account settings.",
+        "description": "Sign out: ask Trakt to revoke access, then delete the shared Trakt authorization and every connection using it. Returns 204, or 200 with trakt_revoked false when Trakt did not confirm revocation. Does not change watch history. Revoke the Trakt app separately in Trakt account settings.",
         "responses": {
           "204": {
             "description": "Connection deleted"

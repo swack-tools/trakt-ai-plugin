@@ -35,7 +35,7 @@ for parameter in paths['/sync/watched']['get']['parameters']:
  if parameter['name']=='limit': parameter['schema']={**parameter['schema'],'default':100}
 add('/recommendations','get','getRecommendations',"Get Trakt's personalized ranking using its viewing/preferences signals. Select movie or show, optionally filter genres and years; 1-100 results. No separate model is trained by this service.",ref('Page'),['media_type','genres','years','limit'])
 add('/search','get','searchMedia','Search movies/shows. Genre and year filters apply locally to one returned upstream page. Pagination counts describe the upstream unfiltered result; filters_applied_to_page makes this explicit.',ref('Page'),[k for k in query if k not in ('mode','detail')])
-add('/auth/session','delete','deleteConnection','Delete this connection, its stored Trakt tokens, KV cache and open SSE streams. Does not change watch history. Revoke the Trakt app separately in Trakt account settings.',obj({}))
+add('/auth/session','delete','deleteConnection','Sign out: ask Trakt to revoke access, then delete the shared Trakt authorization and every connection using it. Returns 204, or 200 with trakt_revoked false when Trakt did not confirm revocation. Does not change watch history. Revoke the Trakt app separately in Trakt account settings.',obj({}))
 for parameter in paths['/recommendations']['get']['parameters']:
  if parameter['name']=='media_type': parameter['schema']={**parameter['schema'],'enum':['movie','show','movies','shows']}
 paths['/auth/session']['delete']['responses']={'204':{'description':'Connection deleted'},'401':response(ref('Error'),'Authorization required')}

@@ -35,11 +35,6 @@ impl From<serde_json::Error> for ApiError {
         Self::new(400, "invalid_json")
     }
 }
-impl From<worker::kv::KvError> for ApiError {
-    fn from(_: worker::kv::KvError) -> Self {
-        Self::new(500, "cache_error")
-    }
-}
 pub type Result<T> = std::result::Result<T, ApiError>;
 
 /// Human-readable explanation and next step for each error code. The code stays the
@@ -55,8 +50,8 @@ pub fn describe(code: &str) -> &'static str {
         "authorization_pending" => {
             "The user has not approved the Trakt code yet. Wait for retry_after or the login interval, then confirm again."
         }
-        "cache_error" => {
-            "The service could not read or write its token cache. Retry a read later; inspect state before repeating a write."
+        "connection_key_invalid" => {
+            "This connection key does not open a Trakt authorization. Check the key, or connect with Trakt to start again."
         }
         "confirmation_required" => {
             "This change needs confirmed set to true, and only after the user requested this exact change."
@@ -120,6 +115,9 @@ pub fn describe(code: &str) -> &'static str {
         "invalid_query" => "query must be non-empty and at most 500 characters.",
         "invalid_redirect_uri" => {
             "Redirect URIs must be HTTPS, or HTTP on a loopback address, without credentials or fragments."
+        }
+        "invalid_seal_configuration" => {
+            "The deployment's TOKEN_SEAL_KEYS setting is missing or invalid. The operator must fix the configuration."
         }
         "invalid_scope" => {
             "Request trakt:read, optionally with trakt:write. A refresh cannot add scopes the connection was not granted."

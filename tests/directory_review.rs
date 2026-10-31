@@ -72,7 +72,7 @@ fn anthropic_egress_shares_a_larger_registration_bucket() {
     // Hosted Claude registers clients from 160.79.104.0/21 for every user.
     for ip in ["160.79.104.0", "160.79.107.12", "160.79.111.255"] {
         assert_eq!(
-            security::rate_bucket(ip),
+            security::rate_bucket(ip, "salted"),
             ("anthropic".to_string(), 600),
             "{ip}"
         );
@@ -84,9 +84,9 @@ fn anthropic_egress_shares_a_larger_registration_bucket() {
         "2001:db8::1",
         "local",
     ] {
-        let (key, limit) = security::rate_bucket(ip);
+        let (key, limit) = security::rate_bucket(ip, "salted");
         assert_eq!(limit, 20, "{ip}");
-        assert_eq!(key, format!("ip:{}", security::hash(ip)));
+        assert_eq!(key, "ip:salted");
     }
 }
 

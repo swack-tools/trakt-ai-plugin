@@ -23,7 +23,7 @@ pub fn query(req: &Request) -> Result<Value> {
     }
     Ok(Value::Object(out))
 }
-async fn call(env: &Env, id: &str, path: &str, value: Value) -> Result<Response> {
+pub async fn call(env: &Env, id: &str, path: &str, value: Value) -> Result<Response> {
     let mut init = RequestInit::new();
     init.with_method(Method::Post)
         .with_body(Some(value.to_string().into()));
@@ -91,7 +91,8 @@ async fn rate(env: &Env, req: &Request) -> Result<()> {
         .headers()
         .get("CF-Connecting-IP")?
         .unwrap_or("local".into());
-    let (bucket, limit) = security::rate_bucket(&ip);
+    let (bucket, limit) =
+        security::rate_bucket(&ip, &crate::seal::Keys::from_env(env)?.ip_id(&ip)?);
     let r = call(
         env,
         &format!("rate:{bucket}"),
@@ -231,6 +232,9 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
                     .filter(|s| valid_id(s))
                     .ok_or(ApiError::new(400, "invalid_flow"))?
                     .to_string();
+                if v["action"] == "link" {
+                    rate(&env, &req).await?;
+                }
                 return call(&env, &id, "/_browser", v).await;
             }
             "/oauth/token" => {

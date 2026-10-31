@@ -9,12 +9,10 @@ TRAKT_AUTH_URL = "http://127.0.0.1:8799"
 TRAKT_CLIENT_ID = "test-client-id"
 TRAKT_CLIENT_SECRET = "test-client-secret"
 TRAKT_REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"
-[[kv_namespaces]]
-binding = "TRAKT_SESSIONS"
-id = "test-sessions"
+TOKEN_SEAL_KEYS = '{"index":"1111111111111111111111111111111111111111111111111111111111111111","keys":[{"kid":"t2","key":"2222222222222222222222222222222222222222222222222222222222222222"},{"kid":"t1","key":"3333333333333333333333333333333333333333333333333333333333333333","retired_at":1893456000}]}'
 [[durable_objects.bindings]]
 name = "TRAKT_COORDINATOR"
-class_name = "TraktCoordinator"
+class_name = "TraktStore"
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["TraktCoordinator"]
+new_sqlite_classes = ["TraktStore"]

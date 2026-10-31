@@ -17,6 +17,10 @@ Diagnose the layer before changing authentication. Ask for the visible error cod
 
 Output the failed layer, evidence without secrets, one concrete next action, and any retry time. Stop when fixed or when the next step requires the user/client/operator. Uninstalling a plugin is not proof of deleting server data or revoking Trakt authorization; direct deletion requests to the service's documented session deletion and Trakt connected-app controls, without performing an unrequested deletion.
 
+## Connection keys and sign-out
+
+One Trakt account has one stored authorization, shared by its clients. A new browser login to Trakt replaces it, so another client can start returning `trakt_login_required` after the user connects somewhere else. Reconnecting through the client's OAuth flow fixes that client; choosing `I have a connection key` on the login page connects it without disconnecting the others. Never ask the user to paste a connection key into chat, and no tool returns one. Signing out with `DELETE /auth/session` ends every client of that account.
+
 ## Write access and upgrades
 
 A successful read does not prove write permission. Existing connection tokens and standalone device login have `trakt:read` only. If a write fails because `trakt:write` is missing, direct the user to reauthorize the server through the client’s OAuth controls. Browser OAuth requests read and write access when scope is omitted; an explicit `trakt:read` request stays read-only. The consent page names the requested permissions. Token refresh preserves the original scope, and the device login tools cannot elevate it. After client reauthorization, resume only the concrete write the user requested, using that tool's schema and `confirmed: true`; do not use a test mutation to check connectivity.

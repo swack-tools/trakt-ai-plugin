@@ -68,6 +68,10 @@ Thirty-seven MCP tools each perform one fixed Trakt action, with fixed inputs de
 
 New browser OAuth connections request read and write access when scope is omitted, and the consent page states those permissions. Explicit `trakt:read` requests stay read-only. Existing tokens and standalone device login remain read-only; reauthorize through your client with `trakt:read trakt:write` for writes. Refresh cannot increase scope. Each write tool also requires `confirmed: true` for a concrete change the user requested. Skills verify changes through reads and never automatically repeat a write after an uncertain failure.
 
+## Your data
+
+Trakt tokens are stored encrypted with a key held only by your AI clients; records are deleted 30 days after last use or on sign-out. It is decrypted in memory only while handling a request. See the [privacy page](https://trakt.swacktech.com/data-privacy.html) for sign-out and retention limits.
+
 ## Try asking
 
 - `Recommend five movies for me using Trakt.`

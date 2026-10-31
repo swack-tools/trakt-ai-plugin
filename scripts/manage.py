@@ -36,7 +36,7 @@ def main():
         if (ROOT / '.env').exists():
             os.chmod(ROOT / '.env', 0o600)
         template = (ROOT / 'wrangler.toml.example').read_text()
-        for k in ('CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_KV_NAMESPACE', 'CLOUDFLARE_PLUGIN_DNS', 'CLOUDFLARE_ZONE_NAME', 'PUBLIC_BASE_URL'):
+        for k in ('CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_PLUGIN_DNS', 'CLOUDFLARE_ZONE_NAME', 'PUBLIC_BASE_URL'):
             if not v.get(k) or any(c in v[k] for c in '\"\\\n\r'):
                 raise SystemExit('Missing or unsafe configuration value: ' + k)
             template = template.replace('${' + k + '}', v[k])
@@ -44,7 +44,7 @@ def main():
         os.chmod(ROOT / 'wrangler.toml', 0o600)
         print('Configured Worker.')
     elif sys.argv[1] == 'sync-secrets':
-        mapping = {'CLOUDFLARE_ACCOUNT_ID': 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN': 'CLOUDFLARE_WORKER_API_TOKEN', 'CLOUDFLARE_KV_NAMESPACE': 'CLOUDFLARE_KV_NAMESPACE', 'TRAKT_CLIENT_ID': 'TRAKT_CLIENT_ID', 'TRAKT_CLIENT_SECRET': 'TRAKT_CLIENT_SECRET'}
+        mapping = {'CLOUDFLARE_ACCOUNT_ID': 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN': 'CLOUDFLARE_WORKER_API_TOKEN', 'TRAKT_CLIENT_ID': 'TRAKT_CLIENT_ID', 'TRAKT_CLIENT_SECRET': 'TRAKT_CLIENT_SECRET', 'TOKEN_SEAL_KEYS': 'TOKEN_SEAL_KEYS'}
         for name, source in mapping.items():
             subprocess.run(['gh', 'secret', 'set', name], input=v[source], text=True, cwd=ROOT, check=True)
             print('Synced ' + name)
@@ -55,7 +55,7 @@ def main():
     elif sys.argv[1] == 'deploy':
         e = os.environ | {'CLOUDFLARE_API_TOKEN': v['CLOUDFLARE_WORKER_API_TOKEN'], 'CLOUDFLARE_ACCOUNT_ID': v['CLOUDFLARE_ACCOUNT_ID']}
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json') as f:
-            json.dump({k: v[k] for k in ('TRAKT_CLIENT_ID', 'TRAKT_CLIENT_SECRET', 'OPENAI_APPS_CHALLENGE') if v.get(k)}, f)
+            json.dump({k: v[k] for k in ('TRAKT_CLIENT_ID', 'TRAKT_CLIENT_SECRET', 'TOKEN_SEAL_KEYS', 'OPENAI_APPS_CHALLENGE') if v.get(k)}, f)
             f.flush()
             subprocess.run(['npx', 'wrangler', 'deploy', '--secrets-file', f.name], cwd=ROOT, env=e, check=True)
     else:

@@ -1,42 +1,39 @@
 use super::{
-    auth::get_optional,
+    auth::Conn,
     catalog::{self, Call},
     client::{Client, response_pagination, upstream_error},
 };
 use crate::{
     error::{ApiError, Result},
-    oauth,
+    grant, oauth,
 };
 use serde_json::{Value, json};
 use std::time::Duration;
 use worker::{Delay, Method, Storage};
 
-const PACED_UNTIL: &str = "trakt_paced_until";
-/// Trakt allows one authenticated POST, PUT, or DELETE per second per user.
-const PACE_MILLIS: u64 = 1000;
-
-/// Wait until the previous step of a paced sequence is at least a second old.
-pub async fn wait_for_pace(storage: &mut Storage) -> Result<()> {
-    if let Some(until) = get_optional::<u64>(storage, PACED_UNTIL).await? {
-        let now = worker::Date::now().as_millis();
-        if until > now {
-            Delay::from(Duration::from_millis(until - now)).await;
-        }
+/// Wait out the connected user's write pacing. `op` is read, reserve, or mark.
+pub async fn pace(c: &Client<'_>, conn: &Conn, op: &str) -> Result<()> {
+    let Some(grant_id) = &conn.grant else {
+        return Ok(());
+    };
+    let reply = grant::request(c.env, grant_id, "/_grant/pace", json!({"op":op})).await?;
+    if let Some(wait) = reply["wait_ms"].as_u64().filter(|wait| *wait > 0) {
+        Delay::from(Duration::from_millis(wait)).await;
     }
     Ok(())
 }
 
-pub async fn mark_paced(storage: &mut Storage) -> Result<()> {
-    storage
-        .put(PACED_UNTIL, worker::Date::now().as_millis() + PACE_MILLIS)
-        .await?;
-    Ok(())
+/// A pacing failure must not turn an applied write into an apparent failure.
+async fn pace_after_write(c: &Client<'_>, conn: &Conn) {
+    if let Some(grant_id) = &conn.grant {
+        let _ = grant::request(c.env, grant_id, "/_grant/pace", json!({"op":"mark"})).await;
+    }
 }
 
 pub async fn execute_call(
     c: &Client<'_>,
     storage: &mut Storage,
-    session_id: &str,
+    conn: &Conn,
     call: &Call,
     write: bool,
 ) -> Result<Value> {
@@ -47,7 +44,7 @@ pub async fn execute_call(
     }
     // Even public reads require a fully connected session; never accept a
     // user-supplied token or allow temporary device credentials to call the API.
-    let token = super::auth::access_token(c, storage, session_id).await?;
+    let token = super::auth::access_token(c, conn).await?;
     let method = match op["method"].as_str() {
         Some("GET") => Method::Get,
         Some("POST") => Method::Post,
@@ -61,7 +58,7 @@ pub async fn execute_call(
         .iter()
         .map(|(k, v)| (k.as_str(), v.clone()))
         .collect();
-    wait_for_pace(storage).await?;
+    pace(c, conn, if write { "reserve" } else { "read" }).await?;
     let sent = c
         .send(
             &request.path,
@@ -72,7 +69,8 @@ pub async fn execute_call(
         )
         .await;
     if write {
-        mark_paced(storage).await?;
+        // The next request waits a second from when this write finished.
+        pace_after_write(c, conn).await;
     }
     let r = sent?;
     if !(200..300).contains(&r.status) {
