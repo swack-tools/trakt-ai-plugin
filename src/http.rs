@@ -42,6 +42,21 @@ async fn call_json(env: &Env, id: &str, path: &str, value: Value) -> Result<Valu
     }
     Ok(r.json().await?)
 }
+const FLOW_COOKIE: &str = "__Host-trakt_flow";
+fn flow_cookie(req: &Request) -> Result<String> {
+    Ok(req
+        .headers()
+        .get("Cookie")?
+        .unwrap_or_default()
+        .split(';')
+        .find_map(|pair| {
+            pair.trim()
+                .strip_prefix(FLOW_COOKIE)?
+                .strip_prefix('=')
+                .map(String::from)
+        })
+        .unwrap_or_default())
+}
 fn valid_id(id: &str) -> bool {
     id.len() == 32 && id.bytes().all(|c| c.is_ascii_hexdigit())
 }
@@ -183,6 +198,33 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
                 r.headers_mut().set("Content-Type", "text/css")?;
                 return Ok(r);
             }
+            "/oauth/trakt/callback" => {
+                rate(&env, &req).await?;
+                let mut v = query(&req)?;
+                let id = v["state"]
+                    .as_str()
+                    .and_then(|state| state.split_once('.'))
+                    .map(|(id, _)| id.to_string())
+                    .filter(|id| valid_id(id))
+                    .ok_or(ApiError::new(400, "invalid_flow"))?;
+                v["session_id"] = json!(id);
+                v["browser"] = json!(flow_cookie(&req)?);
+                let mut r = call(&env, &id, "/_trakt_callback", v).await?;
+                let status = r.status_code();
+                let out: Value = r.json().await?;
+                let page = if status < 400 {
+                    oauth::connected_page(
+                        out["redirect"].as_str().unwrap_or_default(),
+                        out["connected"] == true,
+                    )
+                } else {
+                    oauth::callback_error_page(
+                        out["error"].as_str().unwrap_or_default(),
+                        out["retry_after"].as_u64(),
+                    )
+                };
+                return Ok(Response::from_html(page)?.with_status(status));
+            }
             "/oauth/authorize" => {
                 rate(&env, &req).await?;
                 let q = query(&req)?;
@@ -225,13 +267,27 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
                 });
             }
             "/oauth/complete" => {
-                let v = req.json::<Value>().await?;
+                let mut v = req.json::<Value>().await?;
                 let id = v["session_id"]
                     .as_str()
                     .filter(|s| valid_id(s))
                     .ok_or(ApiError::new(400, "invalid_flow"))?
                     .to_string();
-                return call(&env, &id, "/_browser", v).await;
+                let browser = security::random();
+                v["browser"] = json!(browser);
+                let mut r = call(&env, &id, "/_browser", v).await?;
+                if r.status_code() == 200 {
+                    // A fetched response has immutable headers until they are copied.
+                    let headers = r.headers().clone();
+                    r = r.with_headers(headers);
+                    r.headers_mut().set(
+                        "Set-Cookie",
+                        &format!(
+                            "{FLOW_COOKIE}={browser}; Path=/; Max-Age=900; Secure; HttpOnly; SameSite=Lax"
+                        ),
+                    )?;
+                }
+                return Ok(r);
             }
             "/oauth/token" => {
                 let q = form(&mut req).await?;

@@ -3,7 +3,7 @@
 <p>For step-by-step setup in Claude, Codex, and ChatGPT, use the <a href="connect.html">client guide</a>.</p><h2 id="connect-a-client">Connect a client</h2>
 <p>For Claude Code&#x27;s modern HTTP transport:</p>
 <pre><code>claude mcp add --transport http trakt https://trakt.swacktech.com/mcp</code></pre>
-<p>Open <code>/mcp</code> in Claude Code and authenticate. The browser shows which client is requesting access. Choose <strong>Connect Trakt</strong>, open <strong>https://trakt.tv/activate</strong>, enter the displayed code, and approve in Trakt. Return to the browser page; it completes authorization automatically.</p>
+<p>Open <code>/mcp</code> in Claude Code and authenticate. The browser shows which client is requesting access. Choose <strong>Connect Trakt</strong>, sign in, and approve at Trakt. When Trakt sends you back, choose <strong>Return to your app</strong>.</p>
 <p>For legacy clients, use <strong>https://trakt.swacktech.com/sse</strong>. The <code>.claude-plugin</code> manifest explicitly points to its SSE configuration. For local plugin testing, clone this repository and run <code>claude --plugin-dir .</code>. The repository is public. The root legacy plugin still uses SSE; the repository marketplace packages use modern HTTP. See the client guide for current marketplace installation instructions.</p>
 <p>Codex and other OAuth-capable MCP clients can use <code>https://trakt.swacktech.com/mcp</code>. Configure it as a remote HTTP MCP server and use that client&#x27;s login flow. OAuth discovery, dynamic client registration, S256 PKCE, authorization-code exchange and rotating refresh tokens are provided. Public clients must support PKCE.</p>
 <p>Available tools:</p>

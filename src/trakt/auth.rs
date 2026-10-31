@@ -150,6 +150,30 @@ pub async fn poll_device_token(
     }
     Err(e)
 }
+/// Exchange a browser authorization code. PKCE proves the request, so no client
+/// secret is sent. A 429 leaves the code unused, so the caller can try it again.
+pub async fn exchange_code(
+    c: &Client<'_>,
+    storage: &mut Storage,
+    id: &str,
+    code: &str,
+    verifier: &str,
+    redirect_uri: &str,
+) -> Result<()> {
+    let body = json!({"code":code,"client_id":c.env.secret("TRAKT_CLIENT_ID")?.to_string(),"redirect_uri":redirect_uri,"grant_type":"authorization_code","code_verifier":verifier});
+    let r = c
+        .send("/oauth/token", Method::Post, &[], None, Some(&body))
+        .await?;
+    if r.status != 200 {
+        if matches!(r.status, 400 | 401) {
+            return Err(ApiError::new(400, "trakt_authorization_failed"));
+        }
+        return Err(upstream_error(&r));
+    }
+    let t: Tokens =
+        serde_json::from_value(r.data).map_err(|_| ApiError::new(502, "invalid_trakt_token"))?;
+    save(c, storage, id, &t).await
+}
 pub async fn access_token(c: &Client<'_>, storage: &mut Storage, id: &str) -> Result<String> {
     let t = get_optional::<Tokens>(storage, "trakt_tokens")
         .await?
