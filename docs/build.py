@@ -16,13 +16,13 @@ if (urlsplit(BASE_URL).scheme != "https" or not urlsplit(BASE_URL).hostname
 
 ROOT = Path(__file__).resolve().parent
 PAGES = {
-    "index": ("Trakt MCP — Your next great watch", "Connect your Trakt account to Claude, Codex, and ChatGPT for viewing history, recommendations, and search."),
-    "connect": ("Connect your client — Trakt MCP", "Install Trakt MCP in Claude and Codex, connect ChatGPT web, and approve your own Trakt account."),
-    "skills": ("Four useful workflows — Trakt MCP", "Choose a movie, understand watched summaries, find a title, or diagnose your connection."),
-    "data-privacy": ("Privacy and data handling — Trakt MCP", "What the hosted Trakt MCP service stores, sends, and deletes."),
-    "terms": ("Software and service terms — Trakt MCP", "Community software licensing, service limitations, and operator responsibilities."),
-    "support": ("Support and security — Trakt MCP", "Get help safely and report problems with the community Trakt plugin."),
-    "reference": ("Technical reference — Trakt MCP", "Trakt MCP tools, HTTP API, OAuth, deployment, isolation, and operational limits."),
+    "index": ("Companion for Trakt — Your next great watch", "Connect your Trakt account to Claude, Codex, and ChatGPT for viewing history, recommendations, and search."),
+    "connect": ("Connect your client — Companion for Trakt", "Install Companion for Trakt in Claude and Codex, connect ChatGPT web, and approve your own Trakt account."),
+    "skills": ("Four useful workflows — Companion for Trakt", "Choose a movie, understand watched summaries, find a title, or diagnose your connection."),
+    "data-privacy": ("Privacy and data handling — Companion for Trakt", "What the hosted Companion for Trakt service stores, sends, and deletes."),
+    "terms": ("Software and service terms — Companion for Trakt", "Software license, service limitations, and operator responsibilities."),
+    "support": ("Support and security — Companion for Trakt", "Get help safely and report problems with Companion for Trakt."),
+    "reference": ("Technical reference — Companion for Trakt", "Companion for Trakt tools, HTTP API, OAuth, deployment, isolation, and operational limits."),
 }
 
 
@@ -43,9 +43,9 @@ def build(destination):
 <link rel="canonical" href="{escape(BASE_URL, quote=True)}/{'' if name == 'index' else name + '.html'}">
 <meta name="theme-color" content="#12231e"><link rel="stylesheet" href="assets/style.css">
 </head><body><a class="skip" href="#main">Skip to content</a>
-<header><div class="header-inner"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">t.</span>Trakt MCP</a><nav aria-label="Main navigation">{nav}<a href="https://github.com/swack-tools/trakt-ai-plugin">GitHub ↗</a></nav></div></header>
+<header><div class="header-inner"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">c.</span>Companion for Trakt</a><nav aria-label="Main navigation">{nav}<a href="https://github.com/swack-tools/trakt-ai-plugin">GitHub ↗</a></nav></div></header>
 <main id="main">{body}</main>
-<footer><div><a class="brand" href="index.html">Trakt MCP</a><p>Your viewing. Your account. Your conversation.</p></div><p><a href="https://github.com/swack-tools/trakt-ai-plugin">Source on GitHub</a> · <a href="data-privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · <a href="support.html">Support &amp; security</a><br>Community project. Not affiliated with Trakt, Anthropic, or OpenAI.<br>Client guidance checked September 27, 2026.</p></footer>
+<footer><div><a class="brand" href="index.html">Companion for Trakt</a><p>Your viewing. Your account. Your conversation.</p></div><p><a href="https://github.com/swack-tools/trakt-ai-plugin">Source on GitHub</a> · <a href="data-privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · <a href="support.html">Support &amp; security</a><br>Companion for Trakt is an independent, unofficial integration by SwackTech LLC. Companion for Trakt uses Trakt but is not endorsed or certified by Trakt. Not affiliated with Anthropic or OpenAI.<br>Client guidance checked September 27, 2026.</p></footer>
 </body></html>''')
     shutil.copytree(ROOT / "assets", destination / "assets")
     (destination / ".nojekyll").touch()

@@ -17,7 +17,7 @@
       "input_or_trigger": "Use Trakt to recommend three thoughtful science-fiction movies.",
       "platform": "claude",
       "prerequisites": [
-        "Install the plugin or the named standalone skill, and separately enable the Trakt MCP connection. Skills alone do not supply tools or authenticate the server."
+        "Install the plugin or the named standalone skill, and separately enable the Companion for Trakt connection. Skills alone do not supply tools or authenticate the server."
       ],
       "expected_behavior": "Select Trakt recommendations with supported genre filters and explain the returned metadata. If asked for recommendations based on all viewing or unseen titles, first traverse every relevant watched-summary page; for recent viewing use the latest 100 events per medium. Report partial coverage and do not imply streaming availability.",
       "sources": [
@@ -53,7 +53,7 @@
       "input_or_trigger": "Summarize the movies and shows in my watched data.",
       "platform": "claude",
       "prerequisites": [
-        "Install the plugin or the named standalone skill, and separately enable the Trakt MCP connection. Skills alone do not supply tools or authenticate the server."
+        "Install the plugin or the named standalone skill, and separately enable the Companion for Trakt connection. Skills alone do not supply tools or authenticate the server."
       ],
       "expected_behavior": "Traverse movie and show summary streams separately, following every next_page until each reports has_more: false and next_page: null. Preserve supplied metadata and report partial coverage with a resume page if either stream is incomplete; do not infer viewing hours, streaks, or completion of a show from its summary.",
       "sources": [
@@ -89,7 +89,7 @@
       "input_or_trigger": "Find the original Solaris, not the remake.",
       "platform": "claude",
       "prerequisites": [
-        "Install the plugin or the named standalone skill, and separately enable the Trakt MCP connection. Skills alone do not supply tools or authenticate the server."
+        "Install the plugin or the named standalone skill, and separately enable the Companion for Trakt connection. Skills alone do not supply tools or authenticate the server."
       ],
       "expected_behavior": "Search by title and medium, compare returned years and identifiers, and ask which match is intended if the results remain ambiguous. Ordinary lookup stays bounded; an explicit all-results request follows every page.",
       "sources": [
@@ -125,7 +125,7 @@
       "input_or_trigger": "Create a private list called Rainy Sunday and add Arrival (2016).",
       "platform": "claude",
       "prerequisites": [
-        "Install the plugin or the named standalone skill, and separately enable the Trakt MCP connection. Skills alone do not supply tools or authenticate the server.",
+        "Install the plugin or the named standalone skill, and separately enable the Companion for Trakt connection. Skills alone do not supply tools or authenticate the server.",
         "A concrete requested change and a connection with trakt:write; pass confirmed: true only for that intent. Reauthorize older read-only connections through client OAuth; refresh and device login cannot increase scope."
       ],
       "expected_behavior": "Resolve the movie and list target, create the requested private list, add the returned Trakt ID only with write authorization, then read back the requested change. Public list discovery does not authorize edits.",
@@ -170,7 +170,7 @@
       "input_or_trigger": "What episodes are on my calendar next week in America/Chicago?",
       "platform": "claude",
       "prerequisites": [
-        "Install the plugin or the named standalone skill, and separately enable the Trakt MCP connection. Skills alone do not supply tools or authenticate the server."
+        "Install the plugin or the named standalone skill, and separately enable the Companion for Trakt connection. Skills alone do not supply tools or authenticate the server."
       ],
       "expected_behavior": "Resolve the requested dates and time zone, read the personal show calendar for a bounded window, preserve supplied air times, and report incomplete coverage. A calendar is not proof of streaming availability.",
       "sources": [
@@ -206,7 +206,7 @@
       "input_or_trigger": "Rate Arrival (2016) 8 and add it to my collection.",
       "platform": "claude",
       "prerequisites": [
-        "Install the plugin or the named standalone skill, and separately enable the Trakt MCP connection. Skills alone do not supply tools or authenticate the server.",
+        "Install the plugin or the named standalone skill, and separately enable the Companion for Trakt connection. Skills alone do not supply tools or authenticate the server.",
         "A concrete requested change and a connection with trakt:write; pass confirmed: true only for that intent. Reauthorize older read-only connections through client OAuth; refresh and device login cannot increase scope."
       ],
       "expected_behavior": "Resolve the title before writing. Require a write-enabled connection and explicit requested effects; verify each result by reading state and never replay an uncertain write automatically.",
@@ -251,7 +251,7 @@
       "input_or_trigger": "Trakt tools are installed, but my account won’t connect.",
       "platform": "claude",
       "prerequisites": [
-        "Install the plugin or the named standalone skill, and separately enable the Trakt MCP connection. Skills alone do not supply tools or authenticate the server."
+        "Install the plugin or the named standalone skill, and separately enable the Companion for Trakt connection. Skills alone do not supply tools or authenticate the server."
       ],
       "expected_behavior": "Diagnose missing tools, client OAuth, and upstream Trakt authorization separately. Ask for the visible error without secrets. Start device login only after a request to reconnect; show only the activation URL and user code and wait for approval. Device login cannot repair failed client OAuth or grant write scope.",
       "sources": [
@@ -323,7 +323,7 @@
       "input_or_trigger": "Search Trakt for Arrival.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Search movies or shows with supported filters. For ordinary lookup stay bounded; follow every page only when all results are explicitly requested, and distinguish page-local filters from total pagination.",
       "sources": [
@@ -358,7 +358,7 @@
       "input_or_trigger": "Show me the details for Arrival (2016).",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Return the full details of the resolved movie, show, or episode. Details do not establish streaming availability.",
       "sources": [
@@ -385,7 +385,7 @@
       "input_or_trigger": "Who is in the cast of Arrival (2016)?",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Return the cast and crew Trakt lists for the resolved title.",
       "sources": [
@@ -412,7 +412,7 @@
       "input_or_trigger": "What is related to Arrival (2016)?",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Return one page of titles Trakt lists as related; this is not a personalized recommendation.",
       "sources": [
@@ -439,7 +439,7 @@
       "input_or_trigger": "List the seasons and episodes of this show.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Return every season with each episode's Trakt ID, season, and number.",
       "sources": [
@@ -466,7 +466,7 @@
       "input_or_trigger": "Which title has IMDb ID tt2543164?",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Resolve a Trakt, IMDb, TMDB, or TVDB ID to its Trakt title.",
       "sources": [
@@ -493,7 +493,7 @@
       "input_or_trigger": "Recommend science-fiction movies from 2020 onward.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Return Trakt-personalized movie or show recommendations with supported genre/year filters and a bounded limit. Do not imply a separate model or streaming availability; this tool has no page parameter.",
       "sources": [
@@ -528,7 +528,7 @@
       "input_or_trigger": "What movies are trending on Trakt?",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Return one page of trending titles with optional genre, year, and library filters.",
       "sources": [
@@ -555,7 +555,7 @@
       "input_or_trigger": "What shows are popular on Trakt?",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Return one page of popular titles with optional genre, year, and library filters.",
       "sources": [
@@ -582,7 +582,7 @@
       "input_or_trigger": "What movies are most anticipated?",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Return one page of anticipated titles with optional genre, year, and library filters.",
       "sources": [
@@ -609,7 +609,7 @@
       "input_or_trigger": "Stop recommending this movie to me.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A write requires a connection with trakt:write and a concrete requested change."
       ],
       "expected_behavior": "Hide one movie or show from future recommendations after an explicit request. A dislike alone does not authorize it.",
@@ -637,7 +637,7 @@
       "input_or_trigger": "Show my upcoming episodes next week in America/Chicago.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Resolve next week in America/Chicago into a bounded personal show calendar request using an ISO start date and 1–31 days. Show supplied air times in the chosen time zone, report incomplete windows, and do not claim streaming access.",
       "sources": [
@@ -672,7 +672,7 @@
       "input_or_trigger": "Show me the movies and TV shows I’ve watched.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Read one page per requested medium. For all-history requests, follow each stream's next_page until has_more=false and next_page=null; otherwise report partial coverage. Recent mode is bounded to the latest 100 events per medium.",
       "sources": [
@@ -707,7 +707,7 @@
       "input_or_trigger": "How far am I through this show?",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Return watched progress and the next episode for one show.",
       "sources": [
@@ -734,7 +734,7 @@
       "input_or_trigger": "What should I watch next from my shows?",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Return one page of next episodes across shows in progress.",
       "sources": [
@@ -761,7 +761,7 @@
       "input_or_trigger": "How many movies have I watched?",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Return account totals from Trakt without inferring anything beyond them.",
       "sources": [
@@ -788,7 +788,7 @@
       "input_or_trigger": "Mark Arrival (2016) as watched.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A write requires a connection with trakt:write and a concrete requested change."
       ],
       "expected_behavior": "Record exactly the requested watch. Each add creates new plays, so an uncertain result is checked by reading history rather than repeated.",
@@ -816,7 +816,7 @@
       "input_or_trigger": "Remove my watch of Arrival from last night.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A write requires a connection with trakt:write and a concrete requested change."
       ],
       "expected_behavior": "Remove the identified watch event or title's watches after the scope is clear, then read history back.",
@@ -844,7 +844,7 @@
       "input_or_trigger": "What have I rated 8?",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Return one page of the account's ratings, including the read-back after a rating change.",
       "sources": [
@@ -871,7 +871,7 @@
       "input_or_trigger": "Rate Arrival (2016) 8.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A write requires a connection with trakt:write and a concrete requested change."
       ],
       "expected_behavior": "Set the requested 1-10 rating and verify it by reading ratings back. A rating does not imply a watch or collection change.",
@@ -899,7 +899,7 @@
       "input_or_trigger": "Remove my rating for Arrival.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A write requires a connection with trakt:write and a concrete requested change."
       ],
       "expected_behavior": "Remove the requested rating and verify it by reading ratings back.",
@@ -927,7 +927,7 @@
       "input_or_trigger": "What movies are in my collection?",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Return the account's collected titles, including the read-back after a collection change.",
       "sources": [
@@ -954,7 +954,7 @@
       "input_or_trigger": "Add Arrival (2016) to my collection.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A write requires a connection with trakt:write and a concrete requested change."
       ],
       "expected_behavior": "Add the requested title and verify it by reading the collection back. Collecting does not mark it watched.",
@@ -982,7 +982,7 @@
       "input_or_trigger": "Remove Arrival from my collection.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A write requires a connection with trakt:write and a concrete requested change."
       ],
       "expected_behavior": "Remove the requested title and verify it by reading the collection back.",
@@ -1010,7 +1010,7 @@
       "input_or_trigger": "What is on my watchlist?",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Return one page of the watchlist in the chosen order.",
       "sources": [
@@ -1037,7 +1037,7 @@
       "input_or_trigger": "Add Arrival (2016) to my watchlist.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A write requires a connection with trakt:write and a concrete requested change."
       ],
       "expected_behavior": "Add the requested title and verify it by reading the watchlist back.",
@@ -1065,7 +1065,7 @@
       "input_or_trigger": "Remove Arrival from my watchlist.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A write requires a connection with trakt:write and a concrete requested change."
       ],
       "expected_behavior": "Remove the requested title and verify it by reading the watchlist back.",
@@ -1093,7 +1093,7 @@
       "input_or_trigger": "Show trending public science-fiction lists.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Browse trending or popular public lists with an optional genre slug and pagination. Genre filtering is not free-text list search; discovery does not grant edit permission.",
       "sources": [
@@ -1120,7 +1120,7 @@
       "input_or_trigger": "Show the movies on this list by its owner and list ID.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Read one movie or show page using the returned owner and list ID, following pagination for a complete listing. Reading a public list does not authorize editing it.",
       "sources": [
@@ -1147,7 +1147,7 @@
       "input_or_trigger": "What lists do I have on Trakt?",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "Return one page of the lists owned by the connected account.",
       "sources": [
@@ -1174,7 +1174,7 @@
       "input_or_trigger": "Create a private list called Rainy Sunday and add Arrival (2016).",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A concrete requested change and a connection with trakt:write; pass confirmed: true only for that intent. Reauthorize older read-only connections through client OAuth; refresh and device login cannot increase scope."
       ],
       "expected_behavior": "Create a list owned by the connected account, private by default. Require a concrete request, write authorization, and confirmed=true; do not automatically retry an ambiguous result. Use the returned list ID for the separately requested add step; report partial success if adding fails.",
@@ -1218,7 +1218,7 @@
       "input_or_trigger": "Rename my Rainy Sunday list to Stormy Sunday.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A write requires a connection with trakt:write and a concrete requested change."
       ],
       "expected_behavior": "Change only the requested fields of a list the connected account owns. Foreign or unverifiable lists are refused.",
@@ -1246,7 +1246,7 @@
       "input_or_trigger": "Delete my Rainy Sunday list.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A write requires a connection with trakt:write and a concrete requested change."
       ],
       "expected_behavior": "Delete a list the connected account owns only on an explicit request. Foreign or unverifiable lists are refused.",
@@ -1274,7 +1274,7 @@
       "input_or_trigger": "Create a private list called Rainy Sunday and add Arrival (2016).",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A concrete requested change and a connection with trakt:write; pass confirmed: true only for that intent. Reauthorize older read-only connections through client OAuth; refresh and device login cannot increase scope."
       ],
       "expected_behavior": "Add up to 100 distinct movie, show, season, or episode Trakt IDs only to an owned list after resolving the target. Require write authorization and confirmed=true, then inspect the result and read back state.",
@@ -1318,7 +1318,7 @@
       "input_or_trigger": "Remove this movie from my list.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A concrete requested change and a connection with trakt:write; pass confirmed: true only for that intent. Reauthorize older read-only connections through client OAuth; refresh and device login cannot increase scope."
       ],
       "expected_behavior": "Remove only the resolved title IDs from a list owned by the connected account. Require explicit intent, write authorization, and confirmed=true; verify the result without replaying an uncertain write.",
@@ -1354,7 +1354,7 @@
       "input_or_trigger": "Reconnect my Trakt account.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills."
       ],
       "expected_behavior": "When the user requests reconnection, issue one device code and display only its activation URL and user code. Keep the device_code private and wait for the user to approve at Trakt.",
       "sources": [
@@ -1384,7 +1384,7 @@
       "input_or_trigger": "I approved the Trakt device code; finish connecting.",
       "platform": "claude",
       "prerequisites": [
-        "Enable the Trakt MCP connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
+        "Enable the Companion for Trakt connection in your client and complete client OAuth. Authorize your own Trakt account for personalized data; a standalone MCP connection supplies tools, not skills.",
         "A pending device-code request from this connection, user approval at Trakt, and the returned polling interval elapsed; keep the matching device_code private."
       ],
       "expected_behavior": "After the user confirms approval and the returned polling interval has elapsed, confirm using the matching private device_code. Respect retry timing, expiry, and denial; do not expose credentials.",

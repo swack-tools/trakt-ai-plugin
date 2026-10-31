@@ -1,14 +1,14 @@
-# Trakt MCP community plugin
+# Companion for Trakt
 
 ![Community cinema card: a cream play card and gold discovery star on green](assets/mark.svg)
 
-An independent community plugin for choosing films and television with your own Trakt account. Seven bundled skills support recommendations, viewing profiles, title search, list management, release calendars, library changes, and connection diagnosis. This project is not endorsed by Trakt, Anthropic, or OpenAI. Installing from the repository does not mean any platform has approved a directory listing.
+Companion for Trakt is an independent, unofficial integration by SwackTech LLC. Companion for Trakt uses Trakt but is not endorsed or certified by Trakt. It helps you choose films and television with your own Trakt account. Seven bundled skills support recommendations, viewing profiles, title search, list management, release calendars, library changes, and connection diagnosis. It is not endorsed by Anthropic or OpenAI. Installing from the repository does not mean any platform has approved a directory listing.
 
 ## Install the plugin
 
 The public repository is [swack-tools/trakt-ai-plugin](https://github.com/swack-tools/trakt-ai-plugin). Its marketplace and plugin identifiers remain `trakt-mcp`.
 
-**Claude desktop chat, `claude.ai`, and Cowork:** open **Customize → Plugins → Add → Add marketplace**, enter the repository URL, and install `Trakt MCP — Community`. Alternatively, use **Add → Upload plugin** with the packaged plugin ZIP. Open the installed plugin's **Connectors** tab and connect the Trakt server. A Team or Enterprise organization may require its Owner to add the connector first. A command-line install is local to that machine and does not automatically add the plugin to your Claude account.
+**Claude desktop chat, `claude.ai`, and Cowork:** open **Customize → Plugins → Add → Add marketplace**, enter the repository URL, and install `Companion for Trakt`. Alternatively, use **Add → Upload plugin** with the packaged plugin ZIP. Open the installed plugin's **Connectors** tab and connect the Trakt server. A Team or Enterprise organization may require its Owner to add the connector first. A command-line install is local to that machine and does not automatically add the plugin to your Claude account.
 
 **Claude Code:** run these commands, then open `/mcp` in Claude Code and complete the connection flow when prompted:
 
@@ -104,7 +104,7 @@ The plugin combines portable instructions with a remote server. It runs no insta
 
 For **MCP only**, add the hosted deployment URL `https://trakt.swacktech.com/mcp` as a remote Streamable HTTP server in your client and complete its OAuth flow. Claude Code supports `claude mcp add --transport http trakt https://trakt.swacktech.com/mcp`; Codex supports `codex mcp add trakt --url https://trakt.swacktech.com/mcp` followed by `codex mcp login trakt`. Do not install a second connection to the same server if the plugin already supplies it. Legacy SSE at `/sse` is available for compatible clients, but Streamable HTTP is preferred. MCP-only setup gives tools without these workflow instructions.
 
-For **skills only**, copy individual folders from this package's `skills` directory to the appropriate client skill location, preserving each folder's contents. Claude Code project skills live in `.claude/skills`; Codex project skills live in `.agents/skills`. For Claude chat/desktop, upload each skill ZIP in **Customize → Skills**, then turn it on. Each skill is self-contained, including its OpenAI dependency metadata. It still requires an authorized Trakt MCP connection; uploading instructions does not register a server in a directory. Do not copy the same skills separately when the plugin already loads them.
+For **skills only**, copy individual folders from this package's `skills` directory to the appropriate client skill location, preserving each folder's contents. Claude Code project skills live in `.claude/skills`; Codex project skills live in `.agents/skills`. For Claude chat/desktop, upload each skill ZIP in **Customize → Skills**, then turn it on. Each skill is self-contained, including its OpenAI dependency metadata. It still requires an authorized Companion for Trakt connection; uploading instructions does not register a server in a directory. Do not copy the same skills separately when the plugin already loads them.
 
 The fixed server URLs in this package describe this project's hosted deployment. A self-hosted distributor must replace the URL in both MCP configuration files and in each skill's OpenAI dependency metadata, and supply its own service documentation. Portable `mcp.json` uses `streamable-http`; Claude/legacy `.mcp.json` uses `http`. Their different type spellings are intentional.
 
@@ -132,7 +132,7 @@ If skills appear but tools do not, enable or connect the bundled connector and s
 
 An empty recommendation list can reflect your Trakt account or filters. An empty filtered search page does not establish that no matching title exists. If a page fails, is truncated, or reports inconsistent pagination, the assistant reports partial coverage. It includes the next page to resume. It respects retry delays and never claims to have used all viewing while pages are missing. Large pages can exceed response limits; retry a smaller page size from page 1 to avoid changing offsets midway, and deduplicate summary IDs. A recent 100-event sample does not establish complete calendar-period statistics.
 
-For reproducible bugs, use [GitHub issues](https://github.com/swack-tools/trakt-ai-plugin/issues) and include the client/version, workflow, and redacted error code. Never post credentials, device codes, or personal watched history. The [documentation site](https://trakt.swacktech.com/) contains the operator and installation guides. Publisher identity, legal terms, private reviewer access, and directory permissions remain owner responsibilities.
+For reproducible bugs, use [GitHub issues](https://github.com/swack-tools/trakt-ai-plugin/issues) and include the client/version, workflow, and redacted error code. Never post credentials, device codes, or personal watched history. The [documentation site](https://trakt.swacktech.com/) contains the operator and installation guides.
 
 ## License and assets
 
@@ -140,4 +140,4 @@ This package is licensed under [GPL-3.0-only](LICENSE). Its original geometric a
 
 ## Publisher and private reports
 
-Publisher: SwackTech LLC (owner-supplied identity; platform verification is a separate submission step). Ordinary support: [repository issues](https://github.com/swack-tools/trakt-ai-plugin/issues). Security reports: [security@swacktech.com](mailto:security@swacktech.com). Do not post credentials, device codes, private viewing data, or vulnerability details in public issues. The contact was supplied by the owner; inbox delivery and response times were not tested.
+Publisher: SwackTech LLC. Support: [support@swacktech.com](mailto:support@swacktech.com) or [repository issues](https://github.com/swack-tools/trakt-ai-plugin/issues). Security reports: [security@swacktech.com](mailto:security@swacktech.com). Do not post credentials, device codes, private viewing data, or vulnerability details in public issues. No response time is guaranteed.

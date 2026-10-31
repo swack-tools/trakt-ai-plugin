@@ -50,7 +50,7 @@ def check(root):
             if parts.scheme or parts.netloc:
                 assert parts.scheme in {"https", "mailto"}, f"Unexpected external link: {link}"
                 if parts.scheme == "mailto":
-                    assert parts.path == "security@swacktech.com" and not parts.query, f"Unexpected contact: {link}"
+                    assert parts.path in {"security@swacktech.com", "support@swacktech.com"} and not parts.query, f"Unexpected contact: {link}"
                 continue
             assert not parts.path.startswith("/"), f"Use project-relative paths: {link}"
             target = (path.parent / unquote(parts.path)).resolve() if parts.path else path

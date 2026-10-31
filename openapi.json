@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Trakt MCP API",
+    "title": "Companion for Trakt API",
     "version": "1.0.0",
     "description": "Multi-user Trakt integration. Each authorization is isolated. Credentials issued by this service are distinct from Trakt access/refresh tokens."
   },

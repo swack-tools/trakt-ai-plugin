@@ -27,7 +27,7 @@ A successful read does not prove write permission. Existing connection tokens an
 
 ## Examples
 
-`I installed only the skill and there are no tools.` Explain that it also needs the Trakt MCP connection; do not start device login through an unrelated tool.
+`I installed only the skill and there are no tools.` Explain that it also needs the Companion for Trakt connection; do not start device login through an unrelated tool.
 
 `The code expired.` Stop confirming the old code. If the user asks to reconnect, request one new code, show its activation details, and wait for their approval before confirming.
 

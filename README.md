@@ -1,4 +1,4 @@
-# Trakt MCP
+# Companion for Trakt
 
 Connect your own [Trakt](https://trakt.tv/) account to Claude or Codex for recommendations, viewing history, title search, lists, and release calendars. Version 3.0.0 replaces the generic API tools with curated tools that each perform one Trakt action, including requested changes to your lists, watchlist, history, ratings, and collection. Seven bundled skills guide these workflows; writes require explicit intent and a connection with write permission.
 
@@ -8,7 +8,7 @@ Connect your own [Trakt](https://trakt.tv/) account to Claude or Codex for recom
 
 1. Open **Customize → Plugins → Add → Add marketplace → Add from a repository**.
 2. Enter `swack-tools/trakt-ai-plugin` and add the marketplace.
-3. Install **Trakt MCP**, open the plugin's **Connectors** tab, add the Trakt connector if needed, and choose **Connect**. Then start a new chat.
+3. Install **Companion for Trakt**, open the plugin's **Connectors** tab, add the Trakt connector if needed, and choose **Connect**. Then start a new chat.
 
 ### Codex
 
@@ -18,7 +18,7 @@ Add the marketplace once from a terminal:
 codex plugin marketplace add swack-tools/trakt-ai-plugin
 ```
 
-Restart the Codex app, open **Plugins**, choose the **Trakt MCP** marketplace, and install **Trakt MCP**. Start a new chat and follow the connection prompt.
+Restart the Codex app, open **Plugins**, choose the **Companion for Trakt** marketplace, and install **Companion for Trakt**. Start a new chat and follow the connection prompt.
 
 ## Command-line setup
 
@@ -87,7 +87,7 @@ Recommendations come from Trakt’s personalized results. By default, history re
 
 For standalone MCP or skills-only setup, see the [installation guide](https://trakt.swacktech.com/connect.html). Skills alone still require the authenticated MCP connection.
 
-This community plugin is independent of Trakt. Repository installation does not establish approval by a public directory. Directory eligibility, publisher verification, and reviewer access remain owner responsibilities.
+Companion for Trakt is an independent, unofficial integration by SwackTech LLC. Companion for Trakt uses Trakt but is not endorsed or certified by Trakt. Repository installation does not establish approval by a public directory. Directory eligibility, publisher verification, and reviewer access remain owner responsibilities.
 
 See the [full documentation](https://trakt.swacktech.com/) for other clients, troubleshooting, API details, and self-hosting.
 
