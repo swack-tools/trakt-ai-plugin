@@ -172,6 +172,23 @@ impl<'a> Client<'a> {
             .map_err(|_| ApiError::new(502, "trakt_unavailable"))?;
         let status = res.status_code();
         let headers = res.headers().clone();
+        // Name the limit Trakt applied; X-Ratelimit holds only its name and counters.
+        if status == 429 {
+            let limit = headers
+                .get("X-Ratelimit")
+                .ok()
+                .flatten()
+                .unwrap_or_default();
+            worker::console_log!(
+                "trakt 429 scope={} x-ratelimit={}",
+                if path.starts_with("/oauth/") {
+                    "oauth"
+                } else {
+                    "api"
+                },
+                limit.chars().take(200).collect::<String>()
+            );
+        }
         // Successful deletes commonly have no response stream. Do not report
         // a runtime failure after Trakt has already applied the mutation.
         if matches!(status, 204 | 205) {
