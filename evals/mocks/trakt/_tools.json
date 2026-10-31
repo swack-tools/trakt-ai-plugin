@@ -23,7 +23,8 @@
           },
           "page": {
             "minimum": 1,
-            "type": "integer"
+            "type": "integer",
+            "maximum": 4294967295
           },
           "query": {
             "maxLength": 200,
@@ -494,7 +495,7 @@
         "readOnlyHint": true,
         "title": "Read watched movies and history"
       },
-      "description": "Read one page (default 100) of the connected account's viewing. mode=all returns watched-title summaries with play counts, not play events; mode=recent returns chronological watch events, newest first, including repeat watches. detail=compact (default) keeps identifiers, genres, dates, and play counts; detail=full adds all upstream metadata. media_type=all returns separate movie and show pages, each with its own pagination. Complete history spans every page until has_more is false; a missing or failed page means incomplete coverage.",
+      "description": "Read one page (default 100) of the connected account's viewing. mode=all returns watched-title summaries with play counts, not play events; mode=recent returns chronological watch events, newest first, including repeat watches. detail=compact (default) keeps identifiers, genres, dates, play counts, and each show's watched episode count; detail=full adds all upstream metadata. media_type=all returns separate movie and show pages, each with its own pagination. Complete history spans every page until has_more is false; a missing or failed page means incomplete coverage.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {

@@ -52,10 +52,20 @@ async fn page(c: &Client<'_>, token: &str, q: &Query, media: &str) -> Result<Val
 /// without overwhelming MCP clients with artwork, translations and plot text.
 pub fn compact(row: &mut Value) {
     if let Some(object) = row.as_object_mut() {
+        // Per-episode rows can exceed the result limit; one count still shows progress.
+        if let Some(seasons) = object.get("seasons").and_then(Value::as_array) {
+            let watched: usize = seasons
+                .iter()
+                .filter_map(|season| season["episodes"].as_array())
+                .map(Vec::len)
+                .sum();
+            object.insert("episodes_watched".into(), watched.into());
+        }
         object.retain(|key, _| {
             matches!(
                 key.as_str(),
                 "movie"
+                    | "episodes_watched"
                     | "show"
                     | "episode"
                     | "plays"
@@ -80,6 +90,7 @@ pub fn compact(row: &mut Value) {
                             | "released"
                             | "first_aired"
                             | "runtime"
+                            | "aired_episodes"
                             | "season"
                             | "number"
                     )
