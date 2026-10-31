@@ -25,10 +25,22 @@ class ConfigurationTests(unittest.TestCase):
             self.assertEqual(config['vars']['PUBLIC_BASE_URL'], 'https://watch.example.org')
             self.assertNotIn('kv_namespaces', config)
             self.assertEqual(config['durable_objects']['bindings'][0]['class_name'], 'TraktStore')
-            self.assertEqual(config['migrations'][-1]['deleted_classes'], ['TraktCoordinator'])
+            self.assert_deletable(config)
             self.assertTrue(all(route['pattern'].startswith('watch.example.org/') for route in config['routes']))
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             self.assertNotIn('${', path.read_text())
+
+    def assert_deletable(self, config):
+        # Cloudflare rejects a deletion while the live Worker binds the class, so a
+        # delete must ship in a later migration than the one that moves the binding.
+        last = config['migrations'][-1]
+        bound = {binding['class_name'] for binding in config['durable_objects']['bindings']}
+        self.assertEqual(bound, {'TraktStore'})
+        for migration in config['migrations']:
+            deleted = set(migration.get('deleted_classes', []))
+            self.assertFalse(deleted & bound)
+            self.assertFalse(deleted and migration.get('new_sqlite_classes'))
+        self.assertEqual(last['tag'], f"v{len(config['migrations'])}")
 
     def test_rejects_unsafe_public_origins(self):
         for value in ['http://example.org', 'https://user@example.org', 'https://example.org/path',

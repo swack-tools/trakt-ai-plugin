@@ -88,11 +88,11 @@ class_name = "TraktStore"
 tag = "v1"
 new_sqlite_classes = ["TraktCoordinator"]
 
-# Deleting the old class erases its plaintext Trakt tokens on deploy.
+# Cloudflare refuses to delete a class while the live Worker still binds it, so
+# the old class is deleted by the next migration, once this one has deployed.
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["TraktStore"]
-deleted_classes = ["TraktCoordinator"]
 
 [observability]
 enabled = true
