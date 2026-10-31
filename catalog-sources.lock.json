@@ -19,7 +19,7 @@
   "docs/pages/connect.html": "669baa82dab350628d3cd767bdb017ca3121179a2606c1f97f82a6dcbc807c6a",
   "docs/pages/data-privacy.html": "d7decd95cec52e529f17387e2f7a50c13e5445f928e96ec0e5218a184d71dd41",
   "docs/pages/index.html": "ede019719f0ac59a6bcfda53aa2071c292bd372112cca3dd1e09f7ab701b9de9",
-  "docs/pages/reference.html": "219b3e5ae0972ab459bf938f0c6f501115f286f34028356fd5f88cb2a2d95af4",
+  "docs/pages/reference.html": "c38d2c07ed4cf2f086de7f9694c00df1c729ee762f6ac96c45ad36152ae4f2e7",
   "docs/pages/skills.html": "4cdb292a9d521b471503024f3d9b95387d61d97799b716a2b705de18401f6736",
   "docs/pages/support.html": "1724c63c834ff382f2d523cc64a53a19531a323a3dbba60a3533e2d6dae40387",
   "docs/pages/terms.html": "4ffb88b1011743a2407379a41af01026509c525e1e229d01d8b036c8d6e43c1d",
@@ -72,12 +72,12 @@
   "src/oauth.rs": "ad92618f090ca3ceb282124fc721baae448ab77ce3e542b1f8e3b280e95defe7",
   "src/security.rs": "ec6ba86d61d440926b305e0780a492bc43428034c8b6a292480cb7195957f3e1",
   "src/trakt/api.rs": "053981c238408b6beee7ce56fd28a7c4570ff334a1dd7169153766d03f0da059",
-  "src/trakt/auth.rs": "b6ccc241c7794e02f8dde0aacbd82e2ef8ae009051c8611e8af1114e7f556363",
+  "src/trakt/auth.rs": "aadc13133752a11f171f4c3bd01384e67fd95bee5bcf3995688cda5001ab1021",
   "src/trakt/catalog.rs": "315df79d1749ba10c3223e3d4f0bd486fff9b11a4e90ce643b8c9f4ff16ca857",
   "src/trakt/client.rs": "4318cf159f76551eca0d397817b5bfb47b3c49facabe64a60267877fbb1519c1",
   "src/trakt/mod.rs": "71e6135b5f9a1aa6231467b2c79ed51e70771092d368c26c0a5fbd23d71e51e2",
   "src/trakt/recommendations.rs": "f4bda1e3554a566f992b972479c5c0b86dccd93387bda2806ae66e6a9462682c",
   "src/trakt/search.rs": "00cf52a944a6ab418ec86bd4a4a90212ec11a32301e4b79528d785eafd8e417e",
   "src/trakt/sync.rs": "7a77284652eb1af8fb9cab8d3502f974a24614d39212c944577168999c865ae6",
-  "wrangler.toml.example": "ef6293be1f5afd3866bb8c36211c3d5e9a60fdd22168c60cecf77dc96bea3c0d"
+  "wrangler.toml.example": "392878de327b969a9f82148762fbf84b1e87516dce818fc3a8c65cfa70bb3c34"
 }

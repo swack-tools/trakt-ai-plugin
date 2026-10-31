@@ -181,7 +181,7 @@ pub async fn access_token(c: &Client<'_>, storage: &mut Storage, id: &str) -> Re
     if t.created_at.saturating_add(t.expires_in) > now() + 60 {
         return Ok(t.access_token);
     }
-    let body = json!({"refresh_token":t.refresh_token,"client_id":c.env.secret("TRAKT_CLIENT_ID")?.to_string(),"client_secret":c.env.secret("TRAKT_CLIENT_SECRET")?.to_string(),"redirect_uri":c.env.var("TRAKT_REDIRECT_URI")?.to_string(),"grant_type":"refresh_token"});
+    let body = json!({"refresh_token":t.refresh_token,"client_id":c.env.secret("TRAKT_CLIENT_ID")?.to_string(),"client_secret":c.env.secret("TRAKT_CLIENT_SECRET")?.to_string(),"redirect_uri":crate::oauth::trakt_callback_url(&crate::config::base(c.env)?),"grant_type":"refresh_token"});
     let r = c
         .send("/oauth/token", Method::Post, &[], None, Some(&body))
         .await?;
