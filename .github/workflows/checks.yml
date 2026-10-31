@@ -37,7 +37,6 @@ jobs:
       - name: Generate credential-free validation configuration
         env:
           CLOUDFLARE_ACCOUNT_ID: '00000000000000000000000000000000'
-          CLOUDFLARE_KV_NAMESPACE: '00000000000000000000000000000000'
           CLOUDFLARE_PLUGIN_DNS: plugin.example.test
           CLOUDFLARE_ZONE_NAME: example.test
         run: python3 scripts/manage.py configure

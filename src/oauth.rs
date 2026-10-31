@@ -1,7 +1,7 @@
 use crate::config;
 use crate::{
     error::{ApiError, Result},
-    security,
+    grant, retention, seal, security,
     trakt::{
         auth::{self, get_optional, now},
         client::Client,
@@ -9,7 +9,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use worker::{Env, Storage};
+use worker::{Env, State, Storage};
 #[derive(Serialize, Deserialize)]
 pub struct Registration {
     pub client_id: String,
@@ -29,6 +29,9 @@ pub struct Session {
     pub resource: String,
     #[serde(default = "read_scope")]
     pub scope: String,
+    /// The Trakt user's grant this connection reads, once one exists.
+    #[serde(default)]
+    pub grant: Option<String>,
 }
 #[derive(Serialize, Deserialize)]
 pub struct Flow {
@@ -44,6 +47,9 @@ pub struct Flow {
     pub trakt_state_hash: Option<String>,
     #[serde(default)]
     pub browser_hash: Option<String>,
+    /// The grant is stored and the key shown; only Continue remains.
+    #[serde(default)]
+    pub key_shown: bool,
     pub code_hash: Option<String>,
     pub resource: String,
 }
@@ -228,6 +234,7 @@ pub async fn create(
                 client_id,
                 resource,
                 scope: read_scope(),
+                grant: None,
             },
         )
         .await?;
@@ -242,15 +249,22 @@ pub async fn authenticate(storage: &mut Storage, token: &str) -> Result<Session>
     }
     Ok(s)
 }
-pub async fn issue(storage: &mut Storage) -> Result<Value> {
+pub async fn issue(
+    env: &Env,
+    state: &State,
+    storage: &mut Storage,
+    key: &seal::Key,
+) -> Result<Value> {
+    let keys = seal::Keys::from_env(env)?;
     let mut s: Session = storage
         .get("session")
         .await?
         .ok_or(ApiError::new(401, "invalid_token"))?;
-    let access = format!("{}.{}", s.id, security::random());
-    let refresh = format!("{}.{}", s.id, security::random());
-    s.access_hash = security::hash(&access);
     s.access_expires = now() + 3600;
+    s.refresh_expires = now() + 30 * 86400;
+    let access = keys.seal_token("access", &s.id, key, s.access_expires)?;
+    let refresh = keys.seal_token("refresh", &s.id, key, s.refresh_expires)?;
+    s.access_hash = security::hash(&access);
     if let Some(old) = &s.refresh_hash {
         let mut used = get_optional::<Vec<String>>(storage, "used_refreshes")
             .await?
@@ -262,11 +276,51 @@ pub async fn issue(storage: &mut Storage) -> Result<Value> {
         storage.put("used_refreshes", used).await?;
     }
     s.refresh_hash = Some(security::hash(&refresh));
-    s.refresh_expires = now() + 30 * 86400;
     storage.put("session", &s).await?;
+    retention::touch(env, state, true).await?;
     Ok(
         json!({"access_token":access,"token_type":"Bearer","expires_in":3600,"refresh_token":refresh,"scope":s.scope}),
     )
+}
+/// Sign-out from one grant must not delete a connection that has since moved to another.
+pub fn purge_applies(session: Option<&Session>, grant: &str) -> bool {
+    session.is_none_or(|session| session.grant.as_deref() == Some(grant))
+}
+async fn set_session_grant(env: &Env, storage: &mut Storage, grant_id: &str) -> Result<()> {
+    let mut s: Session = storage
+        .get("session")
+        .await?
+        .ok_or(ApiError::new(401, "invalid_token"))?;
+    let previous = s.grant.replace(grant_id.into());
+    storage.put("session", &s).await?;
+    // Logging in as another Trakt user leaves the previous user's grant list.
+    if let Some(previous) = previous.filter(|previous| previous != grant_id) {
+        let _ = grant::request(env, &previous, "/_grant/leave", json!({"connection":s.id})).await;
+    }
+    Ok(())
+}
+/// Exchange a device code, or use tokens already parked after a failed step, and store
+/// the grant under `key`. Replaces any older grant for this Trakt user.
+pub async fn finish_device_login(
+    c: &Client<'_>,
+    state: &State,
+    storage: &mut Storage,
+    id: &str,
+    code: &str,
+    key: &seal::Key,
+) -> Result<String> {
+    let tokens = match auth::parked(c, storage, id, code).await? {
+        Some(tokens) => tokens,
+        None => {
+            let tokens = auth::poll_device_token(c, storage, code).await?;
+            auth::park(c, state, id, code, &tokens).await?;
+            tokens
+        }
+    };
+    let grant_id = auth::grant_for(c, &tokens).await?;
+    auth::store_grant(c, storage, id, &grant_id, &tokens, key).await?;
+    set_session_grant(c.env, storage, &grant_id).await?;
+    Ok(grant_id)
 }
 pub async fn begin(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> {
     let base = config::base(env)?;
@@ -322,6 +376,7 @@ pub async fn begin(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> 
         trakt_verifier: None,
         trakt_state_hash: None,
         browser_hash: None,
+        key_shown: false,
         code_hash: None,
         resource: resource.clone(),
     };
@@ -329,6 +384,56 @@ pub async fn begin(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> 
     Ok(
         json!({"session_id":id,"ticket":ticket,"client_name":r.client_name,"redirect_uri":f.redirect_uri,"scope":scope}),
     )
+}
+/// Finish the browser flow: K travels to token exchange inside the sealed code.
+async fn complete_flow(
+    env: &Env,
+    storage: &mut Storage,
+    id: &str,
+    f: &mut Flow,
+    key: &seal::Key,
+) -> Result<Value> {
+    let keys = seal::Keys::from_env(env)?;
+    let code = keys.seal_token("code", id, key, now() + 120)?;
+    f.code_hash = Some(security::hash(&code));
+    f.expires = now() + 120;
+    f.trakt_verifier = None;
+    let mut redirect = worker::Url::parse(&f.redirect_uri)
+        .map_err(|_| ApiError::new(500, "invalid_redirect_uri"))?;
+    redirect
+        .query_pairs_mut()
+        .append_pair("code", &code)
+        .append_pair("state", &f.state);
+    storage.put("flow", &*f).await?;
+    Ok(json!({"redirect":redirect.as_str(),"connected":true}))
+}
+async fn link_with_key(
+    env: &Env,
+    storage: &mut Storage,
+    id: &str,
+    f: &mut Flow,
+    text: Option<&str>,
+) -> Result<Value> {
+    // A valid connection key connects this client without another Trakt login.
+    let (grant_id, key) = text
+        .and_then(seal::parse_connection_key)
+        .ok_or(ApiError::new(400, "connection_key_invalid"))?;
+    grant::request(
+        env,
+        &grant_id,
+        "/_grant/link",
+        json!({"k":grant::wire_key(&key),"connection":id}),
+    )
+    .await
+    .map_err(|e| match e.code {
+        "connection_key_invalid" | "trakt_login_required" => {
+            ApiError::new(400, "connection_key_invalid")
+        }
+        _ => e,
+    })?;
+    auth::drop_pending(storage).await?;
+    set_session_grant(env, storage, &grant_id).await?;
+    complete_flow(env, storage, id, f, &key).await
 }
 pub async fn browser_step(env: &Env, storage: &mut Storage, id: &str, v: Value) -> Result<Value> {
     let mut f = get_optional::<Flow>(storage, "flow")
@@ -342,13 +447,18 @@ pub async fn browser_step(env: &Env, storage: &mut Storage, id: &str, v: Value) 
     {
         return Err(ApiError::new(400, "invalid_flow"));
     }
-    if v["action"].as_str() != Some("start") {
+    let action = v["action"].as_str().unwrap_or("");
+    if !matches!(action, "start" | "link") {
         return Err(ApiError::new(400, "invalid_action"));
     }
     if f.code_hash.is_some() {
         return Err(ApiError::new(409, "flow_already_completed"));
     }
+    if action == "link" {
+        return link_with_key(env, storage, id, &mut f, v["connection_key"].as_str()).await;
+    }
     // A new start replaces any earlier attempt, so going back and retrying still works.
+    auth::drop_pending(storage).await?;
     let verifier = security::random();
     let state = format!("{id}.{}", security::random());
     let mut authorize = worker::Url::parse(&format!(
@@ -375,9 +485,17 @@ pub async fn browser_step(env: &Env, storage: &mut Storage, id: &str, v: Value) 
 pub fn trakt_callback_url(base: &str) -> String {
     format!("{base}/oauth/trakt/callback")
 }
-/// Finish the browser flow when Trakt redirects back. A failed exchange leaves the
+/// Handle Trakt's redirect and the choices on the pages that follow it. Only the
+/// browser that started the flow can act on it: otherwise someone could send a victim
+/// a Trakt link and collect the grant in their own flow. A failed exchange leaves the
 /// flow in place, because reloading can retry until the Trakt code expires.
-pub async fn trakt_callback(env: &Env, storage: &mut Storage, id: &str, v: Value) -> Result<Value> {
+pub async fn trakt_callback(
+    env: &Env,
+    state: &State,
+    storage: &mut Storage,
+    id: &str,
+    v: Value,
+) -> Result<Value> {
     let mut f = get_optional::<Flow>(storage, "flow")
         .await?
         .ok_or(ApiError::new(400, "invalid_flow"))?;
@@ -385,19 +503,18 @@ pub async fn trakt_callback(env: &Env, storage: &mut Storage, id: &str, v: Value
         .trakt_state_hash
         .as_deref()
         .ok_or(ApiError::new(400, "invalid_flow"))?;
-    // Only the browser that started the flow can finish it. Otherwise someone could
-    // send a victim a Trakt link and collect the grant in their own flow.
     let browser = f
         .browser_hash
         .as_deref()
         .ok_or(ApiError::new(400, "invalid_flow"))?;
+    let trakt_state = v["state"].as_str().unwrap_or("");
     if f.expires <= now()
         || f.code_hash.is_some()
         || !security::equal(
             browser,
             &security::hash(v["browser"].as_str().unwrap_or("")),
         )
-        || !security::equal(expected, &security::hash(v["state"].as_str().unwrap_or("")))
+        || !security::equal(expected, &security::hash(trakt_state))
     {
         return Err(ApiError::new(400, "invalid_flow"));
     }
@@ -414,31 +531,61 @@ pub async fn trakt_callback(env: &Env, storage: &mut Storage, id: &str, v: Value
             .append_pair("error", code)
             .append_pair("state", &f.state);
         storage.delete("flow").await?;
+        auth::drop_pending(storage).await?;
         return Ok(json!({"redirect":redirect.as_str(),"connected":false}));
     }
-    let code = v["code"]
-        .as_str()
-        .filter(|code| !code.is_empty())
-        .ok_or(ApiError::new(400, "invalid_flow"))?;
-    let verifier = f
-        .trakt_verifier
-        .as_deref()
-        .ok_or(ApiError::new(400, "invalid_flow"))?;
+    let action = v["action"].as_str().unwrap_or("");
+    // Reloading the key page must not repeat the login or show the key again.
+    if f.key_shown != (action == "continue") {
+        return Err(ApiError::new(400, "invalid_flow"));
+    }
+    if action == "link" {
+        return link_with_key(env, storage, id, &mut f, v["connection_key"].as_str()).await;
+    }
+    let now_time = now();
+    if action == "continue" {
+        // The code starts its two minutes only now, after the user saved the key.
+        let key = seal::Keys::from_env(env)?
+            .open_token("continue", v["sealed"].as_str().unwrap_or(""), now_time)
+            .ok_or(ApiError::new(400, "invalid_flow"))?;
+        return complete_flow(env, storage, id, &mut f, &key).await;
+    }
     let c = Client { env };
-    let redirect_uri = trakt_callback_url(&config::base(env)?);
-    auth::exchange_code(&c, storage, id, code, verifier, &redirect_uri).await?;
-    let code = format!("{id}.{}", security::random());
-    f.code_hash = Some(security::hash(&code));
-    f.expires = now() + 120;
-    f.trakt_verifier = None;
-    redirect
-        .query_pairs_mut()
-        .append_pair("code", &code)
-        .append_pair("state", &f.state);
+    let tokens = match auth::parked(&c, storage, id, trakt_state).await? {
+        Some(tokens) => tokens,
+        None => {
+            let code = v["code"]
+                .as_str()
+                .filter(|code| !code.is_empty())
+                .ok_or(ApiError::new(400, "invalid_flow"))?;
+            let verifier = f
+                .trakt_verifier
+                .as_deref()
+                .ok_or(ApiError::new(400, "invalid_flow"))?;
+            let redirect_uri = trakt_callback_url(&config::base(env)?);
+            let tokens = auth::exchange_code(&c, code, verifier, &redirect_uri).await?;
+            auth::park(&c, state, id, trakt_state, &tokens).await?;
+            tokens
+        }
+    };
+    let grant_id = auth::grant_for(&c, &tokens).await?;
+    // Replacing a grant disconnects that user's other clients, so ask first.
+    if action != "replace"
+        && grant::request(env, &grant_id, "/_grant/exists", json!({})).await?["exists"] == true
+    {
+        return Ok(json!({"existing":true}));
+    }
+    let key = seal::random_key();
+    auth::store_grant(&c, storage, id, &grant_id, &tokens, &key).await?;
+    set_session_grant(env, storage, &grant_id).await?;
+    // Saving the key can take a while, so keep the flow open for this page.
+    f.expires = now_time + 900;
+    f.key_shown = true;
     storage.put("flow", &f).await?;
-    Ok(json!({"redirect":redirect.as_str(),"connected":true}))
+    let sealed = seal::Keys::from_env(env)?.seal_token("continue", id, &key, now_time + 900)?;
+    Ok(json!({"connection_key":seal::connection_key(&grant_id, &key),"sealed":sealed}))
 }
-pub async fn exchange(env: &Env, storage: &mut Storage, v: Value) -> Result<Value> {
+pub async fn exchange(env: &Env, state: &State, storage: &mut Storage, v: Value) -> Result<Value> {
     let q = &v["params"];
     let r: Option<Registration> = serde_json::from_value(v["registration"].clone())?;
     let mut s: Session = get_optional(storage, "session")
@@ -467,7 +614,8 @@ pub async fn exchange(env: &Env, storage: &mut Storage, v: Value) -> Result<Valu
     {
         return Err(ApiError::new(400, "invalid_target"));
     }
-    match q["grant_type"].as_str() {
+    let keys = seal::Keys::from_env(env)?;
+    let key = match q["grant_type"].as_str() {
         Some("authorization_code") => {
             let f: Flow = get_optional(storage, "flow")
                 .await?
@@ -488,7 +636,11 @@ pub async fn exchange(env: &Env, storage: &mut Storage, v: Value) -> Result<Valu
                     return Err(ApiError::new(400, "invalid_grant"));
                 }
             }
+            let key = keys
+                .open_token("code", q["code"].as_str().unwrap_or(""), now())
+                .ok_or(ApiError::new(400, "invalid_grant"))?;
             storage.delete("flow").await?;
+            key
         }
         Some("refresh_token") => {
             if let Some(scope) = q["scope"].as_str() {
@@ -506,10 +658,13 @@ pub async fn exchange(env: &Env, storage: &mut Storage, v: Value) -> Result<Valu
                 .await?
                 .unwrap_or_default();
             if used.iter().any(|h| security::equal(h, &presented)) {
+                // Reuse ends this connection only; other clients share the grant.
+                if let Some(grant_id) = &s.grant {
+                    let _ =
+                        grant::request(env, grant_id, "/_grant/leave", json!({"connection":s.id}))
+                            .await;
+                }
                 storage.delete_all().await?;
-                env.kv("TRAKT_SESSIONS")?
-                    .delete(&format!("user:{}:tokens", s.id))
-                    .await?;
                 return Err(ApiError::new(400, "invalid_grant"));
             }
             if s.refresh_expires <= now()
@@ -522,11 +677,13 @@ pub async fn exchange(env: &Env, storage: &mut Storage, v: Value) -> Result<Valu
             {
                 return Err(ApiError::new(400, "invalid_grant"));
             }
+            keys.open_token("refresh", q["refresh_token"].as_str().unwrap_or(""), now())
+                .ok_or(ApiError::new(400, "invalid_grant"))?
         }
         _ => return Err(ApiError::new(400, "unsupported_grant_type")),
-    }
+    };
     storage.put("session", &s).await?;
-    issue(storage).await
+    issue(env, state, storage, &key).await
 }
 pub fn login_page(v: &Value) -> String {
     let field = |k: &str| security::escape(v[k].as_str().unwrap_or(""));
@@ -545,7 +702,7 @@ pub fn login_page(v: &Value) -> String {
         u.scheme() == "http" && matches!(u.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"))
     });
     format!(
-        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Connect Trakt</title><link rel="stylesheet" href="/login.css"><main><p>TRAKT MCP</p><h1>Connect your Trakt account</h1><p><strong>{}</strong> is requesting permission to {}. Your credentials stay on this server.</p><p>After authorization you will return to <code>{}</code>.</p>{}<form id="connect" data-session="{}" data-ticket="{}"><button type="submit">Connect Trakt</button></form><section id="status" aria-live="polite"></section><p>You can close this page to cancel.</p></main><script src="/login.js" defer></script></html>"#,
+        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Connect Trakt</title><link rel="stylesheet" href="/login.css"><main><p>TRAKT MCP</p><h1>Connect your Trakt account</h1><p><strong>{}</strong> is requesting permission to {}. Your credentials stay on this server.</p><p>After authorization you will return to <code>{}</code>.</p>{}<form id="connect" data-session="{}" data-ticket="{}"><button type="submit">Connect Trakt</button></form><details id="have-key"><summary>I have a connection key</summary><form id="link"><label for="connection-key">Connection key</label><input id="connection-key" autocomplete="off" spellcheck="false"><button type="submit">Connect with key</button></form></details><section id="status" aria-live="polite"></section><p>You can close this page to cancel.</p></main><script src="/login.js" defer></script></html>"#,
         field("client_name"),
         permissions,
         field("redirect_uri"),
@@ -558,26 +715,52 @@ pub fn login_page(v: &Value) -> String {
         field("ticket")
     )
 }
-pub const LOGIN_JS: &str = r#"const form=document.querySelector('#connect'), status=document.querySelector('#status'),button=form.querySelector('button');
-form.addEventListener('submit',async e=>{e.preventDefault();button.disabled=true;try{const response=await fetch('/oauth/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:form.dataset.session,ticket:form.dataset.ticket,action:'start'})});const d=await response.json();if(!response.ok||!d.authorize_url){status.textContent=d.error||'Connection failed.';return;}location.assign(d.authorize_url);}catch{status.textContent='Network error. Reconnect to retry.';}});"#;
-/// Shown after Trakt redirects back: the link returns the user to their client.
-pub fn connected_page(redirect: &str, connected: bool) -> String {
-    let (title, text, action) = if connected {
-        (
-            "Trakt connected",
-            "Your Trakt account is connected.",
-            "Return to your app",
-        )
-    } else {
-        (
-            "Trakt not connected",
-            "Trakt did not connect your account.",
-            "Return to your app",
-        )
-    };
+pub const LOGIN_JS: &str = r#"const form=document.querySelector('#connect'), status=document.querySelector('#status'),button=form.querySelector('button'),linkForm=document.querySelector('#link');
+async function step(action,extra={}){const response=await fetch('/oauth/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:form.dataset.session,ticket:form.dataset.ticket,action,...extra})});return [response,await response.json()];}
+form.addEventListener('submit',async e=>{e.preventDefault();button.disabled=true;try{const [response,d]=await step('start');if(!response.ok||!d.authorize_url){status.textContent=d.error||'Connection failed.';return;}location.assign(d.authorize_url);}catch{status.textContent='Network error. Reconnect to retry.';}});
+linkForm.addEventListener('submit',async e=>{e.preventDefault();try{const [,d]=await step('link',{connection_key:document.querySelector('#connection-key').value});if(d.redirect){location.assign(d.redirect);return;}status.textContent=d.error_description||d.error||'That key did not work.';}catch{status.textContent='Network error. Reconnect to retry.';}});"#;
+fn trakt_page(title: &str, body: &str) -> String {
     format!(
-        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>{title}</title><link rel="stylesheet" href="/login.css"><main><p>TRAKT MCP</p><h1>{title}</h1><p>{text}</p><p><a href="{}">{action}</a></p></main></html>"#,
-        security::escape(redirect)
+        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>{title}</title><link rel="stylesheet" href="/login.css"><main><p>TRAKT MCP</p><h1>{title}</h1>{body}</main></html>"#
+    )
+}
+/// Shown after Trakt redirects back: the link returns the user to their client. It is
+/// a link rather than a redirect because the page's CSP covers form redirects too.
+pub fn connected_page(redirect: &str, connected: bool) -> String {
+    let (title, text) = if connected {
+        ("Trakt connected", "Your Trakt account is connected.")
+    } else {
+        ("Trakt not connected", "Trakt did not connect your account.")
+    };
+    trakt_page(
+        title,
+        &format!(
+            r#"<p>{text}</p><p><a href="{}">Return to your app</a></p>"#,
+            security::escape(redirect)
+        ),
+    )
+}
+/// K is shown once, here, and never in tool output. The sealed field lets Continue
+/// issue the authorization code without the service storing K.
+pub fn connection_key_page(key: &str, sealed: &str, state: &str) -> String {
+    trakt_page(
+        "Save your connection key",
+        &format!(
+            r#"<p>Your Trakt account is connected. This key is shown once and is not stored. Save it if you want to connect another AI client without logging in to Trakt again. Treat it like a password.</p><p><code id="connection-key-value">{}</code></p><form method="post" action="/oauth/trakt/callback"><input type="hidden" name="state" value="{}"><input type="hidden" name="action" value="continue"><input type="hidden" name="sealed" value="{}"><button type="submit">Continue</button></form>"#,
+            security::escape(key),
+            security::escape(state),
+            security::escape(sealed)
+        ),
+    )
+}
+/// Replacing a grant disconnects the account's other clients, so offer the key first.
+pub fn existing_grant_page(state: &str) -> String {
+    let state = security::escape(state);
+    trakt_page(
+        "Already connected",
+        &format!(
+            r#"<p>This Trakt account is already connected to another AI client. Continuing disconnects that client, and its connection key stops working. To keep it connected, enter its connection key instead.</p><form method="post" action="/oauth/trakt/callback"><input type="hidden" name="state" value="{state}"><input type="hidden" name="action" value="link"><label for="connection-key">Connection key</label><input id="connection-key" name="connection_key" autocomplete="off" spellcheck="false"><button type="submit">Connect with key</button></form><form method="post" action="/oauth/trakt/callback"><input type="hidden" name="state" value="{state}"><input type="hidden" name="action" value="replace"><button type="submit">Continue and disconnect it</button></form>"#
+        ),
     )
 }
 /// A failed exchange keeps the flow, so a reload retries it while the code is valid.
@@ -585,17 +768,38 @@ pub fn callback_error_page(error: &str, retry_after: Option<u64>) -> String {
     let retry = retry_after.map_or(String::new(), |seconds| {
         format!("<p>Trakt is busy. Reload this page in {seconds} seconds to try again.</p>")
     });
-    format!(
-        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Trakt not connected</title><link rel="stylesheet" href="/login.css"><main><p>TRAKT MCP</p><h1>Trakt not connected</h1>{retry}<p>{}</p><p>You can close this page and reconnect from your app.</p></main></html>"#,
-        security::escape(crate::error::describe(error))
+    trakt_page(
+        "Trakt not connected",
+        &format!(
+            "<p>{}</p>{retry}",
+            security::escape(crate::error::describe(error))
+        ),
     )
 }
-pub const LOGIN_CSS: &str = "body{font:18px/1.6 system-ui;background:#101419;color:#ecf1f5;margin:0;padding:8vh 24px}main{max-width:640px;margin:auto}h1{line-height:1.15;font-size:40px}button,a{display:inline-block;background:#2f5d8a;color:white;border:0;border-radius:8px;padding:12px 20px;font:inherit;cursor:pointer}code{overflow-wrap:anywhere;font-size:14px}strong{color:#fff}#status strong{font-size:32px;letter-spacing:4px}button:disabled{opacity:.5}";
+pub const LOGIN_CSS: &str = "body{font:18px/1.6 system-ui;background:#101419;color:#ecf1f5;margin:0;padding:8vh 24px}main{max-width:640px;margin:auto}h1{line-height:1.15;font-size:40px}button,a{display:inline-block;background:#2f5d8a;color:white;border:0;border-radius:8px;padding:12px 20px;font:inherit;cursor:pointer}code{overflow-wrap:anywhere;font-size:14px}strong{color:#fff}button:disabled{opacity:.5}input{display:block;width:100%;box-sizing:border-box;padding:10px;margin:8px 0;font:14px monospace}label{display:block}details{margin:16px 0}form{margin:16px 0}main code{display:block;margin:12px 0;padding:10px;background:#1c232b;border-radius:6px}";
 
 #[cfg(test)]
 mod scope_tests {
     use super::*;
     use serde_json::json;
+    #[test]
+    fn sign_out_purges_only_connections_still_on_that_grant() {
+        let session = |grant: Option<&str>| Session {
+            id: "fixture".into(),
+            access_hash: String::new(),
+            access_expires: 0,
+            refresh_hash: None,
+            refresh_expires: 0,
+            client_id: None,
+            resource: String::new(),
+            scope: read_scope(),
+            grant: grant.map(String::from),
+        };
+        assert!(purge_applies(Some(&session(Some("a"))), "a"));
+        assert!(!purge_applies(Some(&session(Some("b"))), "a"));
+        assert!(!purge_applies(Some(&session(None)), "a"));
+        assert!(purge_applies(None, "a"));
+    }
     #[test]
     fn old_sessions_are_read_only_and_consent_scopes_are_explicit() {
         let legacy: Session = serde_json::from_value(json!({

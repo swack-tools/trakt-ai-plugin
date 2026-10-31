@@ -3,17 +3,19 @@ use crate::{
     error::{ApiError, Result},
     oauth,
     trakt::{
-        self, auth,
+        self,
+        auth::{self, Conn},
         catalog::Call,
         client::{Client, Query},
     },
 };
 use serde_json::{Value, json};
-use worker::{Env, Storage};
+use worker::{Env, State, Storage};
 pub async fn operation(
     env: &Env,
+    state: &State,
     storage: &mut Storage,
-    id: &str,
+    conn: &Conn,
     name: &str,
     args: Value,
 ) -> Result<Value> {
@@ -27,9 +29,9 @@ pub async fn operation(
                 oauth::require_write(storage).await?;
             }
             if tool.ownership {
-                verify_list_ownership(&c, storage, id, &call).await?;
+                verify_list_ownership(&c, storage, conn, &call).await?;
             }
-            trakt::api::execute_call(&c, storage, id, &call, write).await
+            trakt::api::execute_call(&c, storage, conn, &call, write).await
         }
         spec::Handler::LoginRequest => {
             if args.as_object().is_none_or(|a| !a.is_empty()) {
@@ -45,17 +47,11 @@ pub async fn operation(
                 .as_str()
                 .filter(|s| !s.is_empty() && s.len() <= 512)
                 .ok_or(ApiError::new(400, "device_code_required"))?;
-            auth::poll_device_token(&c, storage, id, code).await
+            confirm_login(&c, state, storage, conn, code).await
         }
         spec::Handler::Search => {
-            if auth::get_optional::<auth::Tokens>(storage, "trakt_tokens")
-                .await?
-                .is_none()
-            {
-                return Err(ApiError::new(401, "trakt_login_required"));
-            }
-            let token = auth::access_token(&c, storage, id).await?;
-            trakt::api::wait_for_pace(storage).await?;
+            let token = auth::access_token(&c, conn).await?;
+            trakt::api::pace(&c, conn, "read").await?;
             trakt::search::search_media(&c, &token, &Query::parse(args)?).await
         }
         spec::Handler::Watched | spec::Handler::Recommendations => {
@@ -80,8 +76,8 @@ pub async fn operation(
             {
                 return Err(ApiError::new(400, "invalid_parameters"));
             }
-            let token = auth::access_token(&c, storage, id).await?;
-            trakt::api::wait_for_pace(storage).await?;
+            let token = auth::access_token(&c, conn).await?;
+            trakt::api::pace(&c, conn, "read").await?;
             if watched {
                 trakt::sync::watched(&c, &token, &q).await
             } else {
@@ -91,10 +87,26 @@ pub async fn operation(
     }
 }
 
+/// A reconnect from chat cannot hand the client new credentials, so the grant stays
+/// under this connection's existing key.
+async fn confirm_login(
+    c: &Client<'_>,
+    state: &State,
+    storage: &mut Storage,
+    conn: &Conn,
+    code: &str,
+) -> Result<Value> {
+    let key = conn
+        .key
+        .ok_or(ApiError::new(401, "reauthorization_required"))?;
+    oauth::finish_device_login(c, state, storage, &conn.id, code, &key).await?;
+    Ok(json!({"status":"connected"}))
+}
+
 async fn verify_list_ownership(
     client: &Client<'_>,
     storage: &mut Storage,
-    session_id: &str,
+    conn: &Conn,
     mutation: &Call,
 ) -> Result<()> {
     let list_id = mutation.path_params["list_id"]
@@ -107,10 +119,10 @@ async fn verify_list_ownership(
     .map_err(|_| ApiError::new(500, "list_ownership_unverified"))?;
     let settings: Call = serde_json::from_value(json!({"operation_id":"getUsersSettings"}))
         .map_err(|_| ApiError::new(500, "list_ownership_unverified"))?;
-    let list = trakt::api::execute_call(client, storage, session_id, &summary, false).await?;
-    let account = trakt::api::execute_call(client, storage, session_id, &settings, false).await?;
+    let list = trakt::api::execute_call(client, storage, conn, &summary, false).await?;
+    let account = trakt::api::execute_call(client, storage, conn, &settings, false).await?;
     // The write that follows counts as the next request in this paced sequence.
-    trakt::api::mark_paced(storage).await?;
+    trakt::api::pace(client, conn, "mark").await?;
     let owner_ids = &list["data"]["user"]["ids"];
     let account_ids = &account["data"]["user"]["ids"];
     // List-owner slugs may be null. Prefer numeric Trakt IDs when both
@@ -134,7 +146,13 @@ async fn verify_list_ownership(
         _ => Err(ApiError::new(403, "list_ownership_unverified")),
     }
 }
-pub async fn handle(env: &Env, storage: &mut Storage, session_id: &str, v: Value) -> Option<Value> {
+pub async fn handle(
+    env: &Env,
+    state: &State,
+    storage: &mut Storage,
+    conn: &Conn,
+    v: Value,
+) -> Option<Value> {
     if protocol::validate(&v).is_err() {
         return Some(protocol::error(Value::Null, -32600, "Invalid Request"));
     }
@@ -170,7 +188,7 @@ pub async fn handle(env: &Env, storage: &mut Storage, session_id: &str, v: Value
                 return Some(protocol::error(id.clone(), -32602, "Unknown tool"));
             }
             let args = p.get("arguments").cloned().unwrap_or(json!({}));
-            match operation(env, storage, session_id, name, args).await {
+            match operation(env, state, storage, conn, name, args).await {
                 Ok(data) => output::success(name, data),
                 Err(e) => output::failure(&e),
             }

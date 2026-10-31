@@ -16,14 +16,16 @@ class ConfigurationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / 'wrangler.toml.example').write_text((ROOT / 'wrangler.toml.example').read_text())
-            values = dict(CLOUDFLARE_ACCOUNT_ID='a' * 32, CLOUDFLARE_KV_NAMESPACE='b' * 32,
+            values = dict(CLOUDFLARE_ACCOUNT_ID='a' * 32,
                           CLOUDFLARE_PLUGIN_DNS='watch.example.org', CLOUDFLARE_ZONE_NAME='example.org')
             with patch.object(manage, 'ROOT', root), patch.object(manage, 'environment', return_value=values), patch('sys.argv', ['manage.py', 'configure']):
                 manage.main()
             path = root / 'wrangler.toml'
             config = tomllib.loads(path.read_text())
             self.assertEqual(config['vars']['PUBLIC_BASE_URL'], 'https://watch.example.org')
-            self.assertEqual(config['kv_namespaces'][0]['binding'], 'TRAKT_SESSIONS')
+            self.assertNotIn('kv_namespaces', config)
+            self.assertEqual(config['durable_objects']['bindings'][0]['class_name'], 'TraktStore')
+            self.assertEqual(config['migrations'][-1]['deleted_classes'], ['TraktCoordinator'])
             self.assertTrue(all(route['pattern'].startswith('watch.example.org/') for route in config['routes']))
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             self.assertNotIn('${', path.read_text())

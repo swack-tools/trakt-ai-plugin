@@ -23,7 +23,7 @@ pub fn query(req: &Request) -> Result<Value> {
     }
     Ok(Value::Object(out))
 }
-async fn call(env: &Env, id: &str, path: &str, value: Value) -> Result<Response> {
+pub async fn call(env: &Env, id: &str, path: &str, value: Value) -> Result<Response> {
     let mut init = RequestInit::new();
     init.with_method(Method::Post)
         .with_body(Some(value.to_string().into()));
@@ -110,7 +110,8 @@ async fn rate(env: &Env, req: &Request) -> Result<()> {
         .headers()
         .get("CF-Connecting-IP")?
         .unwrap_or("local".into());
-    let (bucket, limit) = security::rate_bucket(&ip);
+    let (bucket, limit) =
+        security::rate_bucket(&ip, &crate::seal::Keys::from_env(env)?.ip_id(&ip)?);
     let r = call(
         env,
         &format!("rate:{bucket}"),
@@ -134,6 +135,35 @@ async fn form(req: &mut Request) -> Result<Value> {
     let text = req.text().await?;
     let fake = Request::new(&format!("https://internal/?{text}"), Method::Get)?;
     query(&fake)
+}
+async fn trakt_callback_page(env: &Env, req: &Request, mut v: Value) -> Result<Response> {
+    let state = v["state"].as_str().unwrap_or_default().to_string();
+    let id = state
+        .split_once('.')
+        .map(|(id, _)| id.to_string())
+        .filter(|id| valid_id(id))
+        .ok_or(ApiError::new(400, "invalid_flow"))?;
+    v["session_id"] = json!(id);
+    v["browser"] = json!(flow_cookie(req, &id)?);
+    let mut r = call(env, &id, "/_trakt_callback", v).await?;
+    let status = r.status_code();
+    let out: Value = r.json().await?;
+    let page = if status >= 400 {
+        oauth::callback_error_page(
+            out["error"].as_str().unwrap_or_default(),
+            out["retry_after"].as_u64(),
+        )
+    } else if out["existing"] == true {
+        oauth::existing_grant_page(&state)
+    } else if let Some(key) = out["connection_key"].as_str() {
+        oauth::connection_key_page(key, out["sealed"].as_str().unwrap_or_default(), &state)
+    } else {
+        oauth::connected_page(
+            out["redirect"].as_str().unwrap_or_default(),
+            out["connected"] == true,
+        )
+    };
+    Ok(Response::from_html(page)?.with_status(status))
 }
 pub async fn route(mut req: Request, env: Env) -> Result<Response> {
     let base = crate::config::base(&env)?;
@@ -204,30 +234,8 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
             }
             "/oauth/trakt/callback" => {
                 rate(&env, &req).await?;
-                let mut v = query(&req)?;
-                let id = v["state"]
-                    .as_str()
-                    .and_then(|state| state.split_once('.'))
-                    .map(|(id, _)| id.to_string())
-                    .filter(|id| valid_id(id))
-                    .ok_or(ApiError::new(400, "invalid_flow"))?;
-                v["session_id"] = json!(id);
-                v["browser"] = json!(flow_cookie(&req, &id)?);
-                let mut r = call(&env, &id, "/_trakt_callback", v).await?;
-                let status = r.status_code();
-                let out: Value = r.json().await?;
-                let page = if status < 400 {
-                    oauth::connected_page(
-                        out["redirect"].as_str().unwrap_or_default(),
-                        out["connected"] == true,
-                    )
-                } else {
-                    oauth::callback_error_page(
-                        out["error"].as_str().unwrap_or_default(),
-                        out["retry_after"].as_u64(),
-                    )
-                };
-                return Ok(Response::from_html(page)?.with_status(status));
+                let v = query(&req)?;
+                return trakt_callback_page(&env, &req, v).await;
             }
             "/oauth/authorize" => {
                 rate(&env, &req).await?;
@@ -255,6 +263,13 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
     }
     if method == Method::Post {
         match path.as_str() {
+            // Choices on the pages that follow Trakt's redirect. SameSite keeps the flow
+            // cookie off cross-site posts.
+            "/oauth/trakt/callback" => {
+                rate(&env, &req).await?;
+                let v = form(&mut req).await?;
+                return trakt_callback_page(&env, &req, v).await;
+            }
             "/oauth/register" => {
                 rate(&env, &req).await?;
                 let id = uuid::Uuid::new_v4().simple().to_string();
@@ -277,6 +292,9 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
                     .filter(|s| valid_id(s))
                     .ok_or(ApiError::new(400, "invalid_flow"))?
                     .to_string();
+                if v["action"] == "link" {
+                    rate(&env, &req).await?;
+                }
                 let browser = security::random();
                 v["browser"] = json!(browser);
                 let mut r = call(&env, &id, "/_browser", v).await?;
