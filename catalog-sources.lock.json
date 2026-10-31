@@ -19,7 +19,7 @@
   "docs/pages/connect.html": "3bb871db9eb18f85bd6519af179b3e1f05e17d456bd4b088dc563aed5b8f72a7",
   "docs/pages/data-privacy.html": "797df284fe796430655b4fec6973c529edb4d6ce90ddc80307ed03654933491f",
   "docs/pages/index.html": "ede019719f0ac59a6bcfda53aa2071c292bd372112cca3dd1e09f7ab701b9de9",
-  "docs/pages/reference.html": "f20e2cd6af04c175e321d8362bb196ceeaa63fbf6870f7449d315720a73b76db",
+  "docs/pages/reference.html": "50934e0a77bf6ec0d9b620d87309108b93b903b52b9fb936aff9d17af6b83688",
   "docs/pages/skills.html": "4cdb292a9d521b471503024f3d9b95387d61d97799b716a2b705de18401f6736",
   "docs/pages/support.html": "1724c63c834ff382f2d523cc64a53a19531a323a3dbba60a3533e2d6dae40387",
   "docs/pages/terms.html": "4ffb88b1011743a2407379a41af01026509c525e1e229d01d8b036c8d6e43c1d",
@@ -59,11 +59,11 @@
   "scripts/package_plugin.py": "e50a55e6a8756248ffd90ab8b69619a66b38ecc88c943dedd33900d19e71dddc",
   "scripts/package_release.py": "ccaef3fc9922c4be2635eb6b1830407206c86009bd43eb1858291e902b75ce94",
   "src/config.rs": "74327e5f2eabea060d8953e84d339cc60c8b9f415426305565467379bafe127b",
-  "src/coordinator.rs": "0e65a3d76937f14719370f8223ddf919d893138591fd315778620f4472dddf8b",
+  "src/coordinator.rs": "ceba7a3f7406097482ba0d86bd566f854ae8bea1fdbb7df99e83c4628c143275",
   "src/error.rs": "be4871d0415f4fd4db73d0eaa4b6edd066ac7c02236a97bc6ae195709729cf2a",
   "src/grant.rs": "70f0bc755ce7de4acb76f2510bbbc6248ffe7fc1a6a0353b806d70ad11553e79",
   "src/http.rs": "90ded15ad4afe519130fb5cb19aad6243f760e0cf7cde1bb0d5d9a74259b1de7",
-  "src/lib.rs": "6c0717f4ef1dda8c55c4905e881de567a04643502272a0946041741865d034a4",
+  "src/lib.rs": "3c7e6033b50765eec4b9f2dde5d3255864d28969985a0748b4e3c28de334ef26",
   "src/mcp/focused.rs": "09acbfd63a7f6327790149fb5cc0c59fbfaaa54b0a98c44453d80a222f1abb7b",
   "src/mcp/handlers.rs": "787f1ee85b93b5cf71762d47682735cd7ac7a339ff1eb36525de38259f6addca",
   "src/mcp/mod.rs": "0a3db75ab873ecc365e893f89f1ef302d00310b6eb5e77e74154e105e2e46855",
@@ -82,5 +82,5 @@
   "src/trakt/recommendations.rs": "f4bda1e3554a566f992b972479c5c0b86dccd93387bda2806ae66e6a9462682c",
   "src/trakt/search.rs": "00cf52a944a6ab418ec86bd4a4a90212ec11a32301e4b79528d785eafd8e417e",
   "src/trakt/sync.rs": "7a77284652eb1af8fb9cab8d3502f974a24614d39212c944577168999c865ae6",
-  "wrangler.toml.example": "fa2d32ec20b2189d5f5a664a3825c50c8ae70caf50c75b250fedd17fbd7550a9"
+  "wrangler.toml.example": "3a889b05437e2f36922ec2bc1aee3d46758853041b0e8be139af32eb6c8514de"
 }

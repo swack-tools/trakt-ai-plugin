@@ -9,7 +9,7 @@ mod retention;
 pub mod seal;
 pub mod security;
 pub mod trakt;
-pub use coordinator::TraktStore;
+pub use coordinator::{TraktCoordinator, TraktStore};
 use worker::*;
 #[event(fetch)]
 pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
