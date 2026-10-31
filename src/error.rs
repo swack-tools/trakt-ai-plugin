@@ -219,7 +219,7 @@ pub fn describe(code: &str) -> &'static str {
         }
         "trakt_not_found" => "Trakt has no item matching these identifiers.",
         "trakt_rate_limited" => {
-            "Trakt rate limited this account. Wait for retry_after before one retry of a read."
+            "Trakt rate limited this request. Wait for retry_after before one retry of a read or a new login attempt."
         }
         "trakt_response_too_large" => {
             "Trakt's response exceeded the size limit. Request a smaller page or the compact detail."

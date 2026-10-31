@@ -303,6 +303,18 @@ test('client ID metadata documents are advertised and unusable documents are ref
  const refused=await api('/oauth/authorize?'+params,{headers:{'CF-Connecting-IP':'198.51.100.8'}});assert.equal(refused.status,400);assert.equal(refused.data.error,'invalid_client_metadata');
  for(const client_id of ['http://insecure.invalid/client.json','https://203.0.113.9/client.json']){params.set('client_id',client_id);const r=await api('/oauth/authorize?'+params,{headers:{'CF-Connecting-IP':'198.51.100.8'}});assert.equal(r.status,400,client_id);}
 });
+test('login page offers a retry after Trakt rate limits the start',async()=>{
+ const source=await (await fetch(base+'/login.js')).text();
+ const button={disabled:false},status={textContent:''},timers=[];let submit;
+ const form={dataset:{session:'s',ticket:'t'},querySelector:()=>button,addEventListener:(_,handler)=>{submit=handler;}};
+ const page={querySelector:selector=>selector==='#connect'?form:status};
+ const limited=async()=>({ok:false,json:async()=>({error:'trakt_rate_limited',retry_after:2})});
+ new Function('document','fetch','setTimeout',source)(page,limited,callback=>timers.push(callback));
+ await submit({preventDefault(){}});
+ assert.equal(button.disabled,true);assert.match(status.textContent,/Try again in 2 seconds/);
+ timers.shift()();assert.match(status.textContent,/Try again in 1 second\./);assert.equal(button.disabled,true);
+ timers.shift()();assert.match(status.textContent,/Try again\.$/);assert.equal(button.disabled,false);
+});
 test('OAuth registration, browser consent, PKCE, redirect binding and code replay',async()=>{
  const registration=await api('/oauth/register',{method:'POST',body:{client_name:'SDK test',redirect_uris:['http://127.0.0.1:9999/callback'],token_endpoint_auth_method:'none'}});assert.equal(registration.status,201,JSON.stringify(registration.data));const client_id=registration.data.client_id;
  const {selectResourceURL}=await import('@modelcontextprotocol/sdk/client/auth.js');const resource=(await selectResourceURL(new URL('https://plugin.example.test/sse'),{},(await api('/.well-known/oauth-protected-resource')).data)).href;
