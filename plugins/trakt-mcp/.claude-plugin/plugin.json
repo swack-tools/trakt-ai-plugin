@@ -6,7 +6,7 @@
     "name": "SwackTech LLC",
     "url": "https://github.com/swack-tools"
   },
-  "homepage": "https://trakt.swacktech.com/",
+  "homepage": "https://trakt.ai.swacktech.com/",
   "repository": "https://github.com/swack-tools/trakt-ai-plugin",
   "license": "GPL-3.0-only",
   "keywords": [
@@ -23,8 +23,8 @@
   "mcpServers": "./.mcp.json",
   "displayName": "Companion for Trakt",
   "icon": "./assets/icon.png",
-  "documentationUrl": "https://trakt.swacktech.com/reference.html",
-  "supportUrl": "https://trakt.swacktech.com/support",
-  "privacyPolicyUrl": "https://trakt.swacktech.com/data-privacy",
-  "termsOfServiceUrl": "https://trakt.swacktech.com/terms"
+  "documentationUrl": "https://trakt.ai.swacktech.com/reference.html",
+  "supportUrl": "https://trakt.ai.swacktech.com/support",
+  "privacyPolicyUrl": "https://trakt.ai.swacktech.com/data-privacy",
+  "termsOfServiceUrl": "https://trakt.ai.swacktech.com/terms"
 }

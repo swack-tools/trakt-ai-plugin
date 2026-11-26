@@ -8,7 +8,7 @@ import os
 from urllib.parse import urlsplit
 
 # Public documentation deployment, independent of Worker configuration.
-BASE_URL = os.environ.get("DOCS_BASE_URL", "https://trakt.swacktech.com").rstrip("/")
+BASE_URL = os.environ.get("DOCS_BASE_URL", "https://trakt.ai.swacktech.com").rstrip("/")
 if (urlsplit(BASE_URL).scheme != "https" or not urlsplit(BASE_URL).hostname
         or urlsplit(BASE_URL).path or urlsplit(BASE_URL).query or urlsplit(BASE_URL).fragment
         or urlsplit(BASE_URL).username or urlsplit(BASE_URL).password):

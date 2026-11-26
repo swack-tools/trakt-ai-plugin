@@ -64,13 +64,13 @@ Use natural language or your client’s skill picker. See the [plugin README](pl
 
 ## API coverage and write access
 
-Thirty-seven MCP tools each perform one fixed Trakt action, with fixed inputs defined in [`api/trakt/tools.json`](api/trakt/tools.json). They accept no free-form path, method, or request body. Every write requires explicit confirmation and write authorization, list changes also verify ownership, and writes are paced to Trakt's limit of one per second. Successful calls include typed `structuredContent` while retaining the original JSON text for older clients. See the [API reference](https://trakt.swacktech.com/reference.html#api-coverage).
+Thirty-seven MCP tools each perform one fixed Trakt action, with fixed inputs defined in [`api/trakt/tools.json`](api/trakt/tools.json). They accept no free-form path, method, or request body. Every write requires explicit confirmation and write authorization, list changes also verify ownership, and writes are paced to Trakt's limit of one per second. Successful calls include typed `structuredContent` while retaining the original JSON text for older clients. See the [API reference](https://trakt.ai.swacktech.com/reference.html#api-coverage).
 
 New browser OAuth connections request read and write access when scope is omitted, and the consent page states those permissions. Explicit `trakt:read` requests stay read-only. Existing tokens and standalone device login remain read-only; reauthorize through your client with `trakt:read trakt:write` for writes. Refresh cannot increase scope. Each write tool also requires `confirmed: true` for a concrete change the user requested. Skills verify changes through reads and never automatically repeat a write after an uncertain failure.
 
 ## Your data
 
-Trakt tokens are stored encrypted with a key held only by your AI clients; records are deleted 30 days after last use or on sign-out. It is decrypted in memory only while handling a request. See the [privacy page](https://trakt.swacktech.com/data-privacy.html) for sign-out and retention limits.
+Trakt tokens are stored encrypted with a key held only by your AI clients; records are deleted 30 days after last use or on sign-out. It is decrypted in memory only while handling a request. See the [privacy page](https://trakt.ai.swacktech.com/data-privacy.html) for sign-out and retention limits.
 
 ## Try asking
 
@@ -85,10 +85,10 @@ Trakt tokens are stored encrypted with a key held only by your AI clients; recor
 
 Recommendations come from Trakt’s personalized results. By default, history returns watched-title summaries with play counts, one compact page per tool call. Compact detail keeps identifying metadata, genres, counts, and watch timestamps; request full detail only for additional metadata. The skills follow `pagination.next_page` to completion for all-history requests and recommendations based on all viewing. Ask for `recently watched` to use the latest 100 chronological watch events per medium, including repeat watches. Interrupted traversals are reported as partial with a resume page.
 
-For standalone MCP or skills-only setup, see the [installation guide](https://trakt.swacktech.com/connect.html). Skills alone still require the authenticated MCP connection.
+For standalone MCP or skills-only setup, see the [installation guide](https://trakt.ai.swacktech.com/connect.html). Skills alone still require the authenticated MCP connection.
 
 Companion for Trakt is an independent, unofficial integration by SwackTech LLC. Companion for Trakt uses Trakt but is not endorsed or certified by Trakt. Repository installation does not establish approval by a public directory. Directory eligibility, publisher verification, and reviewer access remain owner responsibilities.
 
-See the [full documentation](https://trakt.swacktech.com/) for other clients, troubleshooting, API details, and self-hosting.
+See the [full documentation](https://trakt.ai.swacktech.com/) for other clients, troubleshooting, API details, and self-hosting.
 
 Licensed under [GPL-3.0-only](LICENSE).

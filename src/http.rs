@@ -172,9 +172,11 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
     if method == Method::Get {
         match path.as_str() {
             "/" => {
+                let docs = crate::config::docs_base(&env)?;
                 return Ok(Response::from_html(format!(
-                    "<!doctype html><title>Companion for Trakt</title><h1>Companion for Trakt</h1><p>Connect your own Trakt account through your MCP client at <code>{}/mcp</code>.</p><p><a href='/openapi.json'>HTTP API schema</a> · <a href='/data-privacy'>Privacy</a></p>",
-                    security::escape(&base)
+                    "<!doctype html><title>Companion for Trakt</title><h1>Companion for Trakt</h1><p>Connect your own Trakt account through your MCP client at <code>{}/mcp</code>.</p><p><a href='/openapi.json'>HTTP API schema</a> · <a href='{}/data-privacy'>Privacy</a></p>",
+                    security::escape(&base),
+                    security::escape(&docs)
                 ))?);
             }
             "/health" => {
@@ -184,9 +186,10 @@ pub async fn route(mut req: Request, env: Env) -> Result<Response> {
             }
             "/privacy" => {
                 // The maintained policy is a documentation page; keep the old URL working.
+                let docs = crate::config::docs_base(&env)?;
                 let mut r = Response::empty()?.with_status(308);
                 r.headers_mut()
-                    .set("Location", &format!("{base}/data-privacy"))?;
+                    .set("Location", &format!("{docs}/data-privacy"))?;
                 return Ok(r);
             }
             "/openapi.json" => {

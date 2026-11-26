@@ -6,7 +6,7 @@
     "name": "SwackTech LLC",
     "url": "https://github.com/swack-tools"
   },
-  "homepage": "https://trakt.swacktech.com/",
+  "homepage": "https://trakt.ai.swacktech.com/",
   "repository": "https://github.com/swack-tools/trakt-ai-plugin",
   "license": "GPL-3.0-only",
   "keywords": [
@@ -31,10 +31,10 @@
       "Read",
       "Write"
     ],
-    "websiteURL": "https://trakt.swacktech.com/",
-    "supportURL": "https://trakt.swacktech.com/support",
-    "privacyPolicyURL": "https://trakt.swacktech.com/data-privacy",
-    "termsOfServiceURL": "https://trakt.swacktech.com/terms",
+    "websiteURL": "https://trakt.ai.swacktech.com/",
+    "supportURL": "https://trakt.ai.swacktech.com/support",
+    "privacyPolicyURL": "https://trakt.ai.swacktech.com/data-privacy",
+    "termsOfServiceURL": "https://trakt.ai.swacktech.com/terms",
     "defaultPrompt": [
       "Find three movies from my Trakt recommendations.",
       "Show my upcoming episodes for the next seven days.",

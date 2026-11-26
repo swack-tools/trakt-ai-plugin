@@ -23,6 +23,7 @@ class ConfigurationTests(unittest.TestCase):
             path = root / 'wrangler.toml'
             config = tomllib.loads(path.read_text())
             self.assertEqual(config['vars']['PUBLIC_BASE_URL'], 'https://watch.example.org')
+            self.assertEqual(config['vars']['DOCS_BASE_URL'], 'https://watch.example.org')
             self.assertNotIn('kv_namespaces', config)
             self.assertEqual(config['durable_objects']['bindings'][0]['class_name'], 'TraktStore')
             self.assert_deletable(config)
@@ -48,7 +49,11 @@ class ConfigurationTests(unittest.TestCase):
                       'https://example.org?secret=value', 'https://example.org/#fragment']:
             with self.subTest(value=value), self.assertRaises(SystemExit):
                 manage.public_base({'PUBLIC_BASE_URL': value})
+            with self.subTest(value=value), self.assertRaises(SystemExit):
+                manage.docs_base({'PUBLIC_BASE_URL': 'https://example.org', 'DOCS_BASE_URL': value})
         self.assertEqual(manage.public_base({'PUBLIC_BASE_URL': 'https://example.org/'}), 'https://example.org')
+        self.assertEqual(manage.docs_base({'PUBLIC_BASE_URL': 'https://example.org'}), 'https://example.org')
+        self.assertEqual(manage.docs_base({'PUBLIC_BASE_URL': 'https://example.org', 'DOCS_BASE_URL': 'https://docs.example.org/'}), 'https://docs.example.org')
 
     def test_rejects_dns_mismatch_and_config_injection(self):
         for dns, zone in [('watch.example.org', 'unrelated.org'), ('bad"host', 'example.org'), ('', '')]:
