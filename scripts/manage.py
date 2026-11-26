@@ -22,6 +22,16 @@ def public_base(values=None):
         raise SystemExit('Set PUBLIC_BASE_URL to an HTTPS origin, or configure CLOUDFLARE_PLUGIN_DNS.')
     return value.rstrip('/')
 
+def docs_base(values=None):
+    values = environment() if values is None else values
+    value = values.get('DOCS_BASE_URL')
+    if not value:
+        return public_base(values)
+    parsed = urlsplit(value)
+    if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.path not in ('', '/') or parsed.query or parsed.fragment:
+        raise SystemExit('Set DOCS_BASE_URL to an HTTPS origin.')
+    return value.rstrip('/')
+
 def main():
     v = environment()
     if sys.argv[1] == 'configure':
@@ -31,12 +41,13 @@ def main():
         if not valid_host(host) or not valid_host(zone) or not (host == zone or host.endswith('.' + zone)):
             raise SystemExit('Set CLOUDFLARE_PLUGIN_DNS and its explicit CLOUDFLARE_ZONE_NAME to valid hostnames.')
         v['PUBLIC_BASE_URL'] = public_base(v)
+        v['DOCS_BASE_URL'] = docs_base(v)
         if urlsplit(v['PUBLIC_BASE_URL']).netloc != host:
             raise SystemExit('PUBLIC_BASE_URL must match CLOUDFLARE_PLUGIN_DNS for these Worker routes.')
         if (ROOT / '.env').exists():
             os.chmod(ROOT / '.env', 0o600)
         template = (ROOT / 'wrangler.toml.example').read_text()
-        for k in ('CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_PLUGIN_DNS', 'CLOUDFLARE_ZONE_NAME', 'PUBLIC_BASE_URL'):
+        for k in ('CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_PLUGIN_DNS', 'CLOUDFLARE_ZONE_NAME', 'PUBLIC_BASE_URL', 'DOCS_BASE_URL'):
             if not v.get(k) or any(c in v[k] for c in '\"\\\n\r'):
                 raise SystemExit('Missing or unsafe configuration value: ' + k)
             template = template.replace('${' + k + '}', v[k])

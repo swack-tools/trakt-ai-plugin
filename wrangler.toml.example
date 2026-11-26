@@ -10,6 +10,7 @@ command = "worker-build --release"
 
 [vars]
 PUBLIC_BASE_URL = "${PUBLIC_BASE_URL}"
+DOCS_BASE_URL = "${DOCS_BASE_URL}"
 TRAKT_API_URL = "https://api.trakt.tv"
 TRAKT_AUTH_URL = "https://api.trakt.tv"
 TRAKT_AUTHORIZE_URL = "https://auth.trakt.tv"
